@@ -1,0 +1,449 @@
+'use client';
+
+import React, { useRef, useState, useEffect } from 'react';
+import {
+  Grid,
+  SlidersHorizontal,
+  Palette,
+  MousePointer,
+  Shuffle,
+  Lock,
+  Link2,
+} from 'lucide-react';
+import { ASPECT_RATIOS } from '../../constants/fonts';
+import { renderSceneToCanvas, getLayerBoundingBox } from '../../engine/canvasRenderer';
+import SceneStripCard from './SceneStripCard';
+
+function isLightHex(hex) {
+  const clean = String(hex || '#101935').replace('#', '');
+  if (clean.length !== 6) return false;
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150;
+}
+
+export default function CanvasViewport({
+  canvasRef,
+  project,
+  activeScene,
+  activeSceneIndex,
+  setActiveSceneIndex,
+  localTime,
+  isPlaying,
+  audioSignals,
+  selectedLayerId,
+  setSelectedLayerId,
+  onUpdateLayer,
+  showGrid,
+  setShowGrid,
+  showSafeGuides,
+  setShowSafeGuides,
+  editorMode,
+  onChangeRatio,
+  onGeneratePalette,
+  onToggleLockSwatch,
+}) {
+  const containerRef = useRef(null);
+  const colorsRef = useRef(null);
+  const [zoomMultiplier, setZoomMultiplier] = useState(1.0); // 1.0 = Fit
+  const [zoomMode, setZoomMode] = useState('fit'); // 'fit' | 'custom'
+  const [dragState, setDragState] = useState(null);
+  const [colorsOpen, setColorsOpen] = useState(false);
+
+  const dim = ASPECT_RATIOS[project.ratio] || ASPECT_RATIOS['4:5'];
+
+  // Compute base fit scale based on ratio and mode
+  const baseFitScale =
+    project.ratio === '9:16'
+      ? editorMode === 'quick'
+        ? 0.25
+        : 0.22
+      : project.ratio === '1:1'
+      ? editorMode === 'quick'
+        ? 0.42
+        : 0.36
+      : editorMode === 'quick'
+      ? 0.35
+      : 0.31;
+
+  const effectiveCanvasScale = baseFitScale * (zoomMode === 'fit' ? 1.0 : zoomMultiplier);
+
+  useEffect(() => {
+    const handleOutside = (e) => {
+      if (colorsRef.current && !colorsRef.current.contains(e.target)) {
+        setColorsOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handleOutside);
+    return () => window.removeEventListener('mousedown', handleOutside);
+  }, []);
+
+  // Render Canvas on every state / frame update
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !activeScene) return;
+    const ctx = canvas.getContext('2d');
+    renderSceneToCanvas({
+      ctx,
+      width: dim.width,
+      height: dim.height,
+      scene: activeScene,
+      localTime,
+      audioSignals,
+      selectedLayerId,
+      showGrid,
+      showSafeGuides,
+    });
+  }, [
+    canvasRef,
+    dim.width,
+    dim.height,
+    activeScene,
+    localTime,
+    audioSignals,
+    selectedLayerId,
+    showGrid,
+    showSafeGuides,
+  ]);
+
+  // Pointer Hit Testing & Dragging on Canvas
+  const getCanvasCoords = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = dim.width / rect.width;
+    const scaleY = dim.height / rect.height;
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const handlePointerDown = (e) => {
+    if (!activeScene) return;
+    const pt = getCanvasCoords(e);
+    const layers = [...(activeScene.layers || [])].reverse();
+    let hitLayer = null;
+
+    for (const layer of layers) {
+      if (layer.visible === false || layer.locked) continue;
+      const box = getLayerBoundingBox(layer);
+      const halfW = box.width / 2 + 24;
+      const halfH = box.height / 2 + 24;
+      if (
+        pt.x >= layer.x - halfW &&
+        pt.x <= layer.x + halfW &&
+        pt.y >= layer.y - halfH &&
+        pt.y <= layer.y + halfH
+      ) {
+        hitLayer = layer;
+        break;
+      }
+    }
+
+    if (hitLayer) {
+      setSelectedLayerId(hitLayer.id);
+      setDragState({
+        layerId: hitLayer.id,
+        startX: pt.x,
+        startY: pt.y,
+        origX: hitLayer.x,
+        origY: hitLayer.y,
+      });
+    } else {
+      setSelectedLayerId(null);
+    }
+  };
+
+  const handlePointerMove = (e) => {
+    if (!dragState) return;
+    const pt = getCanvasCoords(e);
+    const dx = pt.x - dragState.startX;
+    const dy = pt.y - dragState.startY;
+    onUpdateLayer(dragState.layerId, {
+      x: Math.round(dragState.origX + dx),
+      y: Math.round(dragState.origY + dy),
+    });
+  };
+
+  const handlePointerUp = () => {
+    setDragState(null);
+  };
+
+  const stepZoom = (delta) => {
+    setZoomMode('custom');
+    setZoomMultiplier((prev) => {
+      const next = Math.round((prev + delta) * 10) / 10;
+      return Math.max(0.4, Math.min(2.0, next));
+    });
+  };
+
+  const resetZoomFit = () => {
+    setZoomMode('fit');
+    setZoomMultiplier(1.0);
+  };
+
+  return (
+    <div className="flex-1 flex flex-col bg-[#0e0e0e] min-w-0 min-h-0 overflow-hidden select-none p-2.5 gap-2.5">
+      {/* Main Rounded Canvas Panel Card */}
+      <div className="flex-1 flex flex-col bg-[#161616] border border-neutral-800/80 rounded-2xl min-h-0 overflow-hidden relative">
+        {/* Top Bar Inside Canvas Card */}
+        <div className="h-11 px-4 flex items-center justify-between border-b border-neutral-800/60 shrink-0 z-20">
+          <span className="text-xs font-medium text-neutral-300">Canvas</span>
+
+          {editorMode === 'quick' ? (
+            /* Quick Editor Mode: Segmented Aspect Ratio Switcher + Pointer Icon */
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center bg-[#202020] p-0.5 rounded-lg border border-neutral-800">
+                {Object.values(ASPECT_RATIOS).map((r) => {
+                  const active = project.ratio === r.id;
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => onChangeRatio(r.id)}
+                      className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                        active
+                          ? 'bg-[#159947] text-white font-semibold shadow-sm'
+                          : 'text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      {r.shortLabel}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedLayerId(null)}
+                className="p-1.5 rounded-lg bg-[#202020] border border-neutral-800 text-neutral-300 hover:text-white transition-colors"
+                title="Select tool (V)"
+              >
+                <MousePointer className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            /* Advanced Mode: Ratio Dropdown + Grid + Link/Snap + Sliders + Colors + Pointer (Screenshot 19) */
+            <div className="flex items-center gap-1.5">
+              <select
+                value={project.ratio}
+                onChange={(e) => onChangeRatio(e.target.value)}
+                className="px-2.5 py-1 rounded-lg bg-[#202020] border border-neutral-800 text-xs font-medium text-neutral-200 focus:outline-none focus:border-neutral-600"
+              >
+                <option value="4:5">4:5 · Portrait</option>
+                <option value="1:1">1:1 · Square</option>
+                <option value="9:16">9:16 · Story</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setShowGrid((v) => !v)}
+                title="Show layout grid"
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
+                  showGrid
+                    ? 'bg-[#159947]/20 border-[#22c55e] text-[#4ade80]'
+                    : 'bg-[#202020] border-neutral-800 text-neutral-300 hover:text-white'
+                }`}
+              >
+                <Grid className="w-3.5 h-3.5" />
+                <span>Grid</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowSafeGuides((v) => !v)}
+                className={`p-1.5 rounded-lg border transition-colors ${
+                  showSafeGuides
+                    ? 'bg-[#159947]/20 border-[#22c55e]/70 text-[#4ade80]'
+                    : 'bg-[#202020] border-neutral-800 text-neutral-400 hover:text-white'
+                }`}
+                title="Snap & alignment guides"
+              >
+                <Link2 className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowGrid((v) => !v)}
+                className="p-1.5 rounded-lg bg-[#202020] border border-neutral-800 text-neutral-400 hover:text-white transition-colors"
+                title="Canvas settings"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Colors Popover matching Screenshots 24 & 25 */}
+              <div className="relative" ref={colorsRef}>
+                <button
+                  type="button"
+                  onClick={() => setColorsOpen((v) => !v)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
+                    colorsOpen
+                      ? 'bg-[#2a2a2a] border-white text-white'
+                      : 'bg-[#202020] border-neutral-800 text-neutral-300 hover:text-white'
+                  }`}
+                >
+                  <Palette className="w-3.5 h-3.5" />
+                  <span>Colors</span>
+                </button>
+
+                {colorsOpen && (
+                  <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-[#1f1f1f] border border-neutral-700/90 shadow-2xl p-4 z-50">
+                    <div className="text-center">
+                      <div className="text-xs font-medium text-neutral-300 mb-2">Background</div>
+                      <div
+                        className="w-24 h-9 mx-auto rounded-lg border border-white/20 shadow-inner mb-3"
+                        style={{ backgroundColor: activeScene?.bg || project.palette?.[0] || '#f4f1ea' }}
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={onGeneratePalette}
+                      className="w-full py-2 px-3 rounded-xl bg-[#2b2b2b] hover:bg-[#343434] border border-neutral-600/80 flex items-center justify-center gap-2 text-xs font-semibold text-white transition-colors mb-3.5"
+                    >
+                      <Shuffle className="w-3.5 h-3.5" />
+                      <span>Generate colors</span>
+                    </button>
+
+                    <div className="grid grid-cols-6 gap-1.5 mb-2.5">
+                      {(project.palette || []).slice(0, 6).map((hex, idx) => {
+                        const locked = project.lockedSwatches?.[idx];
+                        const lightSwatch = isLightHex(hex);
+                        const adaptiveTextClass = lightSwatch ? 'text-black' : 'text-white';
+                        const tooltipLabel =
+                          idx === 0
+                            ? `background · ${String(hex).toUpperCase()} · Click to lock`
+                            : `palette color ${idx} · ${String(hex).toUpperCase()} · Click to lock`;
+
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => onToggleLockSwatch(idx)}
+                            className={`h-8 rounded-md relative flex items-center justify-center transition-transform hover:scale-105 ${
+                              locked || idx === 0
+                                ? 'border-2 border-white shadow-sm'
+                                : 'border border-white/20'
+                            }`}
+                            style={{ backgroundColor: hex }}
+                            title={tooltipLabel}
+                          >
+                            {idx === 0 && !locked && (
+                              <span className={`text-[10px] font-extrabold tracking-tight ${adaptiveTextClass}`}>
+                                BG
+                              </span>
+                            )}
+                            {locked && (
+                              <Lock className={`w-3.5 h-3.5 ${adaptiveTextClass}`} />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <p className="text-[11px] text-neutral-400">
+                      Click a swatch to keep its color.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedLayerId(null)}
+                className="p-1.5 rounded-lg bg-[#202020] border border-neutral-800 text-neutral-300 hover:text-white transition-colors"
+                title="Select tool (V)"
+              >
+                <MousePointer className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Center Interactive Stage */}
+        <div
+          ref={containerRef}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          className="flex-1 flex items-center justify-center overflow-auto relative p-4"
+        >
+          <div
+            style={{
+              width: Math.round(dim.width * effectiveCanvasScale),
+              height: Math.round(dim.height * effectiveCanvasScale),
+            }}
+            className="relative shadow-[0_20px_60px_rgba(0,0,0,0.75)] ring-1 ring-white/10 transition-all duration-150 shrink-0"
+          >
+            <canvas
+              ref={canvasRef}
+              width={dim.width}
+              height={dim.height}
+              onPointerDown={handlePointerDown}
+              className="w-full h-full block cursor-move"
+            />
+          </div>
+        </div>
+
+        {/* Bottom Status Bar Inside Canvas Card */}
+        <div className="h-8 px-4 flex items-center justify-between text-[11px] font-mono text-neutral-400 shrink-0">
+          <span>
+            {isPlaying ? 'Playing' : 'Paused'} · Frame at {localTime.toFixed(3)} s
+          </span>
+          <span>
+            {dim.width} × {dim.height} px
+          </span>
+          <div
+            className="flex items-center gap-2"
+            title="Canvas: + / - to zoom, 0 to fit, arrow keys to scroll"
+          >
+            <button
+              type="button"
+              onClick={() => stepZoom(-0.1)}
+              className="hover:text-white px-1 transition-colors"
+              title="Zoom out (-)"
+            >
+              -
+            </button>
+            <button
+              type="button"
+              onClick={resetZoomFit}
+              className="text-neutral-300 hover:text-white px-1 font-sans text-xs transition-colors"
+              title="Reset zoom to Fit (0)"
+            >
+              {zoomMode === 'fit' ? 'Fit' : `${zoomMultiplier.toFixed(1)}×`}
+            </button>
+            <button
+              type="button"
+              onClick={() => stepZoom(0.1)}
+              className="hover:text-white px-1 transition-colors"
+              title="Zoom in (+)"
+            >
+              +
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Horizontal Scenes Strip (Below Canvas in Quick Editor Mode — Screenshots 8, 9, 10, 26) */}
+      {editorMode === 'quick' && (
+        <div className="h-[82px] bg-[#161616] border border-neutral-800/80 rounded-2xl px-4 flex items-center gap-3 shrink-0">
+          <span className="text-xs font-medium text-neutral-400 shrink-0 mr-1">Scenes</span>
+          <div className="flex-1 grid grid-cols-3 gap-2.5">
+            {project.scenes.map((sc, idx) => (
+              <SceneStripCard
+                key={sc.id}
+                scene={sc}
+                index={idx}
+                ratio={project.ratio}
+                isActive={idx === activeSceneIndex}
+                onSelect={() => setActiveSceneIndex(idx)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
