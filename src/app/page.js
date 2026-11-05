@@ -1,5 +1,5 @@
-import NoodleTypeStudio from '@/components/NoodleTypeStudio';
+import CloverMotionStudio from '@/components/CloverMotionStudio';
 
 export default function HomePage() {
-  return <NoodleTypeStudio />;
+  return <CloverMotionStudio />;
 }

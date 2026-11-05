@@ -26,7 +26,7 @@ import MotionTemplatesModal from './modals/MotionTemplatesModal';
 
 const STORAGE_KEY = 'clover_motion_saved_projects_v1';
 
-export default function NoodleTypeStudio() {
+export default function CloverMotionStudio() {
   const initialTemplate =
     STUDIO_TEMPLATES.find((t) => t.id === 'tpl_shutter') || STUDIO_TEMPLATES[0];
 
