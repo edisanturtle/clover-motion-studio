@@ -37,6 +37,9 @@ import {
   Ungroup,
   ChevronsUp,
   ChevronsDown,
+  PanelLeft,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { FONT_OPTIONS } from '../../constants/fonts';
 import { COLOR_PALETTES, MOTION_PRESETS } from '../../constants/motionPresets';
@@ -192,7 +195,9 @@ export default function LeftSidebar({
   setSelectedLayerId,
   selectedLayerIds = null,
   setSelectedLayerIds = null,
+  sidebarWidth = 280,
   leftDrawerOpen = true,
+  onToggleDrawer,
   onEnsureDrawerOpen,
   onUpdateQuickCopy,
   onEnableQuickEdit,
@@ -311,25 +316,24 @@ export default function LeftSidebar({
   });
 
   const sceneCount = project.scenes?.length || 1;
-  const isCollapsedInAdvanced = editorMode === 'advanced' && !leftDrawerOpen;
+  const isCollapsed = !leftDrawerOpen;
 
   return (
     <aside
-      className={`${
-        isCollapsedInAdvanced ? 'w-12' : editorMode === 'quick' ? 'w-[348px]' : 'w-[288px]'
-      } bg-[#141414] border-r border-neutral-800/80 flex flex-col shrink-0 select-none h-full overflow-hidden transition-[width] duration-150`}
+      style={isCollapsed ? { width: '48px' } : { width: `${sidebarWidth}px` }}
+      className="bg-[#141414] border-r border-neutral-800/80 flex flex-col shrink-0 select-none h-full overflow-hidden transition-[width] duration-150 relative"
     >
       {/* Upper Split: Left Icon Rail + Right Inspector Content */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Vertical Left Icon Rail */}
         <div
           className={`${
-            editorMode === 'quick' ? 'w-[66px]' : 'w-12'
+            isCollapsed ? 'w-12' : editorMode === 'quick' ? 'w-14' : 'w-12'
           } bg-[#111111] border-r border-neutral-800/80 flex flex-col items-center py-2.5 gap-1.5 shrink-0`}
         >
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = currentTab === item.id && !isCollapsedInAdvanced;
+            const active = currentTab === item.id && !isCollapsed;
             return (
               <button
                 key={item.id}
@@ -338,8 +342,8 @@ export default function LeftSidebar({
                 title={item.label}
                 aria-label={item.label}
                 className={`${
-                  editorMode === 'quick'
-                    ? 'w-14 py-2 flex flex-col items-center gap-1 rounded-xl'
+                  editorMode === 'quick' && !isCollapsed
+                    ? 'w-12 py-1.5 flex flex-col items-center gap-0.5 rounded-xl'
                     : 'w-9 h-9 flex items-center justify-center rounded-xl'
                 } transition-colors ${
                   active
@@ -348,16 +352,28 @@ export default function LeftSidebar({
                 }`}
               >
                 <Icon className="w-4 h-4" />
-                {editorMode === 'quick' && (
-                  <span className="text-[10px] font-medium leading-none">{item.label}</span>
+                {editorMode === 'quick' && !isCollapsed && (
+                  <span className="text-[9px] font-medium leading-none">{item.label}</span>
                 )}
               </button>
             );
           })}
+
+          {onToggleDrawer && (
+            <button
+              type="button"
+              onClick={onToggleDrawer}
+              title={leftDrawerOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+              aria-label={leftDrawerOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+              className="mt-auto mb-1 p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800/80 transition-colors"
+            >
+              <PanelLeft className={`w-4 h-4 ${leftDrawerOpen ? 'text-[#4ade80]' : 'text-neutral-400'}`} />
+            </button>
+          )}
         </div>
 
-        {/* Tab Content Area (Hidden when collapsed in Advanced mode — Screenshot 44) */}
-        {!isCollapsedInAdvanced && (
+        {/* Tab Content Area (Hidden when collapsed) */}
+        {!isCollapsed && (
           <div className="flex-1 flex flex-col min-w-0 overflow-y-auto custom-scrollbar p-3.5">
             {/* =========================================================
                 ADVANCED MODE: TAB 1 — QUICK EDIT (Screenshots 17, 31, 45)
@@ -2114,7 +2130,7 @@ export default function LeftSidebar({
       </div>
 
       {/* Bottom Pinned Action Links (Hidden when collapsed to 48px icon rail) */}
-      {!isCollapsedInAdvanced && (
+      {!isCollapsed && (
         <div className="p-3 border-t border-neutral-800/80 bg-[#141414] space-y-2 shrink-0">
           <button
             type="button"

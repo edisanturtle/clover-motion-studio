@@ -98,6 +98,8 @@ export default function RightInspector({
   onOpenMotionTemplates,
   customFonts = [],
   advancedSubMode = 'design',
+  inspectorWidth = 280,
+  onClose,
   onSetLayerFormatOverride,
   onRemoveLayerFormatOverride,
 }) {
@@ -158,11 +160,14 @@ export default function RightInspector({
   );
 
   return (
-    <aside className="w-[300px] bg-[#161616] border-l border-neutral-800/80 flex flex-col shrink-0 select-none h-full overflow-hidden">
+    <aside
+      style={{ width: `${inspectorWidth}px` }}
+      className="bg-[#141414] border-l border-neutral-800/80 flex flex-col shrink-0 select-none h-full overflow-hidden transition-[width] duration-150 relative"
+    >
       {/* Top Header: Multi-selection / Shape / Image / Text / Graphic / Scene properties */}
       <div className="p-3.5 border-b border-neutral-800/80 space-y-3 shrink-0">
         <div className="flex items-center justify-between text-xs text-neutral-300 font-medium">
-          <span>
+          <span className="truncate">
             {isMultiSelection
               ? `Multi-selection (${selectedLayersList.length} items)`
               : selectedLayer
@@ -175,15 +180,28 @@ export default function RightInspector({
                 : 'Text properties'
               : 'Scene properties'}
           </span>
-          {isMultiSelection ? (
-            <Layers className="w-3.5 h-3.5 text-[#4ade80]" />
-          ) : selectedLayer?.type === 'text' ? (
-            <Type className="w-3.5 h-3.5 text-neutral-400" />
-          ) : selectedLayer?.type === 'shape' ? (
-            <Square className="w-3.5 h-3.5 text-neutral-400" />
-          ) : (
-            <Sliders className="w-3.5 h-3.5 text-neutral-400" />
-          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isMultiSelection ? (
+              <Layers className="w-3.5 h-3.5 text-[#4ade80]" />
+            ) : selectedLayer?.type === 'text' ? (
+              <Type className="w-3.5 h-3.5 text-neutral-400" />
+            ) : selectedLayer?.type === 'shape' ? (
+              <Square className="w-3.5 h-3.5 text-neutral-400" />
+            ) : (
+              <Sliders className="w-3.5 h-3.5 text-neutral-400" />
+            )}
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors ml-0.5"
+                title="Collapse Inspector"
+                aria-label="Collapse properties inspector"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Layer Name Input + Lock Icon (Single Selection) */}

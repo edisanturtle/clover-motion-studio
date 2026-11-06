@@ -67,6 +67,8 @@ export default function TimelinePanel({
   setLoopPlayback,
   timelineExpanded = true,
   setTimelineExpanded,
+  timelineHeight = 240,
+  onResizeTimeline,
   onTogglePlay,
   onRestart,
   onSeekLocalTime,
@@ -269,11 +271,40 @@ export default function TimelinePanel({
       )}
 
       {/* Main Timeline Card */}
-      <section className="bg-[#161616] border border-neutral-800/80 rounded-2xl flex flex-col overflow-hidden relative">
-        {/* Subtle top pill handle (Screenshot 34) */}
-        <div className="w-full flex justify-center pt-1 pb-0.5">
-          <div className="w-8 h-1 rounded-full bg-neutral-700/70" />
-        </div>
+      <section
+        style={timelineExpanded ? { height: `${timelineHeight}px` } : undefined}
+        className="bg-[#141414] border border-neutral-800/80 rounded-2xl flex flex-col overflow-hidden relative select-none shrink-0 transition-[height] duration-75"
+      >
+        {/* Resize handle splitter on top */}
+        {timelineExpanded && onResizeTimeline ? (
+          <div
+            onPointerDown={(e) => {
+              e.preventDefault();
+              const startY = e.clientY;
+              const startH = timelineHeight;
+              const onMove = (ev) => {
+                const deltaY = startY - ev.clientY; // dragging upwards expands height
+                const nextH = Math.max(140, Math.min(480, startH + deltaY));
+                onResizeTimeline(nextH);
+              };
+              const onUp = () => {
+                window.removeEventListener('pointermove', onMove);
+                window.removeEventListener('pointerup', onUp);
+              };
+              window.addEventListener('pointermove', onMove);
+              window.addEventListener('pointerup', onUp);
+            }}
+            className="w-full h-2 cursor-row-resize hover:bg-[#22c55e]/50 flex items-center justify-center absolute top-0 left-0 right-0 z-30 transition-colors group select-none"
+            title="Drag to resize timeline height"
+          >
+            <div className="w-10 h-0.5 rounded-full bg-neutral-600 group-hover:bg-[#4ade80]" />
+          </div>
+        ) : (
+          /* Subtle top pill handle */
+          <div className="w-full flex justify-center pt-1 pb-0.5">
+            <div className="w-8 h-1 rounded-full bg-neutral-700/70" />
+          </div>
+        )}
 
         {/* =========================================================
             COLLAPSED TIMELINE BAR (Screenshots 36–47)

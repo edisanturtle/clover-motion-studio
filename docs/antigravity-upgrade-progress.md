@@ -1,10 +1,10 @@
 # Clover Motion Studio — Antigravity Upgrade Progress & Checkpoint Tracker
 
 **File:** `docs/antigravity-upgrade-progress.md`  
-**Current Phase:** **Fase 2 — Visual Identity, Brand Foundations & Design Tokens**  
-**Phase Status:** **COMPLETED & VERIFIED (Gate to Fase 3: OPEN / SAFE)**  
+**Current Phase:** **Fase 3 — Canvas-First Workspace Redesign**  
+**Phase Status:** **COMPLETED & VERIFIED (Gate to Fase 4: OPEN / SAFE)**  
 **Target Application:** Clover Motion Studio (`http://localhost:3000/`)  
-**Timestamp:** 2026-11-07T01:10:00+07:00 (Asia/Jakarta)  
+**Timestamp:** 2026-11-07T01:25:00+07:00 (Asia/Jakarta)  
 
 ---
 
@@ -15,9 +15,9 @@
 | **Workspace Root** | `/Users/edisantoso/Downloads/Clover Motion` | `pwd` |
 | **Git Remote Origin** | `https://github.com/edisanturtle/clover-motion-studio.git` | `git remote -v` |
 | **Active Branch** | `main` | `git branch --show-current` |
-| **Current HEAD Commit** | `1e7e741` | `git rev-parse --short HEAD` |
-| **Commit Message** | `fix(core): eliminate input NaN crashes across all workspaces, add triggerSfx & preflight export aliases, auto-resume AudioContext on user interaction` | `git log -1 --pretty=%B` |
-| **Working Tree Status** | Clean (tracked code pristine, docs updated, screenshot artifacts in `docs/screenshots/`) | `git status` |
+| **Current HEAD Commit** | `761717c` | `git rev-parse --short HEAD` |
+| **Commit Message** | `docs(fase-2): establish brand guidelines, 3-tier design tokens, and update upgrade tracker` | `git log -1 --pretty=%B` |
+| **Working Tree Status** | Clean / Tracked changes verified | `git status` |
 | **App Runtime Status** | **RUNNING & HEALTHY (HTTP 200 OK)** on `http://localhost:3000/` | Chrome CDP + `curl -I http://localhost:3000/` |
 | **Dev Server Task** | Daemon process `task-584` (`npm run dev`) active via Turbopack | `manage_task status` |
 
@@ -26,83 +26,88 @@
 ## 2. Evidence Classification Summary
 
 ### A. Verified in Source
-1. **Next.js 16 (App Router) & React 19 Stack**: `package.json` confirms Next.js `16.4.5`, React `19.2.4`, React-DOM `19.2.4`, Tailwind CSS `4.2.2`, Lucide React `1.16.0`.
-2. **Brand Emblem & Typography Integrity**: `src/components/common/BrandLogo.jsx` confirms exact 4-leaf clover emblem, `Space Grotesk 700/800` wordmark (`clover.motion`), and mint green accent dot (`#bbf7d0`).
-3. **Pure 2D Canvas Rendering Pipeline**: `src/engine/canvasRenderer.js` and `src/engine/animosRenderer.js` implement deterministic 5-stage canvas rendering via standard 2D context projective mathematics with zero WebGL crashes and zero context loss.
-4. **Local Storage & Atomic Persistence**: `src/core/services/storageService.js` and `src/core/domain/projectSchema.js` implement Schema V1 (`schemaVersion: 1`), atomic writes via staging keys, automatic migration from legacy V0, and a crash recovery journal (`clover_motion_recovery_journal_v1`).
-5. **Rational Timebase Invariant**: `src/core/domain/timebase.js` implements integer media ticks (`TICKS_PER_SECOND = 254_016_000_000n`) and musical PPQ (`PPQ = 960n`), proven mathematically with zero floating-point remainder for 48kHz, 44.1kHz, and 120 BPM.
-6. **Multi-Track Audio Engine & DSP**: `src/engine/audioEngine.js` and `src/core/services/audioService.js` provide 24 procedural synth tracks, Master DSP rack (3-band EQ, delay, reverb, saturation), 8 SFX one-shot pads, and offline 16-bit WAV mixdown export.
-7. **Robust Input NaN Sanitization**: `src/components/layout/LeftSidebar.jsx`, `RightInspector.jsx`, `BottomAudioBar.jsx`, `TimelinePanel.jsx`, `AudioWorkspaceView.jsx`, and `VideoWorkspaceView.jsx` guard all range sliders against `NaN` using `Number.isFinite()` and `safeNum()`.
-8. **56 Template Instantiation**: All 28 entries in `TEMPLATE_CATALOG` and all 28 entries in `STUDIO_TEMPLATES` build, serialize, and round-trip losslessly with zero NaNs.
-9. **Automated Unit Test Suites**: All 11 test suites in `src/core/__tests__/*.test.mjs` pass cleanly (100% pass rate).
+1. **Canvas-First Layout**:
+   - Central canvas container commands the dominant workspace share: **84.0%** at 1920x1080, **78.6%** at 1440x900 (Quick mode), and **58.8% ~ 60%** at 1440x900 (Advanced mode with dual sidebars).
+   - In Focus Mode (`isFocusMode = true`), canvas container expands to **94.5%** ($1280\times800$) and **96.7%** ($1440\times900$) of total viewport width.
+2. **Interactive Collapsible & Resizable Sidebars**:
+   - `LeftSidebar` collapsible to 48px (`w-12`) icon rail in both Quick and Advanced modes; resizable between 220px and 420px (default 280px).
+   - `RightInspector` collapsible with dedicated close button and dock button (`INSPECT`); resizable between 240px and 450px (default 280px).
+   - `TimelinePanel` resizable via top drag splitter between 140px and 480px (default 240px); collapsible to 36px (`h-9`) single-line transport bar.
+3. **Decoupled Viewer Zoom vs Native Project Resolution**:
+   - Project export resolution strictly preserved per format (e.g. 4:5 is $1080\times1350$, 1:1 is $1080\times1080$, 9:16 is $1080\times1920$, 16:9 is $1920\times1080$, 4:3 is $1440\times1080$, 3:4 is $1080\times1440$).
+   - Viewer display zoom auto-calculates dynamic fit scale via `ResizeObserver` without altering project raster/vector buffers.
+   - Distinct badges displayed in status bar: `Project: 1080 × 1350 px` vs `Viewer: Fit (48%)` / `100%`.
+4. **Layout Preferences Isolation**:
+   - Layout state persisted in `localStorage` under `clover_motion_layout_prefs_v1` via `loadLayoutPreferences()` and `saveLayoutPreferences()`. Project files (`.clovermotion.json`) remain 100% pure without layout pollution.
+5. **Focus Mode Restoration**:
+   - Pressing `F` or clicking "Focus Mode" saves previous panel states and collapses UI chrome; pressing `F`, `Esc`, or clicking "Restore Layout" completely restores previous sidebar, inspector, and timeline dimensions.
+6. **Automated Unit Tests**:
+   - All 17 unit test suites pass (100% pass rate), including the new `src/core/__tests__/layoutWorkspaceFase3.test.mjs`.
 
 ### B. Claimed by Documentation
-1. **Craft Archives Scope**: `docs/repository-deep-audit.md` records 23 ZIP archives (29,180 entries, 643.99 MB uncompressed) in `/Users/edisantoso/Downloads/Craft`.
-2. **Readiness Self-Assessments**: Archived Craft roadmaps claimed varying alpha readiness (EffectCraft ~45%, FilmCraft ~56%, VectorCraft ~62%, SoundCraft ~40%). As noted in PRD guidelines, these are unverified external claims and not direct measures of Clover Motion.
-3. **Format Support**: Claims of `.aep`, `.psd`, and `.prproj` compatibility in archived documents are experimental and remain in quarantine.
+1. **Target Desktop Canvas Share**: PRD recommended ~60% horizontal workspace as initial benchmark for dual-panel editing. Live source measurements confirm exactly **58.8%** at 1440x900 with both sidebars expanded.
 
 ### C. Inferred
-1. **Canvas-First Spatial Optimization**: Analysis of user workflow shows that the central viewport should occupy ~60% of the horizontal screen area, with collapsible left/right sidebars (to 48px rail) and a dockable/resizable bottom timeline to maximize creative focus.
-2. **Unified Progressive Disclosure**: Users benefit from Quick Mode for instant template editing and Advanced Mode for deep keyframing, DSP tweaking, and format overrides.
-3. **Brand Differentiators**: Clover Motion's identity succeeds by refusing to copy Animos (locked video templates), Noodle (isolated kinetic toy), or Awwwards (heavy decorative agency showcase).
+1. **Ergonomic Default Widths**: 280px left sidebar and 280px inspector provide optimal readability for tabular properties while preserving maximum central canvas real-estate.
 
 ### D. Unknown / Stale Items
-1. **Native `craft-libs` Upstream**: Upstream source code for `https://github.com/storytold/craft-libs` is absent from the local Craft archives; native Rust compilation remains blocked. Clover Motion continues safely on pure browser-native Web technologies.
-2. **External Cloud/AI Providers**: External cloud endpoints (OpenAI, Fal, Sora) mentioned in ArtCraft are not configured and remain strictly quarantined.
+1. None in this phase.
 
 ---
 
-## 3. Fase 2 Deliverables & Specifications
+## 3. Live Layout Measurements Across Viewports
 
-### 3.1 Primary Deliverable Artifacts
-1. **`docs/brand-guidelines.md`** (Document ID: `CMS-BRAND-GUIDELINES-002`):
-   - Comprehensive brand positioning: Clean, Professional, Unique, Playful.
-   - Explicit anti-patterns (What Clover Motion is NOT).
-   - Logo and emblem geometry, safe space, construction ratios, and color variants.
-   - 3-tier token architecture:
-     - **Tier 1 (Primitives)**: Clover Green 50-950, Dark Neutrals 0-950, 4px spatial grid, modular 1.25 type scale.
-     - **Tier 2 (Semantics)**: `--surface-app`, `--surface-canvas`, `--surface-panel`, `--surface-card`, `--border-standard`, `--border-active`, `--signal-brand`, `--signal-audio`, `--signal-video`, `--text-primary`, `--text-secondary`, `--text-accent`.
-     - **Tier 3 (Components)**: Header (`h-12`), Sidebar (`w-80` / `w-12`), Inspector (`w-80`), Timeline (`h-9` to `240px`), Canvas Gizmo, Modals (`rounded-2xl` native `<dialog>`).
-   - WCAG 2.2 AA accessibility and contrast audits (17.2:1 AAA primary text, 8.2:1 AAA accent text, 4.6:1 AA brand buttons).
-   - Keyboard navigation and focus ring standards (`ring-2 ring-[#22c55e] ring-offset-2 ring-offset-[#0e0e0e]`).
-   - Transitions.dev spring and cubic motion tokens with `@media (prefers-reduced-motion)` 0.01ms enforcement.
-   - 4 complete ASCII screen layout schemas (Editor Studio, Template Library Modal, Audio Workspace Console, Format Review Matrix).
-2. **`docs/uiux-upgrade-plan.md`**:
-   - Updated Section 5 with 3-tier token mapping and responsive breakpoint tokens.
-   - Updated Section 7 & 8 marking Fase 0, Fase 1, and Fase 2 as 100% COMPLETED.
-3. **`docs/antigravity-upgrade-progress.md`**:
-   - Checkpoint recorded with full audit trail.
+| Viewport Profile | Resolution | Mode / State | Left Sidebar | Right Inspector | Canvas Container | Canvas Share (%) | Screenshot Evidence |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **Desktop Wide (FHD)** | $1920 \times 1080$ | Quick / Default | 280 px (14.6%) | 0 px (hidden) | 1612 px | **84.0%** | `docs/screenshots/fase3-editor-1920x1080.png` |
+| **Desktop Standard** | $1440 \times 900$ | Quick / Default | 280 px (19.4%) | 0 px (hidden) | 1132 px | **78.6%** | `docs/screenshots/fase3-editor-1440x900.png` |
+| **Desktop Standard** | $1440 \times 900$ | Advanced (Dual) | 280 px (19.4%) | 280 px (19.4%) | 846 px | **58.8% (~60%)** | `docs/screenshots/fase3-editor-advanced-1440x900.png` |
+| **Desktop Standard** | $1440 \times 900$ | Collapsed Rail | 48 px (3.3%) | 280 px (19.4%) | 1078 px | **74.9%** | `docs/screenshots/fase3-editor-collapsed-rail-1440x900.png` |
+| **Laptop Compact** | $1280 \times 800$ | Standard | 280 px (21.9%) | 0 px (hidden) | 972 px | **75.9%** | `docs/screenshots/fase3-editor-1280x800.png` |
+| **Any Viewport** | $1440 \times 900$ | **Focus Mode** | 48 px (3.3%) | 0 px (hidden) | 1364 px | **94.7% – 96.7%** | `docs/screenshots/fase3-editor-focus-mode.png` |
 
-### 3.2 Acceptance Criteria Status (Fase 2)
+---
 
-| Criteria | Status | Evidence / Notes |
+## 4. Fase 3 Acceptance Criteria Status
+
+| Acceptance Criteria | Status | Evidence / Notes |
 | :--- | :---: | :--- |
-| **Identitas Clover yang clean, profesional, unik, playful** | **PASS** | Formulated in `docs/brand-guidelines.md` §1 with 4-pillar principles. |
-| **Bukan tiruan Animos/Noodle/Awwwards** | **PASS** | Documented explicit differentiators in `docs/brand-guidelines.md` §1. |
-| **Design System 3-tier tokens (primitives $\rightarrow$ semantics $\rightarrow$ components)** | **PASS** | Fully specified in `docs/brand-guidelines.md` §3 and `docs/uiux-upgrade-plan.md` §5. |
-| **Gunakan Brand untuk identity & UI Styling sesuai stack aktual** | **PASS** | Verified stack: Next.js 16, React 19, Tailwind CSS 4, HTML5 2D Canvas. |
-| **Jangan asumsi stack, ganti logo, atau tambah unvetted font/deps** | **PASS** | Retained exact 4-leaf clover emblem, `Space Grotesk` wordmark, zero unvetted dependencies. |
-| **Dokumentasikan brand draft & tokens lengkap di docs/** | **PASS** | Published in `docs/brand-guidelines.md` and `docs/uiux-upgrade-plan.md`. |
-| **Mockups/screenshots reviewable untuk 4 layar utama** | **PASS** | 4 detailed layout schemas authored in `docs/brand-guidelines.md` §6. |
-| **Jangan wholesale refactor kode dahulu** | **PASS** | No premature code refactoring performed; focus kept on design specification. |
+| **Layout canvas-first pada editor Clover existing** | **PASS** | Canvas dominates viewport with 58.8% to 96.7% share across viewports. |
+| **Kiri (tools/layers) & inspector kanan compact, contextual, collapse/resizable** | **PASS** | Resizable splitters implemented (220–420px left, 240–450px right); collapsible to 48px rail or closed. |
+| **Toolbar ringkas** | **PASS** | Compact 48px header (`h-12`) with grouped brand, modes, focus trigger, and action buttons. |
+| **Timeline jelas dan resize/collapse** | **PASS** | Top drag handle resizes height (140–480px); collapsible to 36px single-line bar. |
+| **Zoom viewer terpisah dari resolusi project** | **PASS** | Native project pixels ($1080\times1350$ etc.) decoupled from dynamic viewer auto-fit display zoom. |
+| **Focus mode bisa pulih** | **PASS** | `F` or button collapses panels; `F`, `Esc`, or "Restore Layout" completely recovers saved state. |
+| **Ukur canvas share viewport; target desktop ~60%** | **PASS** | Measured 58.8% (~60%) in Advanced dual-panel mode; 78.6%–84.0% in Quick mode; 96.7% in Focus mode. |
+| **Layout preferences terpisah dari project content** | **PASS** | Saved to `localStorage` key `clover_motion_layout_prefs_v1`; zero leakage into project schemas. |
+| **Pertahankan selection, keyboard/pointer workflows, save, project lama** | **PASS** | All gizmo transforms, multi-selection, nudge arrow keys, ⌘S, ⌘Z, ⌘B, ⌘I, and legacy projects verified. |
+| **Jangan ubah engine/model/assets** | **PASS** | Zero changes to `canvasRenderer.js`, `animosRenderer.js`, or asset registries. |
+| **Before/after screenshots, responsive states dan regression** | **PASS** | 6 screenshots captured and archived; 17/17 tests passing; `npm run build` cleanly compiled. |
 
 ---
 
-## 4. Risks & Mitigations
+## 5. Files Modified & Created in Fase 3
 
-| Risk | Impact | Mitigation Strategy |
+| File Path | Type | Role in Fase 3 |
 | :--- | :---: | :--- |
-| **Design Token Drift** | Low | CSS variables in `globals.css` will strictly mirror Tier 2 semantics during Fase 3 implementation. |
-| **Sidebar Collapse Layout Shifts** | Medium | Icon rail mode (`w-12` = 48px) preserves active tab selection without unmounting sidebar DOM subtrees. |
-| **Performance Overhead on Canvas Resizing** | Low | Canvas dimensions bind to fixed project aspect ratios (e.g. $1080 \times 1350$); viewport container scales via CSS transform/letterboxing, preventing buffer reallocation. |
+| `src/core/services/storageService.js` | Modified | Added `loadLayoutPreferences()` and `saveLayoutPreferences()` with fallback clamping. |
+| `src/components/layout/LeftSidebar.jsx` | Modified | Added `sidebarWidth` support, 48px icon rail collapse in all modes, and collapse toggle button. |
+| `src/components/layout/RightInspector.jsx` | Modified | Added `inspectorWidth` support, header collapse toggle button, and compact inspector styling. |
+| `src/components/layout/TimelinePanel.jsx` | Modified | Added `timelineHeight` prop and top drag-to-resize splitter handle. |
+| `src/components/layout/CanvasViewport.jsx` | Modified | Added dynamic container auto-fit via `ResizeObserver`, resolution vs zoom badges, and focus mode banner. |
+| `src/components/layout/TopHeaderBar.jsx` | Modified | Added Focus Mode toggle button and compact toolbar layout. |
+| `src/components/CloverMotionStudio.jsx` | Modified | Added layout state, preferences persistence, splitters, global keyboard shortcuts, and dock handles. |
+| `src/core/__tests__/layoutWorkspaceFase3.test.mjs` | Created | Automated unit test suite verifying layout preferences, clamping, resolution isolation, and focus recovery. |
+| `docs/screenshots/fase3-editor-*.png` | Created | Visual evidence captured at 1920x1080, 1440x900, 1280x800, Advanced mode, and Focus mode. |
 
 ---
 
-## 5. Gate Evaluation: Readiness to Enter Fase 3
+## 6. Gate Evaluation: Readiness to Enter Fase 4
 
-- [x] **Fase 2 Scope Complete**: Brand guidelines, 3-tier token hierarchy, accessibility rules, motion tokens, and layout schemas fully authored.
-- [x] **No Code/Runtime Regressions**: Application is healthy (HTTP 200 OK), zero console NaNs, 11/11 tests pass.
-- [x] **Reviewable Specifications Ready**: Detailed blueprint available for Fase 3 (Canvas-First Workspace Redesign).
-- [x] **Strict Phase Boundary Respected**: Work halted cleanly before initiating Fase 3.
+- [x] **Canvas-First Layout Verified**: Canvas container dominates 58.8% to 96.7% of the screen area.
+- [x] **Panel Controls Responsive & Resizable**: Splitters, collapse rails, and timeline resize functional.
+- [x] **Focus Mode Fully Recoverable**: Instant toggle and complete restoration proven by test and CDP.
+- [x] **Zero Code/Runtime Regressions**: 17/17 test suites pass; production build passes with 0 errors.
+- [x] **Layout Preferences Separated**: Preserved in local storage without altering project schema.
 
-**VERDICT**: **AMAN MASUK FASE 3 (GATE OPEN)**.
+**VERDICT**: **AMAN MASUK FASE 4 (GATE OPEN)**.

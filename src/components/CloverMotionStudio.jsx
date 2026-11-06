@@ -92,6 +92,7 @@ import FullscreenPreviewModal from './modals/FullscreenPreviewModal';
 import HelpShortcutsModal from './modals/HelpShortcutsModal';
 import BrandKitsModal from './modals/BrandKitsModal';
 import MotionTemplatesModal from './modals/MotionTemplatesModal';
+import { Sliders } from 'lucide-react';
 import {
   atomicSaveProject,
   saveAsProject,
@@ -99,6 +100,8 @@ import {
   recordRecoveryJournal,
   checkRecoveryJournal,
   clearRecoveryJournal,
+  loadLayoutPreferences,
+  saveLayoutPreferences,
 } from '../core/services/storageService';
 import { saveProjectAsCustomTemplate } from '../core/services/templateService';
 import {
@@ -156,6 +159,15 @@ export default function CloverMotionStudio() {
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [timelineExpanded, setTimelineExpanded] = useState(true);
+  const [leftSidebarWidth, setLeftSidebarWidth] = useState(280);
+  const [rightInspectorWidth, setRightInspectorWidth] = useState(280);
+  const [timelineHeight, setTimelineHeight] = useState(240);
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const savedLayoutBeforeFocusRef = useRef({
+    leftDrawerOpen: true,
+    rightPanelOpen: true,
+    timelineExpanded: true,
+  });
 
   const [activeSceneIndex, setActiveSceneIndex] = useState(1); // Default to 'Poster' scene
   const [selectedLayerId, setSelectedLayerId] = useState(null);
@@ -200,8 +212,8 @@ export default function CloverMotionStudio() {
   const [audioImportError, setAudioImportError] = useState(null);
   const audioFileReaderRef = useRef(null);
 
-  // Modals State (Open Template Library on initial launch)
-  const [templatesModalOpen, setTemplatesModalOpen] = useState(true);
+  // Modals State
+  const [templatesModalOpen, setTemplatesModalOpen] = useState(false);
   const [templateLibraryInitialTab, setTemplateLibraryInitialTab] = useState('templates');
   const [formatReviewOpen, setFormatReviewOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -248,6 +260,45 @@ export default function CloverMotionStudio() {
       audioEngineRef.current?.stop();
     };
   }, []);
+
+  // Load layout preferences from localStorage on mount
+  useEffect(() => {
+    try {
+      const prefs = loadLayoutPreferences();
+      if (prefs) {
+        if (typeof prefs.leftSidebarWidth === 'number') setLeftSidebarWidth(prefs.leftSidebarWidth);
+        if (typeof prefs.rightInspectorWidth === 'number') setRightInspectorWidth(prefs.rightInspectorWidth);
+        if (typeof prefs.timelineHeight === 'number') setTimelineHeight(prefs.timelineHeight);
+        if (typeof prefs.leftDrawerOpen === 'boolean') setLeftDrawerOpen(prefs.leftDrawerOpen);
+        if (typeof prefs.rightPanelOpen === 'boolean') setRightPanelOpen(prefs.rightPanelOpen);
+        if (typeof prefs.timelineExpanded === 'boolean') setTimelineExpanded(prefs.timelineExpanded);
+        if (typeof prefs.isFocusMode === 'boolean') setIsFocusMode(prefs.isFocusMode);
+      }
+    } catch {
+      // ignore layout storage errors
+    }
+  }, []);
+
+  // Persist layout preferences whenever user resizes or toggles panels
+  useEffect(() => {
+    saveLayoutPreferences({
+      leftSidebarWidth,
+      rightInspectorWidth,
+      timelineHeight,
+      leftDrawerOpen,
+      rightPanelOpen,
+      timelineExpanded,
+      isFocusMode,
+    });
+  }, [
+    leftSidebarWidth,
+    rightInspectorWidth,
+    timelineHeight,
+    leftDrawerOpen,
+    rightPanelOpen,
+    timelineExpanded,
+    isFocusMode,
+  ]);
 
   // Select default headline layer and sync per-scene audio/SFX when switching scenes
   useEffect(() => {
@@ -666,11 +717,122 @@ export default function CloverMotionStudio() {
     setProjectSavedStatus('New project');
   };
 
+  const handleToggleFocusMode = useCallback(() => {
+    setIsFocusMode((prev) => {
+      const next = !prev;
+      if (next) {
+        // Entering focus mode: save current state and collapse sidebars & timeline
+        savedLayoutBeforeFocusRef.current = {
+          leftDrawerOpen,
+          rightPanelOpen,
+          timelineExpanded,
+        };
+        setLeftDrawerOpen(false);
+        setRightPanelOpen(false);
+        setTimelineExpanded(false);
+      } else {
+        // Exiting focus mode: restore saved layout
+        setLeftDrawerOpen(savedLayoutBeforeFocusRef.current.leftDrawerOpen);
+        setRightPanelOpen(savedLayoutBeforeFocusRef.current.rightPanelOpen);
+        setTimelineExpanded(savedLayoutBeforeFocusRef.current.timelineExpanded);
+      }
+      return next;
+    });
+  }, [leftDrawerOpen, rightPanelOpen, timelineExpanded]);
+
   const handleResetWorkspaceLayout = () => {
+    setLeftSidebarWidth(280);
+    setRightInspectorWidth(280);
+    setTimelineHeight(240);
     setLeftDrawerOpen(true);
     setRightPanelOpen(true);
     setTimelineExpanded(true);
+    setIsFocusMode(false);
+    saveLayoutPreferences({
+      leftSidebarWidth: 280,
+      rightInspectorWidth: 280,
+      timelineHeight: 240,
+      leftDrawerOpen: true,
+      rightPanelOpen: true,
+      timelineExpanded: true,
+      isFocusMode: false,
+    });
   };
+
+  const handleLeftResizeStart = (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = leftSidebarWidth;
+
+    const onMove = (ev) => {
+      const delta = ev.clientX - startX;
+      setLeftSidebarWidth(Math.max(220, Math.min(420, startW + delta)));
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  const handleRightResizeStart = (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = rightInspectorWidth;
+
+    const onMove = (ev) => {
+      const delta = startX - ev.clientX; // dragging left expands right inspector
+      setRightInspectorWidth(Math.max(240, Math.min(450, startW + delta)));
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  // Keyboard shortcut listener for Focus Mode (F), Sidebar (Cmd+B), Inspector (Cmd+I)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      const tag = e.target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) {
+        return;
+      }
+
+      // 'F' or 'f' toggles Focus Mode
+      if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        handleToggleFocusMode();
+      }
+
+      // 'Escape' exits Focus Mode if active
+      if (e.key === 'Escape' && isFocusMode) {
+        e.preventDefault();
+        handleToggleFocusMode();
+      }
+
+      // 'Cmd/Ctrl + B' toggles left sidebar drawer
+      if ((e.key === 'b' || e.key === 'B') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setLeftDrawerOpen((v) => !v);
+      }
+
+      // 'Cmd/Ctrl + I' toggles right inspector
+      if ((e.key === 'i' || e.key === 'I') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setRightPanelOpen((v) => !v);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [handleToggleFocusMode, isFocusMode]);
 
   const handleChangeRatio = (newRatio) => {
     updateProjectWithHistory((prev) => ({
@@ -2166,6 +2328,8 @@ export default function CloverMotionStudio() {
         rightPanelOpen={rightPanelOpen}
         onToggleRightPanel={() => setRightPanelOpen((v) => !v)}
         onResetWorkspaceLayout={handleResetWorkspaceLayout}
+        isFocusMode={isFocusMode}
+        onToggleFocusMode={handleToggleFocusMode}
         onOpenTemplates={() => {
           setTemplateLibraryInitialTab('templates');
           setTemplatesModalOpen(true);
@@ -2226,7 +2390,7 @@ export default function CloverMotionStudio() {
 
       {/* Main Studio Workspace Split: Left Sidebar + Center/Right Column */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Full-Height Left Sidebar (Collapsible to 48px icon rail in Advanced Mode) */}
+        {/* Full-Height Left Sidebar (Collapsible to 48px icon rail in both modes) */}
         <LeftSidebar
           editorMode={editorMode}
           project={project}
@@ -2239,7 +2403,9 @@ export default function CloverMotionStudio() {
           setSelectedLayerId={handleSetSelectedLayerId}
           selectedLayerIds={selectedLayerIds}
           setSelectedLayerIds={handleSetSelectedLayerIds}
+          sidebarWidth={leftSidebarWidth}
           leftDrawerOpen={leftDrawerOpen}
+          onToggleDrawer={() => setLeftDrawerOpen((v) => !v)}
           onEnsureDrawerOpen={() => setLeftDrawerOpen(true)}
           onUpdateQuickCopy={handleUpdateQuickCopy}
           onEnableQuickEdit={handleEnableQuickEdit}
@@ -2285,6 +2451,17 @@ export default function CloverMotionStudio() {
           onSaveProject={handleSaveCurrentProject}
           onNewProject={handleNewProject}
         />
+
+        {/* Left Sidebar Drag-to-Resize Splitter */}
+        {leftDrawerOpen && (
+          <div
+            onPointerDown={handleLeftResizeStart}
+            className="w-1.5 hover:w-2 bg-transparent hover:bg-[#22c55e]/50 cursor-col-resize transition-all shrink-0 z-20 group relative flex items-center justify-center select-none"
+            title="Drag to resize sidebar width"
+          >
+            <div className="w-0.5 h-8 rounded-full bg-neutral-700/80 group-hover:bg-[#4ade80]" />
+          </div>
+        )}
 
         {/* Right Workspace Column: Workspace Specific View or Canvas + Inspector + Timeline */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
@@ -2391,35 +2568,64 @@ export default function CloverMotionStudio() {
                   setPlaybackScope={setPlaybackScope}
                   totalProjectDuration={totalProjectDuration}
                   currentGlobalTime={currentGlobalTime}
+                  isFocusMode={isFocusMode}
+                  onToggleFocusMode={handleToggleFocusMode}
                 />
 
                 {editorMode === 'advanced' && rightPanelOpen && (
-                  <RightInspector
-                    selectedLayer={selectedLayer}
-                    selectedLayerIds={selectedLayerIds}
-                    activeScene={activeScene}
-                    activeSceneIndex={activeSceneIndex}
-                    project={project}
-                    audioSignals={audioSignals}
-                    onUpdateLayer={handleUpdateLayer}
-                    onAlignLayers={handleAlignLayers}
-                    onDistributeLayers={handleDistributeLayers}
-                    onGroupLayers={handleGroupLayers}
-                    onUngroupLayers={handleUngroupLayers}
-                    onReorderZ={handleReorderZ}
-                    onDeleteSelectedLayers={handleDeleteSelectedLayers}
-                    onDuplicateSelectedLayers={handleDuplicateSelectedLayers}
-                    onUpdateSceneProp={handleUpdateSceneProp}
-                    onSelectSceneAudio={handleSelectSceneAudio}
-                    onTriggerSfx={handleTriggerSfx}
-                    onUploadCustomFont={handleUploadCustomFont}
-                    onUploadCustomImage={handleUploadCustomImage}
-                    onOpenMotionTemplates={() => setMotionTemplatesOpen(true)}
-                    customFonts={customFonts}
-                    advancedSubMode={advancedSubMode}
-                    onSetLayerFormatOverride={handleSetLayerFormatOverride}
-                    onRemoveLayerFormatOverride={handleRemoveLayerFormatOverride}
-                  />
+                  <>
+                    {/* Right Inspector Drag-to-Resize Splitter */}
+                    <div
+                      onPointerDown={handleRightResizeStart}
+                      className="w-1.5 hover:w-2 bg-transparent hover:bg-[#22c55e]/50 cursor-col-resize transition-all shrink-0 z-20 group relative flex items-center justify-center select-none"
+                      title="Drag to resize inspector width"
+                    >
+                      <div className="w-0.5 h-8 rounded-full bg-neutral-700/80 group-hover:bg-[#4ade80]" />
+                    </div>
+
+                    <RightInspector
+                      inspectorWidth={rightInspectorWidth}
+                      onClose={() => setRightPanelOpen(false)}
+                      selectedLayer={selectedLayer}
+                      selectedLayerIds={selectedLayerIds}
+                      activeScene={activeScene}
+                      activeSceneIndex={activeSceneIndex}
+                      project={project}
+                      audioSignals={audioSignals}
+                      onUpdateLayer={handleUpdateLayer}
+                      onAlignLayers={handleAlignLayers}
+                      onDistributeLayers={handleDistributeLayers}
+                      onGroupLayers={handleGroupLayers}
+                      onUngroupLayers={handleUngroupLayers}
+                      onReorderZ={handleReorderZ}
+                      onDeleteSelectedLayers={handleDeleteSelectedLayers}
+                      onDuplicateSelectedLayers={handleDuplicateSelectedLayers}
+                      onUpdateSceneProp={handleUpdateSceneProp}
+                      onSelectSceneAudio={handleSelectSceneAudio}
+                      onTriggerSfx={handleTriggerSfx}
+                      onUploadCustomFont={handleUploadCustomFont}
+                      onUploadCustomImage={handleUploadCustomImage}
+                      onOpenMotionTemplates={() => setMotionTemplatesOpen(true)}
+                      customFonts={customFonts}
+                      advancedSubMode={advancedSubMode}
+                      onSetLayerFormatOverride={handleSetLayerFormatOverride}
+                      onRemoveLayerFormatOverride={handleRemoveLayerFormatOverride}
+                    />
+                  </>
+                )}
+
+                {/* Collapsed Inspector Dock Button */}
+                {editorMode === 'advanced' && !rightPanelOpen && (
+                  <button
+                    type="button"
+                    onClick={() => setRightPanelOpen(true)}
+                    title="Open Properties Inspector (⌘I)"
+                    aria-label="Open Properties Inspector"
+                    className="w-6 h-20 my-auto rounded-l-xl bg-[#141414] hover:bg-[#1c1c1c] border-y border-l border-neutral-800 flex flex-col items-center justify-center gap-1 text-neutral-400 hover:text-white transition-colors z-20 shadow-lg shrink-0"
+                  >
+                    <Sliders className="w-3.5 h-3.5 text-[#4ade80]" />
+                    <span className="text-[9px] font-mono [writing-mode:vertical-rl] tracking-widest text-neutral-400">INSPECT</span>
+                  </button>
                 )}
               </div>
 
@@ -2443,6 +2649,8 @@ export default function CloverMotionStudio() {
                   currentGlobalTime={currentGlobalTime}
                   timelineExpanded={timelineExpanded}
                   setTimelineExpanded={setTimelineExpanded}
+                  timelineHeight={timelineHeight}
+                  onResizeTimeline={setTimelineHeight}
                   onTogglePlay={handleTogglePlay}
                   onRestart={handleRestart}
                   onSeekLocalTime={setLocalTime}

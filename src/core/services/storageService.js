@@ -10,6 +10,82 @@ export const STORAGE_PROJECTS_KEY = 'clover_motion_saved_projects_v1';
 export const STORAGE_RECENT_KEY = 'clover_motion_recent_projects_v1';
 export const STORAGE_STAGING_KEY = 'clover_motion_staging_project_v1';
 export const STORAGE_JOURNAL_KEY = 'clover_motion_recovery_journal_v1';
+export const STORAGE_LAYOUT_PREFS_KEY = 'clover_motion_layout_prefs_v1';
+
+export const DEFAULT_LAYOUT_PREFS = {
+  leftSidebarWidth: 280,
+  rightInspectorWidth: 280,
+  timelineHeight: 240,
+  leftDrawerOpen: true,
+  rightPanelOpen: true,
+  timelineExpanded: true,
+  isFocusMode: false,
+};
+
+/**
+ * Loads layout preferences independently from project content.
+ * @returns {typeof DEFAULT_LAYOUT_PREFS}
+ */
+export function loadLayoutPreferences() {
+  const storage =
+    typeof window !== 'undefined' && window.localStorage
+      ? window.localStorage
+      : typeof globalThis !== 'undefined' && globalThis.localStorage
+      ? globalThis.localStorage
+      : null;
+  if (!storage) return { ...DEFAULT_LAYOUT_PREFS };
+
+  try {
+    const raw = storage.getItem(STORAGE_LAYOUT_PREFS_KEY);
+    if (!raw) return { ...DEFAULT_LAYOUT_PREFS };
+    const parsed = JSON.parse(raw);
+    return {
+      leftSidebarWidth:
+        typeof parsed.leftSidebarWidth === 'number' && Number.isFinite(parsed.leftSidebarWidth)
+          ? Math.max(220, Math.min(420, parsed.leftSidebarWidth))
+          : DEFAULT_LAYOUT_PREFS.leftSidebarWidth,
+      rightInspectorWidth:
+        typeof parsed.rightInspectorWidth === 'number' && Number.isFinite(parsed.rightInspectorWidth)
+          ? Math.max(240, Math.min(450, parsed.rightInspectorWidth))
+          : DEFAULT_LAYOUT_PREFS.rightInspectorWidth,
+      timelineHeight:
+        typeof parsed.timelineHeight === 'number' && Number.isFinite(parsed.timelineHeight)
+          ? Math.max(140, Math.min(480, parsed.timelineHeight))
+          : DEFAULT_LAYOUT_PREFS.timelineHeight,
+      leftDrawerOpen:
+        typeof parsed.leftDrawerOpen === 'boolean' ? parsed.leftDrawerOpen : DEFAULT_LAYOUT_PREFS.leftDrawerOpen,
+      rightPanelOpen:
+        typeof parsed.rightPanelOpen === 'boolean' ? parsed.rightPanelOpen : DEFAULT_LAYOUT_PREFS.rightPanelOpen,
+      timelineExpanded:
+        typeof parsed.timelineExpanded === 'boolean' ? parsed.timelineExpanded : DEFAULT_LAYOUT_PREFS.timelineExpanded,
+      isFocusMode:
+        typeof parsed.isFocusMode === 'boolean' ? parsed.isFocusMode : DEFAULT_LAYOUT_PREFS.isFocusMode,
+    };
+  } catch (err) {
+    console.warn('Failed to load layout preferences:', err);
+    return { ...DEFAULT_LAYOUT_PREFS };
+  }
+}
+
+/**
+ * Persists layout preferences independently without polluting project schemas.
+ * @param {object} prefs
+ */
+export function saveLayoutPreferences(prefs) {
+  const storage =
+    typeof window !== 'undefined' && window.localStorage
+      ? window.localStorage
+      : typeof globalThis !== 'undefined' && globalThis.localStorage
+      ? globalThis.localStorage
+      : null;
+  if (!storage || !prefs) return;
+
+  try {
+    storage.setItem(STORAGE_LAYOUT_PREFS_KEY, JSON.stringify(prefs));
+  } catch (err) {
+    console.warn('Failed to save layout preferences:', err);
+  }
+}
 
 /**
  * Loads all saved projects from localStorage safely.

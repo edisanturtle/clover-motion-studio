@@ -42,6 +42,8 @@ export default function TopHeaderBar({
   rightPanelOpen = true,
   onToggleRightPanel,
   onResetWorkspaceLayout,
+  isFocusMode = false,
+  onToggleFocusMode,
   onOpenTemplates,
   onOpenNewPoster,
   onOpenBrandKits,
@@ -249,6 +251,23 @@ export default function TopHeaderBar({
               </button>
             </div>
           </>
+        )}
+
+        {/* Focus Mode Button (Canvas-First Viewport Maximize) */}
+        {onToggleFocusMode && (
+          <button
+            type="button"
+            onClick={onToggleFocusMode}
+            className={`p-1.5 rounded-lg border transition-colors ${
+              isFocusMode
+                ? 'bg-[#159947] text-white border-[#22c55e] shadow-sm'
+                : 'bg-[#1c1c1c] border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-800'
+            }`}
+            title={isFocusMode ? 'Exit Focus Mode (Press F or Esc)' : 'Focus Mode: Full Canvas Viewport (Press F)'}
+            aria-label="Toggle Focus Mode"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
         )}
 
         {/* My Projects Browser */}

@@ -191,7 +191,7 @@ To ensure absolute zero regression during the upgrade:
 [Fase 2] Visual Identity & Design Tokens (docs/brand-guidelines.md; 3-tier tokens) (COMPLETED)
    │
    ▼
-[Fase 3] Canvas-First Workspace Redesign (~60% canvas area, collapsible sidebars)
+[Fase 3] Canvas-First Workspace Redesign (~60% canvas area, collapsible sidebars, focus mode) (COMPLETED)
    │
    ▼
 [Fase 4] Multi-Workspace Consistent Redesign (Design, Animate, Video, Audio)

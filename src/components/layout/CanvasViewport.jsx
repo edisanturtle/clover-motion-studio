@@ -53,10 +53,13 @@ export default function CanvasViewport({
   setPlaybackScope,
   totalProjectDuration = 60,
   currentGlobalTime = 0,
+  isFocusMode = false,
+  onToggleFocusMode,
 }) {
   const containerRef = useRef(null);
   const colorsRef = useRef(null);
   const settingsRef = useRef(null);
+  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
   const [zoomMultiplier, setZoomMultiplier] = useState(1.0); // 1.0 = Fit
   const [zoomMode, setZoomMode] = useState('fit'); // 'fit' | 'custom'
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
@@ -68,6 +71,31 @@ export default function CanvasViewport({
   const [colorsOpen, setColorsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showCenterCrosshair, setShowCenterCrosshair] = useState(false);
+
+  // ResizeObserver for dynamic container dimensions to auto-scale canvas dynamically
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const updateSize = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setContainerDimensions({ width: rect.width, height: rect.height });
+      }
+    };
+    updateSize();
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+          setContainerDimensions({
+            width: entry.contentRect.width,
+            height: entry.contentRect.height,
+          });
+        }
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Normalize selected IDs (array)
   const effectiveSelectedIds = Array.isArray(selectedLayerIds)
@@ -81,27 +109,27 @@ export default function CanvasViewport({
 
   const dim = ASPECT_RATIOS[project.ratio] || ASPECT_RATIOS['4:5'];
 
-  // Compute base fit scale based on ratio and mode
-  const baseFitScale =
+  // Compute base fit scale based on ratio and dynamic container geometry
+  const fallbackFitScale =
     project.ratio === '9:16'
-      ? editorMode === 'quick'
-        ? 0.25
-        : 0.22
+      ? 0.22
       : project.ratio === '16:9'
-      ? editorMode === 'quick'
-        ? 0.34
-        : 0.30
+      ? 0.30
       : project.ratio === '4:3'
-      ? editorMode === 'quick'
-        ? 0.36
-        : 0.32
+      ? 0.32
       : project.ratio === '1:1'
-      ? editorMode === 'quick'
-        ? 0.42
-        : 0.36
-      : editorMode === 'quick'
-      ? 0.35
+      ? 0.36
       : 0.31;
+
+  const autoFitScale =
+    containerDimensions.width > 0 && containerDimensions.height > 0
+      ? Math.min(
+          Math.max(100, containerDimensions.width - 48) / dim.width,
+          Math.max(100, containerDimensions.height - 48) / dim.height
+        )
+      : fallbackFitScale;
+
+  const baseFitScale = Number.isFinite(autoFitScale) && autoFitScale > 0 ? autoFitScale : fallbackFitScale;
 
   const effectiveCanvasScale = baseFitScale * (zoomMode === 'fit' ? 1.0 : zoomMultiplier);
 
@@ -519,6 +547,22 @@ export default function CanvasViewport({
     <div className="flex-1 flex flex-col bg-[#0e0e0e] min-w-0 min-h-0 overflow-hidden select-none p-2.5 gap-2.5">
       {/* Main Rounded Canvas Panel Card */}
       <div className="flex-1 flex flex-col bg-[#161616] border border-neutral-800/80 rounded-2xl min-h-0 overflow-hidden relative">
+        {/* Floating Focus Mode Banner */}
+        {isFocusMode && onToggleFocusMode && (
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-[#141414]/90 backdrop-blur border border-[#22c55e]/60 shadow-2xl text-xs text-neutral-200">
+            <span className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse shrink-0" />
+            <span className="font-semibold text-white">Focus Mode Active</span>
+            <span className="text-neutral-400 text-[11px]">(Canvas ~96% Viewport)</span>
+            <button
+              type="button"
+              onClick={onToggleFocusMode}
+              className="px-2.5 py-0.5 rounded-full bg-[#159947] hover:bg-[#16a34a] text-white font-semibold text-[11px] transition-colors ml-1 shadow-sm"
+              title="Restore full workspace panels (Press F or Esc)"
+            >
+              Restore Layout (F)
+            </button>
+          </div>
+        )}
         {/* Top Bar Inside Canvas Card */}
         <div className="h-11 px-4 flex items-center justify-between border-b border-neutral-800/60 shrink-0 z-20">
           <span className="text-xs font-medium text-neutral-300">Canvas</span>
@@ -880,15 +924,24 @@ export default function CanvasViewport({
         </div>
 
         {/* Bottom Status Bar Inside Canvas Card */}
-        <div className="h-8 px-4 flex items-center justify-between text-[11px] font-mono text-neutral-400 shrink-0">
-          <span>
-            {isPlaying ? 'Playing' : 'Paused'} · Frame at {localTime.toFixed(3)} s
-          </span>
-          <span>
-            {dim.width} × {dim.height} px
-          </span>
+        <div className="h-8 px-4 flex items-center justify-between text-[11px] font-mono text-neutral-400 shrink-0 border-t border-neutral-800/50 bg-[#141414]/80">
+          <div className="flex items-center gap-3">
+            <span>
+              {isPlaying ? '▶ Playing' : '⏸ Paused'} · Frame at {localTime.toFixed(3)}s
+            </span>
+            <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#1c1c1c] border border-neutral-800 text-[10px]" title="Native Project Export Resolution">
+              <span className="text-neutral-500">Project:</span>
+              <span className="text-neutral-200 font-semibold">{dim.width} × {dim.height} px</span>
+              <span className="text-neutral-500">({dim.shortLabel || project.ratio})</span>
+            </div>
+            <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded bg-[#1c1c1c] border border-neutral-800 text-[10px]" title="Viewport Display Zoom (Does not affect export quality)">
+              <span className="text-neutral-500">Viewer:</span>
+              <span className="text-[#4ade80] font-semibold">{zoomMode === 'fit' ? `Fit (${Math.round(baseFitScale * 100)}%)` : `${Math.round(baseFitScale * zoomMultiplier * 100)}%`}</span>
+            </div>
+          </div>
+
           <div
-            className="flex items-center gap-2"
+            className="flex items-center gap-1.5"
             title="Canvas: Pinch trackpad / Alt+Wheel to zoom, + / - / 0, arrow keys to nudge, hold Space to pan"
           >
             {(panOffset.x !== 0 || panOffset.y !== 0) && (
@@ -904,7 +957,7 @@ export default function CanvasViewport({
             <button
               type="button"
               onClick={() => stepZoom(-0.1)}
-              className="hover:text-white px-1 transition-colors"
+              className="hover:text-white px-1.5 py-0.5 rounded hover:bg-neutral-800 transition-colors"
               title="Zoom out (-)"
               aria-label="Zoom out"
             >
@@ -913,16 +966,33 @@ export default function CanvasViewport({
             <button
               type="button"
               onClick={resetZoomFit}
-              className="text-neutral-300 hover:text-white px-1 font-sans text-xs transition-colors"
+              className={`px-2 py-0.5 rounded font-sans text-xs transition-colors ${
+                zoomMode === 'fit' ? 'bg-[#159947] text-white font-semibold' : 'text-neutral-300 hover:text-white hover:bg-neutral-800'
+              }`}
               title="Reset zoom to Fit (0)"
               aria-label="Reset zoom to fit"
             >
-              {zoomMode === 'fit' ? 'Fit' : `${zoomMultiplier.toFixed(1)}×`}
+              Fit
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setZoomMode('custom');
+                setZoomMultiplier(1.0 / (baseFitScale || 1.0)); // Exact 100% 1:1 scale
+              }}
+              className={`hidden md:block px-1.5 py-0.5 rounded text-[10px] transition-colors ${
+                zoomMode === 'custom' && Math.abs(baseFitScale * zoomMultiplier - 1.0) < 0.05
+                  ? 'bg-[#159947] text-white font-semibold'
+                  : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+              }`}
+              title="100% 1:1 project scale"
+            >
+              100%
             </button>
             <button
               type="button"
               onClick={() => stepZoom(0.1)}
-              className="hover:text-white px-1 transition-colors"
+              className="hover:text-white px-1.5 py-0.5 rounded hover:bg-neutral-800 transition-colors"
               title="Zoom in (+)"
               aria-label="Zoom in"
             >
