@@ -1,6 +1,12 @@
-import { ASPECT_RATIOS } from '../constants/fonts';
+import { ASPECT_RATIOS } from '../constants/fonts.js';
+import { STUDIO_TEMPLATES } from '../constants/templateCatalog.js';
 
-export function buildProjectFromTemplate(template, ratio = '4:5') {
+export function buildProjectFromTemplate(rawTemplate, ratio = '4:5') {
+  const resolved = (rawTemplate?.scenes && Array.isArray(rawTemplate.scenes))
+    ? rawTemplate
+    : (STUDIO_TEMPLATES.find((t) => t.id === rawTemplate?.id) || STUDIO_TEMPLATES[0]);
+  const template = { ...resolved, ...(rawTemplate || {}), scenes: resolved.scenes };
+
   const dim = ASPECT_RATIOS[ratio] || ASPECT_RATIOS['4:5'];
   const scaleX = dim.width / 1080;
   const scaleY = dim.height / 1350;

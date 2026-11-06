@@ -1,0 +1,70 @@
+```mermaid
+flowchart TD
+    %% Clover Motion Studio — Crate & Workspace Dependency Topology (Iteration A5)
+
+    subgraph MissingExternal["MISSING EXTERNAL DEPENDENCIES (Absent from Archive Folder)"]
+        craft_libs_92d["craft-libs (rev 92d392c...)<br/>(EffectCraft, DesignCraft, CadCraft)"]:::missing
+        craft_libs_ca1["craft-libs (rev ca1b5e2...)<br/>(craft-ecproj-format)"]:::missing
+        craft_libs_c5a["craft-libs (rev c5a1cbf...)<br/>(FilmCraft, SoundCraft, PhotoCraft, DeckCraft)"]:::missing
+        craft_libs_9be["craft-libs (rev 9be9a63...)<br/>(VectorCraft)"]:::missing
+        craft_libs_e11["craft-libs (rev e11f9d9...)<br/>(FigCraft)"]:::missing
+        filmcraft_git_d5e["storytold/filmcraft (rev d5ead4b...)<br/>(18 crates imported by EffectCraft)"]:::missing
+        indd_utils_7f3["storytold/indd-utils (rev 7f3060e...)<br/>(DesignCraft)"]:::missing
+    end
+
+    subgraph SharedForks["COMMON SHARED PATCH FORKS (storytold)"]
+        egui_fork["storytold/egui (rev 6d518fc...)<br/>(epaint, ecolor, emath, egui)"]:::shared
+        winit_fork["storytold/winit (rev a517b38...)<br/>(windowing backend)"]:::shared
+    end
+
+    subgraph SixTargets["SIX PRIMARY CANDIDATE WORKSPACES"]
+        EC["EffectCraft (effectcraft-main.zip)<br/>(40 crates, edition 2024, rust 1.95)"]:::app
+        FC["FilmCraft (filmcraft-main.zip)<br/>(54 crates, edition 2024, rust 1.95)"]:::app
+        SC["SoundCraft (soundcraft-main.zip)<br/>(20 crates, edition 2024, rust 1.90)"]:::app
+        VC["VectorCraft (vectorcraft-main.zip)<br/>(30 crates, edition 2024, rust 1.95)"]:::app
+        PC["PhotoCraft (photocraft-main.zip)<br/>(37 crates, edition 2024, rust 1.95)"]:::app
+        FIG["FigCraft (figcraft-main.zip)<br/>(27 crates, edition 2024, rust 1.95)"]:::app
+    end
+
+    subgraph Foundational["FOUNDATIONAL & EXTENDED REPOSITORIES"]
+        EGUI_WS["egui-main.zip (49 crates)"]:::ws
+        WINIT_WS["winit-master.zip (12 crates)"]:::ws
+        FONTS_WS["craft-fonts-main.zip (2 crates)"]:::ws
+        CAD["cadcraft-main.zip (16 crates)"]:::ws
+        DC["deckcraft-main.zip (28 crates)"]:::ws
+        DES["designcraft-main.zip (21 crates)"]:::ws
+        MAT["materialcraft-main.zip (15 crates)"]:::ws
+        AC["artcraft-main.zip (39 crates)"]:::ws
+    end
+
+    %% Primary Patch connections
+    EC --> egui_fork
+    FC --> egui_fork
+    SC --> egui_fork
+    VC --> egui_fork
+    PC --> egui_fork
+    FIG --> egui_fork
+    EC --> winit_fork
+    FC --> winit_fork
+    SC --> winit_fork
+    VC --> winit_fork
+    PC --> winit_fork
+    FIG --> winit_fork
+
+    %% Missing Dependency Connections
+    EC -.->|git rev 92d392c| craft_libs_92d
+    EC -.->|git rev ca1b5e2| craft_libs_ca1
+    EC -.->|git rev c5a1cbf| craft_libs_c5a
+    EC ==>|git rev d5ead4b (18 crates)| filmcraft_git_d5e
+    FC -.->|git rev c5a1cbf| craft_libs_c5a
+    SC -.->|git rev c5a1cbf| craft_libs_c5a
+    PC -.->|git rev c5a1cbf| craft_libs_c5a
+    VC -.->|git rev 9be9a63| craft_libs_9be
+    FIG -.->|git rev e11f9d9| craft_libs_e11
+    DES -.->|git rev 7f3060e| indd_utils_7f3
+
+    classDef missing fill:#7f1d1d,stroke:#ef4444,stroke-width:2px,color:#fee2e2;
+    classDef shared fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#dbeafe;
+    classDef app fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#d1fae5;
+    classDef ws fill:#1f2937,stroke:#6b7280,stroke-width:1px,color:#f3f4f6;
+```

@@ -31,6 +31,12 @@ import {
   Music,
   Volume2,
   Zap,
+  Square,
+  Circle,
+  Group,
+  Ungroup,
+  ChevronsUp,
+  ChevronsDown,
 } from 'lucide-react';
 import { FONT_OPTIONS } from '../../constants/fonts';
 import { COLOR_PALETTES, MOTION_PRESETS } from '../../constants/motionPresets';
@@ -182,6 +188,8 @@ export default function LeftSidebar({
   selectedLayer,
   selectedLayerId,
   setSelectedLayerId,
+  selectedLayerIds = null,
+  setSelectedLayerIds = null,
   leftDrawerOpen = true,
   onEnsureDrawerOpen,
   onUpdateQuickCopy,
@@ -194,8 +202,14 @@ export default function LeftSidebar({
   onUpdateSceneProp,
   onChangeRatio,
   onAddTextLayer,
+  onAddShapeLayer,
   onAddGraphicLayer,
   onApplyGraphicTemplate,
+  onGroupLayers,
+  onUngroupLayers,
+  onReorderZ,
+  onDeleteSelectedLayers,
+  onDuplicateSelectedLayers,
   onUpdateLayer,
   onDeleteLayer,
   onDuplicateLayer,
@@ -225,6 +239,27 @@ export default function LeftSidebar({
   const [animosCategory, setAnimosCategory] = useState('all');
   const imageUploadRef = useRef(null);
   const mediaSlotUploadRef = useRef(null);
+
+  const effectiveSelectedIds = Array.isArray(selectedLayerIds) && selectedLayerIds.length > 0
+    ? selectedLayerIds
+    : selectedLayerId ? [selectedLayerId] : [];
+
+  const handleSelectLayerInList = (layerId, e) => {
+    if (e?.shiftKey) {
+      if (effectiveSelectedIds.includes(layerId)) {
+        const next = effectiveSelectedIds.filter((id) => id !== layerId);
+        if (setSelectedLayerIds) setSelectedLayerIds(next);
+        if (setSelectedLayerId) setSelectedLayerId(next[0] || null);
+      } else {
+        const next = [...effectiveSelectedIds, layerId];
+        if (setSelectedLayerIds) setSelectedLayerIds(next);
+        if (setSelectedLayerId) setSelectedLayerId(next[0] || null);
+      }
+    } else {
+      if (setSelectedLayerIds) setSelectedLayerIds([layerId]);
+      if (setSelectedLayerId) setSelectedLayerId(layerId);
+    }
+  };
 
   const quickNavItems = [
     { id: 'content', label: 'Content', icon: Sliders },
@@ -299,6 +334,7 @@ export default function LeftSidebar({
                 type="button"
                 onClick={() => handleSelectTab(item.id)}
                 title={item.label}
+                aria-label={item.label}
                 className={`${
                   editorMode === 'quick'
                     ? 'w-14 py-2 flex flex-col items-center gap-1 rounded-xl'
@@ -752,16 +788,16 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Vertical Framing (Y-Offset)</span>
                         <span className="font-mono text-neutral-400">
-                          {currentShowcase.offsetY ?? 0}%
+                          {typeof currentShowcase.offsetY === 'number' && !Number.isNaN(currentShowcase.offsetY) ? currentShowcase.offsetY : 0}%
                         </span>
                       </div>
                       <input
                         type="range"
                         min={-40}
                         max={40}
-                        value={currentShowcase.offsetY ?? 0}
+                        value={typeof currentShowcase.offsetY === 'number' && !Number.isNaN(currentShowcase.offsetY) ? currentShowcase.offsetY : 0}
                         onChange={(e) =>
-                          onUpdateShowcase?.({ offsetY: Number(e.target.value) }, targetScope)
+                          onUpdateShowcase?.({ offsetY: Number(e.target.value) || 0 }, targetScope)
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -792,16 +828,16 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Card Size</span>
                         <span className="font-mono text-neutral-400">
-                          {currentShowcase.cardSize ?? 24}%
+                          {typeof currentShowcase.cardSize === 'number' && !Number.isNaN(currentShowcase.cardSize) ? currentShowcase.cardSize : 24}%
                         </span>
                       </div>
                       <input
                         type="range"
                         min={12}
                         max={65}
-                        value={currentShowcase.cardSize ?? 24}
+                        value={typeof currentShowcase.cardSize === 'number' && !Number.isNaN(currentShowcase.cardSize) ? currentShowcase.cardSize : 24}
                         onChange={(e) =>
-                          onUpdateShowcase?.({ cardSize: Number(e.target.value) }, targetScope)
+                          onUpdateShowcase?.({ cardSize: Number(e.target.value) || 24 }, targetScope)
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -812,16 +848,16 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Card Spread Spacing</span>
                         <span className="font-mono text-neutral-400">
-                          {currentShowcase.spreadGap ?? 6}px
+                          {typeof currentShowcase.spreadGap === 'number' && !Number.isNaN(currentShowcase.spreadGap) ? currentShowcase.spreadGap : 6}px
                         </span>
                       </div>
                       <input
                         type="range"
                         min={0}
                         max={32}
-                        value={currentShowcase.spreadGap ?? 6}
+                        value={typeof currentShowcase.spreadGap === 'number' && !Number.isNaN(currentShowcase.spreadGap) ? currentShowcase.spreadGap : 6}
                         onChange={(e) =>
-                          onUpdateShowcase?.({ spreadGap: Number(e.target.value) }, targetScope)
+                          onUpdateShowcase?.({ spreadGap: Number(e.target.value) || 0 }, targetScope)
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -852,12 +888,12 @@ export default function LeftSidebar({
 
                         <div>
                           <label className="block text-[10px] text-neutral-400 mb-1">
-                            Motion Speed ({currentShowcase.motionSpeed ?? 1.0}×)
+                            Motion Speed ({Number.isFinite(currentShowcase.motionSpeed) ? currentShowcase.motionSpeed : 1.0}×)
                           </label>
                           <select
-                            value={currentShowcase.motionSpeed ?? 1.0}
+                            value={Number.isFinite(currentShowcase.motionSpeed) ? currentShowcase.motionSpeed : 1.0}
                             onChange={(e) =>
-                              onUpdateShowcase?.({ motionSpeed: Number(e.target.value) }, targetScope)
+                              onUpdateShowcase?.({ motionSpeed: Number(e.target.value) || 1.0 }, targetScope)
                             }
                             className="w-full px-2 py-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-700 text-xs text-white"
                           >
@@ -919,16 +955,16 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Camera Tilt</span>
                         <span className="font-mono text-neutral-400">
-                          {currentShowcase.tilt ?? -18}°
+                          {typeof currentShowcase.tilt === 'number' && !Number.isNaN(currentShowcase.tilt) ? currentShowcase.tilt : -18}°
                         </span>
                       </div>
                       <input
                         type="range"
                         min={-60}
                         max={60}
-                        value={currentShowcase.tilt ?? -18}
+                        value={typeof currentShowcase.tilt === 'number' && !Number.isNaN(currentShowcase.tilt) ? currentShowcase.tilt : -18}
                         onChange={(e) =>
-                          onUpdateShowcase?.({ tilt: Number(e.target.value) }, targetScope)
+                          onUpdateShowcase?.({ tilt: Number(e.target.value) || 0 }, targetScope)
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -939,16 +975,16 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Depth Fade</span>
                         <span className="font-mono text-neutral-400">
-                          {currentShowcase.backFade ?? 55}%
+                          {typeof currentShowcase.backFade === 'number' && !Number.isNaN(currentShowcase.backFade) ? currentShowcase.backFade : 55}%
                         </span>
                       </div>
                       <input
                         type="range"
                         min={0}
                         max={90}
-                        value={currentShowcase.backFade ?? 55}
+                        value={typeof currentShowcase.backFade === 'number' && !Number.isNaN(currentShowcase.backFade) ? currentShowcase.backFade : 55}
                         onChange={(e) =>
-                          onUpdateShowcase?.({ backFade: Number(e.target.value) }, targetScope)
+                          onUpdateShowcase?.({ backFade: Number(e.target.value) || 0 }, targetScope)
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -963,16 +999,16 @@ export default function LeftSidebar({
                         <div className="flex justify-between text-[10px] mb-1">
                           <span className="text-neutral-400">Transitions.dev Glare Sheen</span>
                           <span className="font-mono text-neutral-400">
-                            {currentShowcase.glareIntensity ?? 60}%
+                            {typeof currentShowcase.glareIntensity === 'number' && !Number.isNaN(currentShowcase.glareIntensity) ? currentShowcase.glareIntensity : 60}%
                           </span>
                         </div>
                         <input
                           type="range"
                           min={0}
                           max={100}
-                          value={currentShowcase.glareIntensity ?? 60}
+                          value={typeof currentShowcase.glareIntensity === 'number' && !Number.isNaN(currentShowcase.glareIntensity) ? currentShowcase.glareIntensity : 60}
                           onChange={(e) =>
-                            onUpdateShowcase?.({ glareIntensity: Number(e.target.value) }, targetScope)
+                            onUpdateShowcase?.({ glareIntensity: Number(e.target.value) || 0 }, targetScope)
                           }
                           className="w-full accent-[#16a34a]"
                         />
@@ -1234,10 +1270,10 @@ export default function LeftSidebar({
                                   type="range"
                                   min={0}
                                   max={100}
-                                  value={state.intensity ?? fxDef.defaultIntensity}
+                                  value={typeof state.intensity === 'number' && !Number.isNaN(state.intensity) ? state.intensity : (fxDef.defaultIntensity || 50)}
                                   onChange={(e) =>
                                     onUpdateFxParam?.(fxDef.id, {
-                                      intensity: Number(e.target.value),
+                                      intensity: Number(e.target.value) || 0,
                                     }, targetScope)
                                   }
                                   className="w-full accent-[#16a34a]"
@@ -1246,19 +1282,19 @@ export default function LeftSidebar({
 
                               <div>
                                 <div className="flex justify-between text-[10px] text-neutral-300 mb-0.5">
-                                  <span>{fxDef.secondaryLabel}</span>
+                                  <span>{fxDef.secondaryLabel || 'Parameter'}</span>
                                   <span className="font-mono">
-                                    {state.secondary ?? fxDef.defaultSecondary}
+                                    {typeof state.secondary === 'number' && !Number.isNaN(state.secondary) ? state.secondary : (fxDef.defaultSecondary || 30)}
                                   </span>
                                 </div>
                                 <input
                                   type="range"
-                                  min={fxDef.secondaryMin}
-                                  max={fxDef.secondaryMax}
-                                  value={state.secondary ?? fxDef.defaultSecondary}
+                                  min={fxDef.secondaryMin ?? 0}
+                                  max={fxDef.secondaryMax ?? 100}
+                                  value={typeof state.secondary === 'number' && !Number.isNaN(state.secondary) ? state.secondary : (fxDef.defaultSecondary || 30)}
                                   onChange={(e) =>
                                     onUpdateFxParam?.(fxDef.id, {
-                                      secondary: Number(e.target.value),
+                                      secondary: Number(e.target.value) || 0,
                                     }, targetScope)
                                   }
                                   className="w-full accent-[#16a34a]"
@@ -1405,7 +1441,7 @@ export default function LeftSidebar({
                           type="number"
                           min={1}
                           max={60}
-                          value={activeScene.duration || 4}
+                          value={Number.isFinite(activeScene.duration) ? activeScene.duration : 4}
                           onChange={(e) =>
                             onUpdateSceneProp?.(
                               'duration',
@@ -1536,15 +1572,15 @@ export default function LeftSidebar({
 
                         <div>
                           <label className="block text-[10px] text-neutral-400 mb-0.5">
-                            Speed ({activeScene.motionSpeed ?? 1.0}×)
+                            Speed ({Number.isFinite(activeScene.motionSpeed) ? activeScene.motionSpeed : 1.0}×)
                           </label>
                           <input
                             type="range"
                             min={0.5}
                             max={2.0}
                             step={0.1}
-                            value={activeScene.motionSpeed ?? 1.0}
-                            onChange={(e) => onUpdateSceneProp?.('motionSpeed', Number(e.target.value))}
+                            value={Number.isFinite(activeScene.motionSpeed) ? activeScene.motionSpeed : 1.0}
+                            onChange={(e) => onUpdateSceneProp?.('motionSpeed', Number(e.target.value) || 1.0)}
                             className="w-full accent-[#16a34a] mt-1"
                           />
                         </div>
@@ -1755,49 +1791,81 @@ export default function LeftSidebar({
             )}
 
             {/* =========================================================
-                ADVANCED MODE: TAB 3 — GRAPHICS (Screenshots 36 & 37)
+                ADVANCED MODE: TAB 3 — GRAPHICS (Screenshots 36 & 37 + Vector Primitives)
                ========================================================= */}
             {editorMode === 'advanced' && currentTab === 'graphics' && (
-              <div className="space-y-3.5">
-                <p className="text-xs text-neutral-300 leading-relaxed">
-                  Choose a graphic template. Type templates also arrange the text.
-                </p>
-
-                <div className="space-y-2.5">
-                  {GRAPHIC_TEMPLATES.map((gt) => {
-                    const isActive =
-                      activeScene?.decorStyle === gt.id ||
-                      selectedLayer?.assetId === gt.id;
-                    return (
+              <div className="space-y-4">
+                {/* Vector Primitive Shapes (Fase 3: Primitive Shapes) */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white">Primitive Shapes</span>
+                    <span className="text-[10px] font-mono text-[#4ade80]">Vector</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { id: 'rectangle', label: 'Rectangle', icon: Square },
+                      { id: 'circle', label: 'Circle', icon: Circle },
+                      { id: 'pill', label: 'Pill', icon: '💊' },
+                      { id: 'triangle', label: 'Triangle', icon: '▲' },
+                      { id: 'star', label: 'Star', icon: '★' },
+                      { id: 'line', label: 'Rule Line', icon: '—' },
+                    ].map((sh) => (
                       <button
-                        key={gt.id}
+                        key={sh.id}
                         type="button"
-                        onClick={() => {
-                          if (onApplyGraphicTemplate) {
-                            onApplyGraphicTemplate(gt);
-                          } else {
-                            onAddGraphicLayer(gt.id, gt.name);
-                          }
-                        }}
-                        className={`w-full p-2.5 rounded-xl border text-left transition-all ${
-                          isActive
-                            ? 'bg-[#159947]/15 border-[#22c55e] shadow-sm'
-                            : 'bg-[#1a1a1a] border-neutral-800/90 hover:border-neutral-700'
-                        }`}
+                        onClick={() => onAddShapeLayer?.(sh.id)}
+                        className="p-2.5 rounded-xl bg-[#1c1c1c] hover:bg-neutral-800 border border-neutral-700/80 hover:border-[#22c55e] flex flex-col items-center justify-center gap-1 text-neutral-300 hover:text-white transition-all group shadow-sm"
                       >
-                        <GraphicTemplateThumbnail template={gt} isActive={isActive} />
-                        <div className="flex items-end justify-between gap-2">
-                          <div>
-                            <div className="text-xs font-bold text-white">{gt.name}</div>
-                            <div className="text-[11px] text-neutral-400 mt-0.5">{gt.detail}</div>
-                          </div>
-                          <span className="text-[11px] font-mono text-neutral-500 shrink-0">
-                            {gt.tag}
-                          </span>
-                        </div>
+                        <span className="text-sm group-hover:scale-110 transition-transform">
+                          {typeof sh.icon === 'string' ? sh.icon : <sh.icon className="w-3.5 h-3.5 text-[#4ade80]" />}
+                        </span>
+                        <span className="text-[10px] font-medium">{sh.label}</span>
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-neutral-800 space-y-2">
+                  <p className="text-xs text-neutral-300 leading-relaxed">
+                    Graphic templates & Swiss kinetic layouts.
+                  </p>
+
+                  <div className="space-y-2.5">
+                    {GRAPHIC_TEMPLATES.map((gt) => {
+                      const isActive =
+                        activeScene?.decorStyle === gt.id ||
+                        selectedLayer?.assetId === gt.id;
+                      return (
+                        <button
+                          key={gt.id}
+                          type="button"
+                          onClick={() => {
+                            if (onApplyGraphicTemplate) {
+                              onApplyGraphicTemplate(gt);
+                            } else {
+                              onAddGraphicLayer(gt.id, gt.name);
+                            }
+                          }}
+                          className={`w-full p-2.5 rounded-xl border text-left transition-all ${
+                            isActive
+                              ? 'bg-[#159947]/15 border-[#22c55e] shadow-sm'
+                              : 'bg-[#1a1a1a] border-neutral-800/90 hover:border-neutral-700'
+                          }`}
+                        >
+                          <GraphicTemplateThumbnail template={gt} isActive={isActive} />
+                          <div className="flex items-end justify-between gap-2">
+                            <div>
+                              <div className="text-xs font-bold text-white">{gt.name}</div>
+                              <div className="text-[11px] text-neutral-400 mt-0.5">{gt.detail}</div>
+                            </div>
+                            <span className="text-[11px] font-mono text-neutral-500 shrink-0">
+                              {gt.tag}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
@@ -1836,12 +1904,17 @@ export default function LeftSidebar({
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-neutral-300">
-                        {selectedLayerId ? '1 selected' : '0 selected'}
+                        {effectiveSelectedIds.length > 0
+                          ? `${effectiveSelectedIds.length} selected`
+                          : '0 selected'}
                       </span>
-                      {selectedLayerId && (
+                      {effectiveSelectedIds.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => setSelectedLayerId(null)}
+                          onClick={() => {
+                            if (setSelectedLayerIds) setSelectedLayerIds([]);
+                            if (setSelectedLayerId) setSelectedLayerId(null);
+                          }}
                           className="text-neutral-300 hover:text-white underline underline-offset-2"
                         >
                           Clear
@@ -1874,9 +1947,18 @@ export default function LeftSidebar({
                       </button>
                       <button
                         type="button"
+                        onClick={() => onAddShapeLayer?.('rectangle')}
+                        className="px-2 py-1 rounded-lg bg-[#1c1c1c] hover:bg-neutral-800 border border-neutral-700/80 text-[11px] font-semibold text-neutral-200 hover:text-white flex items-center gap-0.5"
+                        title="Add shape layer"
+                      >
+                        <Square className="w-3 h-3" />
+                        <span>+</span>
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => onAddGraphicLayer('swissCross', 'Graphic')}
                         className="px-2 py-1 rounded-lg bg-[#1c1c1c] hover:bg-neutral-800 border border-neutral-700/80 text-[11px] font-semibold text-neutral-200 hover:text-white flex items-center gap-0.5"
-                        title="Add graphic layer"
+                        title="Add graphic template"
                       >
                         <Sparkles className="w-3 h-3" />
                         <span>+</span>
@@ -1887,11 +1969,11 @@ export default function LeftSidebar({
                   {/* Layer Stack Items */}
                   <div className="space-y-1">
                     {[...(activeScene?.layers || [])].reverse().map((layer) => {
-                      const active = layer.id === selectedLayerId;
+                      const active = effectiveSelectedIds.includes(layer.id);
                       return (
                         <div
                           key={layer.id}
-                          onClick={() => setSelectedLayerId(layer.id)}
+                          onClick={(e) => handleSelectLayerInList(layer.id, e)}
                           className={`px-2.5 py-2 rounded-xl border flex items-center justify-between cursor-pointer transition-colors ${
                             active
                               ? 'bg-[#159947]/20 border-[#22c55e]/70 text-white'
@@ -1901,10 +1983,19 @@ export default function LeftSidebar({
                           <div className="flex items-center gap-2 min-w-0">
                             {layer.type === 'text' ? (
                               <Type className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                            ) : layer.type === 'shape' ? (
+                              <Square className="w-3.5 h-3.5 text-[#4ade80] shrink-0" />
+                            ) : layer.type === 'image' ? (
+                              <ImageIcon className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                             ) : (
-                              <Sparkles className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                              <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0" />
                             )}
                             <span className="text-xs font-medium truncate">{layer.name}</span>
+                            {layer.groupId && (
+                              <span className="px-1 py-0.2 rounded bg-neutral-800 border border-neutral-700 text-[9px] font-mono text-[#4ade80]">
+                                G
+                              </span>
+                            )}
                           </div>
                           <div
                             className="flex items-center gap-1 shrink-0"
@@ -1951,37 +2042,65 @@ export default function LeftSidebar({
                 <div className="pt-2 border-t border-neutral-800/80 grid grid-cols-4 gap-1.5">
                   <button
                     type="button"
-                    disabled={!selectedLayerId}
-                    onClick={() => selectedLayerId && onDuplicateLayer?.(selectedLayerId)}
+                    disabled={effectiveSelectedIds.length === 0}
+                    onClick={() => {
+                      if (effectiveSelectedIds.length > 1 && onDuplicateSelectedLayers) {
+                        onDuplicateSelectedLayers(effectiveSelectedIds);
+                      } else if (effectiveSelectedIds[0]) {
+                        onDuplicateLayer?.(effectiveSelectedIds[0]);
+                      }
+                    }}
                     className="py-2 rounded-lg bg-[#1c1c1c] hover:bg-neutral-800 disabled:opacity-40 border border-neutral-800 flex items-center justify-center text-neutral-300 hover:text-white"
-                    title="Duplicate layer"
+                    title="Duplicate layer(s)"
+                    aria-label="Duplicate selected layer(s)"
                   >
                     <Copy className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
-                    disabled={!selectedLayerId}
-                    onClick={() => selectedLayerId && onMoveLayerOrder?.(selectedLayerId, 'up')}
+                    disabled={effectiveSelectedIds.length === 0}
+                    onClick={() => {
+                      if (onReorderZ) {
+                        onReorderZ(effectiveSelectedIds, 'bringForward');
+                      } else if (effectiveSelectedIds[0]) {
+                        onMoveLayerOrder?.(effectiveSelectedIds[0], 'up');
+                      }
+                    }}
                     className="py-2 rounded-lg bg-[#1c1c1c] hover:bg-neutral-800 disabled:opacity-40 border border-neutral-800 flex items-center justify-center text-neutral-300 hover:text-white"
                     title="Move layer up"
+                    aria-label="Move selected layer up"
                   >
                     <ArrowUp className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
-                    disabled={!selectedLayerId}
-                    onClick={() => selectedLayerId && onMoveLayerOrder?.(selectedLayerId, 'down')}
+                    disabled={effectiveSelectedIds.length === 0}
+                    onClick={() => {
+                      if (onReorderZ) {
+                        onReorderZ(effectiveSelectedIds, 'sendBackward');
+                      } else if (effectiveSelectedIds[0]) {
+                        onMoveLayerOrder?.(effectiveSelectedIds[0], 'down');
+                      }
+                    }}
                     className="py-2 rounded-lg bg-[#1c1c1c] hover:bg-neutral-800 disabled:opacity-40 border border-neutral-800 flex items-center justify-center text-neutral-300 hover:text-white"
                     title="Move layer down"
+                    aria-label="Move selected layer down"
                   >
                     <ArrowDown className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
-                    disabled={!selectedLayerId}
-                    onClick={() => selectedLayerId && onDeleteLayer?.(selectedLayerId)}
+                    disabled={effectiveSelectedIds.length === 0}
+                    onClick={() => {
+                      if (effectiveSelectedIds.length > 1 && onDeleteSelectedLayers) {
+                        onDeleteSelectedLayers(effectiveSelectedIds);
+                      } else if (effectiveSelectedIds[0]) {
+                        onDeleteLayer?.(effectiveSelectedIds[0]);
+                      }
+                    }}
                     className="py-2 rounded-lg bg-[#1c1c1c] hover:bg-neutral-800 disabled:opacity-40 border border-neutral-800 flex items-center justify-center text-neutral-300 hover:text-red-400"
-                    title="Delete layer"
+                    title="Delete layer(s)"
+                    aria-label="Delete selected layer(s)"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

@@ -1,6 +1,7 @@
 {
   "name": "clover-motion-studio",
   "version": "2.0.0",
+  "type": "module",
   "private": true,
   "description": "Clover Motion Studio v2.0 — Unified Design, 3D Showcase (Animos), Procedural Shaders & FX Rack (EffectCraft), Web Audio DSP, and Social/Event Media Publishing Platform",
   "scripts": {

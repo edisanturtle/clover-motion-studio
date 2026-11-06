@@ -10,6 +10,7 @@ import {
   Check,
   ArrowLeft,
   CheckCircle2,
+  Copy,
 } from 'lucide-react';
 import ModalDialog from '../common/ModalDialog';
 import { BrandLogo } from '../common/BrandLogo';
@@ -23,6 +24,11 @@ import { ASPECT_RATIOS } from '../../constants/fonts';
 import { buildProjectFromTemplate } from '../../utils/projectBuilder';
 import { renderSceneToCanvas } from '../../engine/canvasRenderer';
 import LiveTemplatePreviewInspector from './LiveTemplatePreviewInspector';
+import {
+  duplicateTemplate,
+  loadCustomTemplates,
+  normalizeTemplateCatalog,
+} from '../../core/services/templateService';
 
 function StaticTemplateCardThumb({ template }) {
   const canvasRef = useRef(null);
@@ -160,8 +166,15 @@ export default function TemplateLibraryModal({
   const [purposeFilter, setPurposeFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('curated');
   const [searchQuery, setSearchQuery] = useState('');
+  const [licenseFilter, setLicenseFilter] = useState('all');
+  const [ratioFilter, setRatioFilter] = useState('all');
   const [favorites, setFavorites] = useState(['tpl_shutter']);
   const [previewRatio, setPreviewRatio] = useState('1:1');
+  const [customTemplates, setCustomTemplates] = useState([]);
+
+  useEffect(() => {
+    setCustomTemplates(loadCustomTemplates());
+  }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -170,10 +183,11 @@ export default function TemplateLibraryModal({
     }
   }, [open, initialMode]);
 
-  const visibleTemplates = useMemo(
-    () => STUDIO_TEMPLATES.filter((t) => !t.hiddenInCatalog),
-    []
-  );
+  const visibleTemplates = useMemo(() => {
+    const official = normalizeTemplateCatalog(STUDIO_TEMPLATES.filter((t) => !t.hiddenInCatalog));
+    const customs = normalizeTemplateCatalog(customTemplates);
+    return [...official, ...customs];
+  }, [customTemplates]);
 
   const [inspectedTemplate, setInspectedTemplate] = useState(
     () => visibleTemplates.find((t) => t.id === 'tpl_shutter') || visibleTemplates[0]
@@ -217,12 +231,16 @@ export default function TemplateLibraryModal({
         if (!cats.includes(activeCategory)) return false;
       }
       if (purposeFilter !== 'all' && t.purpose !== purposeFilter) return false;
+      if (licenseFilter !== 'all' && t.license !== licenseFilter) return false;
+      if (ratioFilter !== 'all' && !t.supportedRatios?.includes(ratioFilter)) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
           t.name.toLowerCase().includes(q) ||
           t.purpose.toLowerCase().includes(q) ||
-          t.description.toLowerCase().includes(q)
+          t.description?.toLowerCase().includes(q) ||
+          t.desc?.toLowerCase().includes(q) ||
+          t.author?.toLowerCase().includes(q)
         );
       }
       return true;
@@ -231,10 +249,16 @@ export default function TemplateLibraryModal({
     if (sortOrder === 'az') {
       list = [...list].sort((a, b) => a.name.localeCompare(b.name));
     } else if (sortOrder === 'duration') {
-      list = [...list].sort((a, b) => b.duration - a.duration);
+      list = [...list].sort((a, b) => (b.duration || b.durationSec || 0) - (a.duration || a.durationSec || 0));
     }
     return list;
-  }, [visibleTemplates, activeCategory, favorites, purposeFilter, searchQuery, sortOrder]);
+  }, [visibleTemplates, activeCategory, favorites, purposeFilter, licenseFilter, ratioFilter, searchQuery, sortOrder]);
+
+  const handleDuplicateTemplate = (tpl, e) => {
+    e.stopPropagation();
+    const cloned = duplicateTemplate(tpl);
+    setCustomTemplates((prev) => [cloned, ...prev]);
+  };
 
   const totalDuration = inspectedTemplate?.scenes?.reduce(
     (acc, s) => acc + s.duration,
@@ -467,6 +491,32 @@ export default function TemplateLibraryModal({
                 </select>
 
                 <select
+                  value={ratioFilter}
+                  onChange={(e) => setRatioFilter(e.target.value)}
+                  className="px-3.5 py-2.5 rounded-xl bg-[#1a1a1a] border border-neutral-800 text-xs text-neutral-200 focus:outline-none focus:border-neutral-600 font-mono"
+                >
+                  <option value="all">All 6 Sizes</option>
+                  <option value="9:16">9:16 Story</option>
+                  <option value="1:1">1:1 Square</option>
+                  <option value="4:5">4:5 Feed</option>
+                  <option value="16:9">16:9 Stage</option>
+                  <option value="4:3">4:3 Booth</option>
+                  <option value="3:4">3:4 Poster</option>
+                </select>
+
+                <select
+                  value={licenseFilter}
+                  onChange={(e) => setLicenseFilter(e.target.value)}
+                  className="px-3.5 py-2.5 rounded-xl bg-[#1a1a1a] border border-neutral-800 text-xs text-neutral-200 focus:outline-none focus:border-neutral-600 font-mono"
+                >
+                  <option value="all">All Licenses</option>
+                  <option value="MIT">MIT License</option>
+                  <option value="CC-BY-4.0">CC-BY 4.0</option>
+                  <option value="OFL-1.1">OFL 1.1</option>
+                  <option value="local-user">User Custom</option>
+                </select>
+
+                <select
                   value={sortOrder}
                   onChange={(e) => setSortOrder(e.target.value)}
                   className="px-3.5 py-2.5 rounded-xl bg-[#1a1a1a] border border-neutral-800 text-xs text-neutral-200 focus:outline-none focus:border-neutral-600"
@@ -591,11 +641,24 @@ export default function TemplateLibraryModal({
                             </span>
                           </div>
 
-                          <div className="p-3.5 border-t border-neutral-800/80 bg-[#161616]">
-                            <div className="text-sm font-bold text-white">{tpl.name}</div>
-                            <div className="text-xs text-neutral-400 mt-0.5">{tpl.purpose}</div>
-                            <div className="text-[11px] font-mono text-neutral-500 mt-2">
-                              {dur} s · {tpl.scenes.length} scenes · 3 sizes
+                          <div className="p-3.5 border-t border-neutral-800/80 bg-[#161616] space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-bold text-white truncate">{tpl.name}</span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleDuplicateTemplate(tpl, e)}
+                                className="p-1 rounded text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+                                title="Duplicate template"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <div className="text-xs text-neutral-400 truncate">{tpl.purpose}</div>
+                            <div className="text-[11px] font-mono text-neutral-500 pt-1 flex items-center justify-between">
+                              <span>{dur}s · {tpl.scenes?.length || 1} scenes · 6 sizes</span>
+                              <span className="px-1.5 py-0.2 rounded bg-neutral-800/80 text-[10px] text-neutral-400 border border-neutral-700/60 font-mono">
+                                {tpl.license || 'MIT'}
+                              </span>
                             </div>
                           </div>
                         </div>

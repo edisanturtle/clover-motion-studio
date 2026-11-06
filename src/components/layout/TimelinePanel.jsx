@@ -21,8 +21,11 @@ import {
   Flag,
   Activity,
   Waves,
+  Magnet,
+  Check,
 } from 'lucide-react';
 import { formatTimecode, getSceneTimeRanges } from '../../utils/timecode';
+import { timebaseToTimecode, frameStepTime, snapTimeToFrame } from '../../core/domain/timebase';
 import { evaluateLayerKeyframes } from '../../engine/canvasRenderer';
 
 const PROPERTY_LABELS = {
@@ -31,6 +34,17 @@ const PROPERTY_LABELS = {
   scale: 'Scale',
   rotation: 'Rotation',
   opacity: 'Opacity',
+};
+
+const BEZIER_PRESETS = {
+  smooth: { label: 'Smooth', coords: [0.25, 0.1, 0.25, 1.0] },
+  snappy: { label: 'Snappy', coords: [0.22, 1.0, 0.36, 1.0] },
+  anticipate: { label: 'Anticipate', coords: [0.36, 0.0, 0.66, -0.56] },
+  overshoot: { label: 'Overshoot', coords: [0.34, 1.56, 0.64, 1.0] },
+  ease: { label: 'CSS Ease', coords: [0.25, 0.1, 0.25, 1.0] },
+  easeIn: { label: 'Ease In', coords: [0.42, 0.0, 1.0, 1.0] },
+  easeOut: { label: 'Ease Out', coords: [0.0, 0.0, 0.58, 1.0] },
+  easeInOut: { label: 'Ease In Out', coords: [0.42, 0.0, 0.58, 1.0] },
 };
 
 export default function TimelinePanel({
@@ -57,12 +71,15 @@ export default function TimelinePanel({
   onSeekGlobalTime,
   onAddKeyframe,
   onUpdateKeyframe,
+  onDuplicateKeyframes,
   onPasteKeyframes,
   onDeleteKeyframe,
   onClearLayerKeyframes,
   onUpdateSceneDuration,
   onChangeFps,
   onAddScene,
+  onAddMarker,
+  onDeleteMarker,
 }) {
   const [viewMode, setViewMode] = useState('keyframes'); // 'keyframes' | 'graph'
   const [activeProp, setActiveProp] = useState('posX'); // 'posX' | 'posY' | 'scale' | 'rotation' | 'opacity'
@@ -70,6 +87,7 @@ export default function TimelinePanel({
   const [snapToBeats, setSnapToBeats] = useState(true);
   const [markers, setMarkers] = useState([]);
   const [copiedKeyframes, setCopiedKeyframes] = useState([]);
+  const [selectedKeyframeIds, setSelectedKeyframeIds] = useState([]);
   const [expandedLayerIds, setExpandedLayerIds] = useState({});
   const [timelineZoom, setTimelineZoom] = useState('fit'); // 'fit' | '2x' | '4x'
   const [trackHeight, setTrackHeight] = useState('compact'); // 'compact' | 'tall'
@@ -89,6 +107,59 @@ export default function TimelinePanel({
 
   const fps = project?.fps || 30;
   const totalFrames = Math.round(displayDuration * fps);
+
+  // Keyframe Selection & Multi-select Helpers (Fase 4)
+  const handleSelectKeyframe = (kfId, e) => {
+    e.stopPropagation();
+    if (e.shiftKey) {
+      setSelectedKeyframeIds((prev) =>
+        prev.includes(kfId) ? prev.filter((id) => id !== kfId) : [...prev, kfId]
+      );
+    } else {
+      setSelectedKeyframeIds([kfId]);
+    }
+  };
+
+  const handleDeleteSelectedKeyframes = () => {
+    if (!selectedLayer || !selectedKeyframeIds.length) return;
+    selectedKeyframeIds.forEach((id) => onDeleteKeyframe?.(selectedLayer.id, id));
+    setSelectedKeyframeIds([]);
+  };
+
+  const handleDuplicateSelectedKeyframes = () => {
+    if (!selectedLayer || !selectedKeyframeIds.length) return;
+    if (onDuplicateKeyframes) {
+      onDuplicateKeyframes(selectedLayer.id, selectedKeyframeIds);
+    } else {
+      const targets = (selectedLayer.keyframes || []).filter((k) => selectedKeyframeIds.includes(k.id));
+      const dups = targets.map((k) => ({
+        ...k,
+        id: `kf_dup_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        time: Math.min(duration, Number((k.time + 0.5).toFixed(2))),
+      }));
+      onPasteKeyframes?.(selectedLayer.id, dups, 0);
+    }
+  };
+
+  const handleSnapSelectedKeyframes = () => {
+    if (!selectedLayer || !selectedKeyframeIds.length) return;
+    (selectedLayer.keyframes || []).forEach((k) => {
+      if (selectedKeyframeIds.includes(k.id)) {
+        const snappedTime = snapTimeToFrame(k.time, fps);
+        onUpdateKeyframe?.(selectedLayer.id, k.id, { time: snappedTime });
+      }
+    });
+  };
+
+  const handleCopySelectedKeyframes = () => {
+    if (!selectedLayer) return;
+    if (selectedKeyframeIds.length > 0) {
+      const targets = (selectedLayer.keyframes || []).filter((k) => selectedKeyframeIds.includes(k.id));
+      setCopiedKeyframes(targets);
+    } else if (selectedLayer.keyframes?.length) {
+      setCopiedKeyframes([...selectedLayer.keyframes]);
+    }
+  };
 
   // Count total keyframes across project scenes (or active scene)
   const totalKeyframes = (project?.scenes || [activeScene]).reduce(
@@ -262,17 +333,19 @@ export default function TimelinePanel({
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => onSeekLocalTime(Math.max(0, localTime - 1 / fps))}
+                    onClick={() => onSeekLocalTime(frameStepTime(localTime, -1, fps, duration))}
                     className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-white"
-                    title="Previous frame"
+                    title="Previous frame (press ,)"
+                    aria-label="Previous frame"
                   >
                     <SkipBack className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
-                    onClick={() => onSeekLocalTime(Math.min(duration, localTime + 1 / fps))}
+                    onClick={() => onSeekLocalTime(frameStepTime(localTime, 1, fps, duration))}
                     className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-white"
-                    title="Next frame"
+                    title="Next frame (press .)"
+                    aria-label="Next frame"
                   >
                     <SkipForward className="w-3.5 h-3.5" />
                   </button>
@@ -281,6 +354,7 @@ export default function TimelinePanel({
                     onClick={onRestart}
                     className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-white"
                     title="Jump to start"
+                    aria-label="Jump to start"
                   >
                     <SkipBack className="w-3.5 h-3.5" />
                   </button>
@@ -288,6 +362,7 @@ export default function TimelinePanel({
                   <button
                     type="button"
                     onClick={onTogglePlay}
+                    aria-label={isPlaying ? 'Pause playback' : 'Start playback'}
                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#242424] hover:bg-neutral-700 border border-neutral-700 text-xs font-semibold text-white transition-colors ml-0.5"
                   >
                     {isPlaying ? (
@@ -312,6 +387,7 @@ export default function TimelinePanel({
                         : 'text-neutral-500 hover:text-white'
                     }`}
                     title="Toggle loop"
+                    aria-label="Toggle loop playback"
                   >
                     <Repeat className="w-3.5 h-3.5" />
                   </button>
@@ -352,11 +428,11 @@ export default function TimelinePanel({
 
                 <div className="h-3.5 w-px bg-neutral-800 mx-1" />
 
-                {/* Timecode Display */}
+                {/* Canonical Project Clock Timecode Display */}
                 <div className="flex items-center gap-1.5 text-xs">
                   <span className="text-neutral-400">Timecode</span>
-                  <span className="px-2 py-0.5 rounded bg-[#202020] border border-neutral-800 font-mono text-[11px] text-white">
-                    {formatTimecode(effectiveCurrentTime, fps)}
+                  <span className="px-2 py-0.5 rounded bg-[#202020] border border-neutral-800 font-mono text-[11px] text-[#4ade80]">
+                    {timebaseToTimecode(effectiveCurrentTime, fps)}
                   </span>
                 </div>
 
@@ -432,6 +508,39 @@ export default function TimelinePanel({
                   <Plus className="w-3 h-3" />
                   <span>Add keyframe</span>
                 </button>
+
+                {/* Keyframe Multi-selection Action Pill */}
+                {selectedKeyframeIds.length > 0 && (
+                  <div className="flex items-center gap-1 pl-1.5 border-l border-neutral-800 animate-fade-in">
+                    <span className="text-[10px] font-mono text-[#4ade80] px-1.5 py-0.5 rounded bg-[#159947]/20 border border-[#22c55e]/30">
+                      {selectedKeyframeIds.length} sel
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleDuplicateSelectedKeyframes}
+                      className="p-1 rounded bg-[#202020] hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white"
+                      title="Duplicate selected keyframes (Ctrl/Cmd+D)"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSnapSelectedKeyframes}
+                      className="p-1 rounded bg-[#202020] hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white"
+                      title="Snap selected keyframes to frame grid"
+                    >
+                      <Magnet className="w-3 h-3 text-[#22c55e]" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteSelectedKeyframes}
+                      className="p-1 rounded bg-[#202020] hover:bg-red-950/60 border border-neutral-800 text-neutral-400 hover:text-red-400"
+                      title="Delete selected keyframes (Delete / Backspace)"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -667,15 +776,32 @@ export default function TimelinePanel({
                 })}
 
                 {/* User Markers */}
-                {markers.map((mk) => {
+                {(activeScene?.markers || markers).map((mk) => {
                   const leftPct = Math.min(100, Math.max(0, (mk.time / duration) * 100));
                   return (
                     <div
                       key={mk.id}
                       style={{ left: `${leftPct}%` }}
-                      className="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-20"
-                      title={mk.label}
-                    />
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSeekLocalTime(mk.time);
+                      }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        if (onDeleteMarker) onDeleteMarker(mk.id);
+                        else setMarkers((prev) => prev.filter((m) => m.id !== mk.id));
+                      }}
+                      className="absolute top-0 bottom-0 w-1 -translate-x-1/2 z-20 cursor-pointer group"
+                      title={`${mk.label} at ${mk.time.toFixed(2)}s (Click to seek, double click to delete)`}
+                    >
+                      <div
+                        style={{ backgroundColor: mk.color || '#f59e0b' }}
+                        className="w-full h-full opacity-75 group-hover:opacity-100"
+                      />
+                      <div className="hidden group-hover:flex absolute -top-4 left-1/2 -translate-x-1/2 px-1 py-0.5 rounded bg-black border border-neutral-700 text-[9px] font-mono text-amber-300 whitespace-nowrap shadow-lg">
+                        {mk.label}
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -870,25 +996,30 @@ export default function TimelinePanel({
                                       98,
                                       Math.max(2, (kf.time / duration) * 100)
                                     );
+                                    const isKfSelected = selectedKeyframeIds.includes(kf.id);
                                     return (
                                       <button
                                         key={kf.id}
                                         type="button"
                                         onClick={(e) => {
-                                          e.stopPropagation();
+                                          handleSelectKeyframe(kf.id, e);
                                           onSeekLocalTime(kf.time);
                                         }}
                                         onPointerDown={(e) => {
                                           e.stopPropagation();
+                                          handleSelectKeyframe(kf.id, e);
                                           const startClientX = e.clientX;
                                           const origTime = kf.time;
                                           const handleMove = (ev) => {
                                             const dx = ev.clientX - startClientX;
                                             const timeDelta = (dx / 600) * duration;
-                                            const newTime = Math.max(
+                                            let newTime = Math.max(
                                               0,
-                                              Math.min(duration, Number((origTime + timeDelta).toFixed(2)))
+                                              Math.min(duration, Number((origTime + timeDelta).toFixed(3)))
                                             );
+                                            if (snapToBeats && !ev.altKey) {
+                                              newTime = snapTimeToFrame(newTime, fps);
+                                            }
                                             onUpdateKeyframe?.(layer.id, kf.id, { time: newTime });
                                           };
                                           const handleUp = () => {
@@ -903,8 +1034,12 @@ export default function TimelinePanel({
                                           onDeleteKeyframe?.(layer.id, kf.id);
                                         }}
                                         style={{ left: `${leftPct}%` }}
-                                        className="absolute -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-white border border-black z-10 cursor-ew-resize hover:scale-125 transition-transform"
-                                        title={`Keyframe at ${kf.time.toFixed(2)}s (Drag to move, double click to delete)`}
+                                        className={`absolute -translate-x-1/2 w-2.5 h-2.5 rounded-full z-10 cursor-ew-resize transition-all ${
+                                          isKfSelected
+                                            ? 'bg-[#22c55e] border-2 border-white ring-2 ring-[#22c55e]/60 scale-125'
+                                            : 'bg-white border border-black hover:scale-125'
+                                        }`}
+                                        title={`${PROPERTY_LABELS[kf.prop] || kf.prop}: ${kf.value} @ ${kf.time.toFixed(2)}s (${kf.interpolation || kf.easing || 'ease'})`}
                                       />
                                     );
                                   })}
@@ -1021,22 +1156,30 @@ export default function TimelinePanel({
                               strokeWidth="2.5"
                               vectorEffect="non-scaling-stroke"
                             />
-                            {/* Keyframe Nodes on Curve */}
+                            {/* Keyframe Nodes on Curve (Click to select & edit interpolation) */}
                             {(selectedLayer?.keyframes || [])
                               .filter((k) => k.prop === activeProp)
                               .map((k) => {
                                 const kx = (k.time / duration) * 100;
                                 const ky = 100 - ((k.value - minVal) / valRange) * 80 - 10;
+                                const isKfSelected = selectedKeyframeIds.includes(k.id);
                                 return (
                                   <circle
                                     key={k.id}
                                     cx={`${kx}%`}
                                     cy={`${ky}%`}
-                                    r="4"
-                                    fill="#ffffff"
-                                    stroke="#159947"
-                                    strokeWidth="2"
-                                  />
+                                    r={isKfSelected ? 5.5 : 4}
+                                    fill={isKfSelected ? '#22c55e' : '#ffffff'}
+                                    stroke={isKfSelected ? '#ffffff' : '#159947'}
+                                    strokeWidth={isKfSelected ? 2.5 : 2}
+                                    className="cursor-pointer hover:scale-125 transition-transform"
+                                    onClick={(e) => {
+                                      handleSelectKeyframe(k.id, e);
+                                      onSeekLocalTime(k.time);
+                                    }}
+                                  >
+                                    <title>{`${k.prop}: ${k.value} @ ${k.time.toFixed(2)}s (${k.interpolation || k.easing || 'ease'})`}</title>
+                                  </circle>
                                 );
                               })}
                           </svg>
@@ -1052,9 +1195,163 @@ export default function TimelinePanel({
                   })()}
 
                   <div className="text-[10px] font-mono text-neutral-500 pl-12">
-                    Drag keys to edit time and value. Shift-click or drag an area to select several.
+                    Click keyframe nodes on curve to edit Bézier interpolation or time/value.
                   </div>
                 </div>
+
+                {/* Keyframe Curve & Bézier Inspector Sub-Bar (Fase 4) */}
+                {(() => {
+                  const activeKf =
+                    (selectedLayer?.keyframes || []).find((k) => selectedKeyframeIds.includes(k.id)) ||
+                    (selectedLayer?.keyframes || []).find((k) => k.prop === activeProp);
+
+                  if (!activeKf) {
+                    return (
+                      <div className="h-8 px-4 border-t border-neutral-800/80 bg-[#161616] flex items-center justify-between text-[11px] text-neutral-500 font-mono">
+                        <span>No keyframe selected on {PROPERTY_LABELS[activeProp] || activeProp}</span>
+                        <button
+                          type="button"
+                          onClick={() => onAddKeyframe(activeProp)}
+                          className="px-2 py-0.5 rounded bg-[#222222] hover:bg-[#282828] text-neutral-300 hover:text-white border border-neutral-700"
+                        >
+                          + Add keyframe at {localTime.toFixed(2)}s
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  const interp = activeKf.interpolation || activeKf.easing || 'easeOutCubic';
+                  const bz = activeKf.bezier || [0.25, 0.1, 0.25, 1.0];
+
+                  return (
+                    <div className="px-3.5 py-2 border-t border-neutral-800/80 bg-[#141414] flex flex-wrap items-center justify-between gap-3 text-xs">
+                      {/* Left: Time & Value Numeric Inputs */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5 font-mono">
+                          <span className="text-[11px] text-neutral-400">Time:</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max={duration}
+                            value={Number.isFinite(activeKf.time) ? activeKf.time : 0}
+                            onChange={(e) =>
+                              onUpdateKeyframe?.(selectedLayer.id, activeKf.id, {
+                                time: Number(Number(e.target.value).toFixed(3)),
+                              })
+                            }
+                            className="w-14 px-1.5 py-0.5 rounded bg-[#202020] border border-neutral-700 text-center text-white text-[11px]"
+                          />
+                          <span className="text-[10px] text-neutral-500">s</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 font-mono">
+                          <span className="text-[11px] text-neutral-400">Value:</span>
+                          <input
+                            type="number"
+                            step="1"
+                            value={Number.isFinite(activeKf.value) ? activeKf.value : 0}
+                            onChange={(e) =>
+                              onUpdateKeyframe?.(selectedLayer.id, activeKf.id, {
+                                value: Number(e.target.value) || 0,
+                              })
+                            }
+                            className="w-16 px-1.5 py-0.5 rounded bg-[#202020] border border-neutral-700 text-center text-white text-[11px]"
+                          />
+                        </div>
+
+                        <div className="h-4 w-px bg-neutral-800 mx-1" />
+
+                        {/* Interpolation Selector */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] text-neutral-400">Curve:</span>
+                          <select
+                            value={interp}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              onUpdateKeyframe?.(selectedLayer.id, activeKf.id, {
+                                interpolation: val,
+                                easing: val,
+                                ...(val === 'bezier' && !activeKf.bezier
+                                  ? { bezier: [0.25, 0.1, 0.25, 1.0] }
+                                  : {}),
+                              });
+                            }}
+                            className="px-2 py-0.5 rounded bg-[#202020] border border-neutral-700 text-xs text-white focus:outline-none"
+                          >
+                            <option value="linear">Linear</option>
+                            <option value="ease">Ease (CSS)</option>
+                            <option value="easeIn">Ease In</option>
+                            <option value="easeOut">Ease Out</option>
+                            <option value="easeInOut">Ease In Out</option>
+                            <option value="bezier">Custom Bézier</option>
+                            <option value="easeOutCubic">Cubic Ease Out</option>
+                            <option value="easeInOutCubic">Cubic Ease In Out</option>
+                            <option value="easeOutBack">Back Ease (Overshoot)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Right: Custom Bézier Handles & Presets when 'bezier' is active */}
+                      {interp === 'bezier' && (
+                        <div className="flex items-center gap-2 animate-fade-in">
+                          <div className="flex items-center gap-1">
+                            {Object.entries(BEZIER_PRESETS).slice(0, 4).map(([pKey, pVal]) => (
+                              <button
+                                key={pKey}
+                                type="button"
+                                onClick={() =>
+                                  onUpdateKeyframe?.(selectedLayer.id, activeKf.id, {
+                                    interpolation: 'bezier',
+                                    easing: 'bezier',
+                                    bezier: pVal.coords,
+                                  })
+                                }
+                                className="px-1.5 py-0.5 rounded bg-[#202020] hover:bg-[#282828] border border-neutral-800 hover:border-neutral-700 text-[10px] text-neutral-300"
+                              >
+                                {pVal.label}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Bézier Coordinate Inputs [cp1x, cp1y, cp2x, cp2y] */}
+                          <div className="flex items-center gap-1 font-mono text-[10px] text-neutral-400">
+                            <span>[</span>
+                            {[0, 1, 2, 3].map((idx) => (
+                              <input
+                                key={idx}
+                                type="number"
+                                step="0.05"
+                                value={Number.isFinite(bz[idx]) ? bz[idx] : 0}
+                                onChange={(e) => {
+                                  const nextBz = [...bz];
+                                  nextBz[idx] = Number(e.target.value) || 0;
+                                  onUpdateKeyframe?.(selectedLayer.id, activeKf.id, {
+                                    interpolation: 'bezier',
+                                    easing: 'bezier',
+                                    bezier: nextBz,
+                                  });
+                                }}
+                                className="w-10 px-1 py-0.5 rounded bg-[#1a1a1a] border border-neutral-700 text-center text-white"
+                              />
+                            ))}
+                            <span>]</span>
+                          </div>
+
+                          {/* Mini SVG Bézier curve preview */}
+                          <svg className="w-8 h-6 bg-[#1a1a1a] border border-neutral-700 rounded" viewBox="0 0 100 100">
+                            <path
+                              d={`M 0 100 C ${bz[0] * 100} ${100 - bz[1] * 100}, ${bz[2] * 100} ${100 - bz[3] * 100}, 100 0`}
+                              fill="none"
+                              stroke="#22c55e"
+                              strokeWidth="4"
+                            />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

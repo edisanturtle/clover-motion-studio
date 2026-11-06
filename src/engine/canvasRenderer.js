@@ -1,6 +1,17 @@
-import { evaluateEasing, evaluatePeriodicSpring, solveSpring } from '../utils/timecode';
-import { renderAnimosShowcase } from './animosRenderer';
-import { renderEffectCraftShaderBg, applyEffectCraftRack } from './effectCraftRenderer';
+import { evaluateEasing, evaluatePeriodicSpring, solveSpring, solveCubicBezier } from '../utils/timecode.js';
+import { renderAnimosShowcase } from './animosRenderer.js';
+import { renderEffectCraftShaderBg, applyEffectCraftRack } from './effectCraftRenderer.js';
+import { evaluateLayerKeyframes } from '../core/services/animationEngine.js';
+import { evaluateAudioReactiveMapping } from '../core/services/audioAnalysisService.js';
+import {
+  evaluateActiveVideoClipsAtTime,
+  renderVideoClipToCanvas,
+} from '../core/services/videoService.js';
+import { resolveLayerForFormat } from '../core/domain/layoutVariants.js';
+import { renderVectorPathToCanvas } from '../core/services/vectorPathService.js';
+import { applyEffectStackToCanvas } from '../core/services/effectStackService.js';
+
+export { evaluateLayerKeyframes };
 
 // Cache an offscreen canvas for per-glyph pattern clipping
 let glyphScratchCanvas = null;
@@ -16,49 +27,6 @@ function getGlyphScratchCanvas(w, h) {
   return glyphScratchCanvas;
 }
 
-export function evaluateLayerKeyframes(layer, localTime) {
-  const result = {
-    posX: layer.x,
-    posY: layer.y,
-    scale: layer.scale ?? 1,
-    rotation: layer.rotation ?? 0,
-    opacity: layer.opacity ?? 1,
-  };
-
-  if (!layer.keyframes || layer.keyframes.length === 0) {
-    return result;
-  }
-
-  const props = ['posX', 'posY', 'scale', 'rotation', 'opacity'];
-  props.forEach((prop) => {
-    const kfs = layer.keyframes
-      .filter((k) => k.prop === prop)
-      .sort((a, b) => a.time - b.time);
-    if (kfs.length === 0) return;
-    if (localTime <= kfs[0].time) {
-      result[prop] = kfs[0].value;
-      return;
-    }
-    if (localTime >= kfs[kfs.length - 1].time) {
-      result[prop] = kfs[kfs.length - 1].value;
-      return;
-    }
-    for (let i = 0; i < kfs.length - 1; i++) {
-      const k0 = kfs[i];
-      const k1 = kfs[i + 1];
-      if (localTime >= k0.time && localTime <= k1.time) {
-        const span = Math.max(0.0001, k1.time - k0.time);
-        const rawT = (localTime - k0.time) / span;
-        const easedT = evaluateEasing(k1.easing || 'easeOutCubic', rawT);
-        result[prop] = k0.value + (k1.value - k0.value) * easedT;
-        break;
-      }
-    }
-  });
-
-  return result;
-}
-
 export function renderSceneToCanvas({
   ctx,
   width,
@@ -67,6 +35,8 @@ export function renderSceneToCanvas({
   localTime = 0,
   audioSignals = { bass: 0, mid: 0, treble: 0, rms: 0 },
   selectedLayerId = null,
+  selectedLayerIds = null,
+  activeSnapGuides = null,
   showGrid = false,
   showSafeGuides = false,
   showCenterCrosshair = false,
@@ -121,15 +91,43 @@ export function renderSceneToCanvas({
     });
   }
 
+  // 2c. Video Tracks Compositing & Transition Rendering (Fase 7)
+  if (project?.videoTracks && project.videoTracks.length > 0) {
+    const activeVideoClips = evaluateActiveVideoClipsAtTime(project.videoTracks, localTime);
+    for (const activeState of activeVideoClips) {
+      const asset = project.assets?.[activeState.clip.assetId];
+      // In browser runtime, an asset may hold an HTMLVideoElement or image proxy
+      const sourceElement = asset?.videoElement || asset?.imageElement || null;
+
+      renderVideoClipToCanvas({
+        ctx,
+        width,
+        height,
+        clip: activeState.clip,
+        sourceElement,
+        transitionIn: activeState.transitionIn,
+        transitionOut: activeState.transitionOut,
+        activeCaption: activeState.activeCaption,
+      });
+    }
+  }
+
   // 3. Optional Swiss Layout Grid Overlay (4x4 modular grid matching Screenshot 23)
   if (showGrid || (scene.gridStyle && scene.gridStyle !== 'none' && scene.decorStyle !== 'hangulGrid')) {
     drawLayoutGrid(ctx, width, height, scene.gridStyle || 'swiss', scene.palette, showGrid);
   }
 
   // 4. Render Scene Layers (Bottom to Top)
-  const layers = scene.layers || [];
-  let selectedLayerForHud = null;
-  let selectedStateForHud = null;
+  const currentRatio = project?.ratio || '4:5';
+  const baseRatio = project?.baseRatio || '4:5';
+  const rawLayers = scene.layers || [];
+  const layers = rawLayers.map((l) => resolveLayerForFormat(l, currentRatio, baseRatio));
+  const activeSelectedIds = new Set(
+    Array.isArray(selectedLayerIds) && selectedLayerIds.length > 0
+      ? selectedLayerIds
+      : selectedLayerId ? [selectedLayerId] : []
+  );
+  const selectedLayersForHud = [];
 
   layers.forEach((layer) => {
     if (layer.visible === false) return;
@@ -142,14 +140,12 @@ export function renderSceneToCanvas({
     let dAlpha = 0;
 
     if (layer.audioReactive) {
-      const sigVal = audioSignals[layer.audioSignal || 'bass'] || 0;
-      const intensity = (layer.audioIntensity ?? 40) / 100;
-      const target = layer.audioTarget || 'scale';
-      if (target === 'scale') dScale = sigVal * intensity * 0.35;
-      else if (target === 'posY') dy = -sigVal * intensity * 65;
-      else if (target === 'posX') dx = sigVal * intensity * 55;
-      else if (target === 'rotation') dRot = sigVal * intensity * 35;
-      else if (target === 'opacity') dAlpha = -sigVal * intensity * 0.4;
+      const audioMod = evaluateAudioReactiveMapping(layer, audioSignals);
+      dx = audioMod.dx;
+      dy = audioMod.dy;
+      dScale = audioMod.dScale;
+      dRot = audioMod.dRot;
+      dAlpha = audioMod.dAlpha;
     }
 
     const finalState = {
@@ -160,15 +156,32 @@ export function renderSceneToCanvas({
       opacity: Math.max(0, Math.min(1, kfState.opacity + dAlpha)),
     };
 
+    ctx.save();
+    if (layer.blendMode) {
+      ctx.globalCompositeOperation = layer.blendMode;
+    }
+
     if (layer.type === 'graphic') {
       renderGraphicLayer(ctx, layer, finalState, localTime, audioSignals, scene.palette, width, height, scene);
     } else if (layer.type === 'text') {
       renderTextLayer(ctx, layer, finalState, localTime, audioSignals, scene.palette, scene);
+    } else if (layer.type === 'shape') {
+      renderShapeLayer(ctx, layer, finalState, localTime, audioSignals, scene.palette, width, height, scene);
+    } else if (layer.type === 'image') {
+      renderImageLayer(ctx, layer, finalState, localTime, audioSignals, scene.palette, width, height, scene);
+    } else if (layer.type === 'vectorPath') {
+      ctx.save();
+      ctx.translate(width / 2 + finalState.x, height / 2 + finalState.y);
+      if (finalState.rotation) ctx.rotate((finalState.rotation * Math.PI) / 180);
+      if (finalState.scale !== 1) ctx.scale(finalState.scale, finalState.scale);
+      renderVectorPathToCanvas(ctx, { ...layer, x: 0, y: 0, opacity: finalState.opacity });
+      ctx.restore();
     }
 
-    if (selectedLayerId && layer.id === selectedLayerId) {
-      selectedLayerForHud = layer;
-      selectedStateForHud = finalState;
+    ctx.restore();
+
+    if (activeSelectedIds.has(layer.id)) {
+      selectedLayersForHud.push({ layer, state: finalState });
     }
   });
 
@@ -185,9 +198,29 @@ export function renderSceneToCanvas({
     });
   }
 
-  // 4c. Editor Selection Box HUD (drawn after FX Rack so handles stay crisp)
-  if (selectedLayerForHud && selectedStateForHud) {
-    drawSelectionBox(ctx, selectedLayerForHud, selectedStateForHud);
+  // 4c. Non-Destructive Layer & Scene Effect Stack (Fase 9)
+  const effectStack = scene.effects || project?.effects;
+  if (effectStack && effectStack.length > 0) {
+    applyEffectStackToCanvas({
+      ctx,
+      width,
+      height,
+      effects: effectStack,
+      localTime,
+      audioSignals,
+    });
+  }
+
+  // 4d. Editor Selection Box HUD (drawn after FX Rack so handles stay crisp)
+  if (selectedLayersForHud.length === 1) {
+    drawSelectionBox(ctx, selectedLayersForHud[0].layer, selectedLayersForHud[0].state);
+  } else if (selectedLayersForHud.length > 1) {
+    drawMultiSelectionBox(ctx, selectedLayersForHud);
+  }
+
+  // 4d. Magnetic Alignment Snap Guides
+  if (activeSnapGuides) {
+    drawActiveSnapGuides(ctx, width, height, activeSnapGuides);
   }
 
   // 5. Safe Area Guides Overlay (Screenshots 11 & 48)
@@ -1809,13 +1842,193 @@ function renderTextLayer(ctx, layer, state, t, audio, palette, scene = null) {
   ctx.restore();
 }
 
+/**
+ * Procedural & Vector Primitive Shapes Renderer (Fase 3: Rectangle, Circle, Pill, Triangle, Star, Line)
+ */
+function renderShapeLayer(ctx, layer, state, t, audio, palette, canvasWidth = 1080, canvasHeight = 1350, scene = null) {
+  ctx.save();
+  ctx.globalAlpha = state.opacity;
+  ctx.translate(state.x, state.y);
+  ctx.rotate((state.rotation * Math.PI) / 180);
+  ctx.scale(state.scale, state.scale);
+
+  const w = layer.width || layer.size || 200;
+  const h = layer.height || layer.size || 200;
+  const fill = layer.fill || layer.color || '#159947';
+  const stroke = layer.stroke || '#22c55e';
+  const strokeW = Number(layer.strokeWidth) || 0;
+  const cornerR = Number(layer.cornerRadius) || 0;
+  const shapeType = layer.shapeType || 'rectangle';
+
+  if (layer.shadowEnabled) {
+    ctx.shadowColor = layer.shadowColor || 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = layer.shadowBlur ?? 16;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 4;
+  }
+
+  ctx.beginPath();
+  switch (shapeType) {
+    case 'circle': {
+      const rx = w / 2;
+      const ry = h / 2;
+      ctx.ellipse(0, 0, Math.max(1, rx), Math.max(1, ry), 0, 0, Math.PI * 2);
+      break;
+    }
+    case 'pill': {
+      const r = Math.min(w, h) / 2;
+      if (ctx.roundRect) {
+        ctx.roundRect(-w / 2, -h / 2, w, h, r);
+      } else {
+        ctx.rect(-w / 2, -h / 2, w, h);
+      }
+      break;
+    }
+    case 'triangle': {
+      ctx.moveTo(0, -h / 2);
+      ctx.lineTo(w / 2, h / 2);
+      ctx.lineTo(-w / 2, h / 2);
+      ctx.closePath();
+      break;
+    }
+    case 'star': {
+      const points = 5;
+      const outerR = Math.min(w, h) / 2;
+      const innerR = outerR * 0.4;
+      for (let i = 0; i < points * 2; i++) {
+        const rad = i % 2 === 0 ? outerR : innerR;
+        const angle = (i * Math.PI) / points - Math.PI / 2;
+        const px = Math.cos(angle) * rad;
+        const py = Math.sin(angle) * rad;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      break;
+    }
+    case 'line': {
+      ctx.moveTo(-w / 2, 0);
+      ctx.lineTo(w / 2, 0);
+      break;
+    }
+    case 'rectangle':
+    default: {
+      if (cornerR > 0 && ctx.roundRect) {
+        ctx.roundRect(-w / 2, -h / 2, w, h, Math.min(cornerR, Math.min(w, h) / 2));
+      } else {
+        ctx.rect(-w / 2, -h / 2, w, h);
+      }
+      break;
+    }
+  }
+
+  if (shapeType !== 'line' && fill && fill !== 'none' && fill !== 'transparent') {
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+
+  if (shapeType === 'line' || (strokeW > 0 && stroke && stroke !== 'none')) {
+    ctx.strokeStyle = shapeType === 'line' ? fill : stroke;
+    ctx.lineWidth = shapeType === 'line' ? Math.max(1, h || strokeW || 3) : strokeW;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// Module-level pooled image cache for local SVG & PNG asset layers
+const localAssetImageCache = new Map();
+
+function getCachedImageElement(src) {
+  if (!src) return null;
+  let cached = localAssetImageCache.get(src);
+  if (!cached && typeof Image !== 'undefined') {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = src;
+    cached = img;
+    localAssetImageCache.set(src, cached);
+  }
+  return cached;
+}
+
+/**
+ * Local SVG & PNG Media Asset Layer Renderer (Fase 3: Local Image Import)
+ */
+function renderImageLayer(ctx, layer, state, t, audio, palette, canvasWidth = 1080, canvasHeight = 1350, scene = null) {
+  ctx.save();
+  ctx.globalAlpha = state.opacity;
+  ctx.translate(state.x, state.y);
+  ctx.rotate((state.rotation * Math.PI) / 180);
+  ctx.scale(state.scale, state.scale);
+
+  const w = layer.width || 300;
+  const h = layer.height || 300;
+  const cornerR = Number(layer.cornerRadius) || 0;
+  const strokeW = Number(layer.strokeWidth) || 0;
+  const stroke = layer.stroke || '#ffffff';
+
+  const img = layer.customImageElement || getCachedImageElement(layer.src || layer.dataUrl);
+
+  if (img && img.complete && img.naturalWidth > 0) {
+    ctx.save();
+    ctx.beginPath();
+    if (cornerR > 0 && ctx.roundRect) {
+      ctx.roundRect(-w / 2, -h / 2, w, h, Math.min(cornerR, Math.min(w, h) / 2));
+    } else {
+      ctx.rect(-w / 2, -h / 2, w, h);
+    }
+    ctx.clip();
+    ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    ctx.restore();
+  } else {
+    // Elegant fallback placeholder while decoding
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-w / 2, -h / 2, w, h);
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.fillStyle = '#999999';
+    ctx.font = "14px 'Space Grotesk', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(layer.name || 'Image Layer', 0, 0);
+  }
+
+  if (strokeW > 0) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = strokeW;
+    ctx.beginPath();
+    if (cornerR > 0 && ctx.roundRect) {
+      ctx.roundRect(-w / 2, -h / 2, w, h, Math.min(cornerR, Math.min(w, h) / 2));
+    } else {
+      ctx.rect(-w / 2, -h / 2, w, h);
+    }
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 export function getLayerBoundingBox(layer) {
+  const scale = layer.scale || 1;
+  if (layer.type === 'shape') {
+    const w = (layer.width || layer.size || 200) * scale;
+    const h = (layer.height || layer.size || 200) * scale;
+    return { width: w, height: h };
+  }
+  if (layer.type === 'image') {
+    const w = (layer.width || 300) * scale;
+    const h = (layer.height || 300) * scale;
+    return { width: w, height: h };
+  }
   if (layer.type === 'graphic') {
-    const s = (layer.size || 300) * (layer.scale || 1);
+    const s = (layer.size || 300) * scale;
     return { width: s, height: s };
   }
   const lines = String(layer.text || '').split('\n');
-  const fs = (layer.fontSize || 96) * (layer.scale || 1);
+  const fs = (layer.fontSize || 96) * scale;
   const w = Math.max(layer.width || 420, fs * 2.5);
   const h = Math.max(fs * 1.15, lines.length * fs * (layer.lineHeight || 1.05));
   return { width: w, height: h };
@@ -1901,6 +2114,101 @@ function drawSelectionBox(ctx, layer, state) {
     ctx.strokeRect(px - hs / 2, py - hs / 2, hs, hs);
   });
 
+  ctx.restore();
+}
+
+/**
+ * Multi-Selection Bounding Box & Group Overlay (Fase 3: Multi-Selection)
+ */
+function drawMultiSelectionBox(ctx, layersWithStates) {
+  if (!layersWithStates || layersWithStates.length < 2) return;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+
+  layersWithStates.forEach(({ layer, state }) => {
+    const box = getLayerBoundingBox(layer);
+    const halfW = box.width / 2;
+    const halfH = box.height / 2;
+    minX = Math.min(minX, state.x - halfW);
+    maxX = Math.max(maxX, state.x + halfW);
+    minY = Math.min(minY, state.y - halfH);
+    maxY = Math.max(maxY, state.y + halfH);
+  });
+
+  const pad = 12;
+  const boxX = minX - pad;
+  const boxY = minY - pad;
+  const boxW = maxX - minX + pad * 2;
+  const boxH = maxY - minY + pad * 2;
+
+  ctx.save();
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 1.8;
+  ctx.setLineDash([8, 6]);
+  ctx.strokeRect(boxX, boxY, boxW, boxH);
+  ctx.setLineDash([]);
+
+  // Handles at 4 corners
+  const corners = [
+    [boxX, boxY],
+    [boxX + boxW, boxY],
+    [boxX + boxW, boxY + boxH],
+    [boxX, boxY + boxH],
+  ];
+  corners.forEach(([cx, cy]) => {
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#159947';
+    ctx.lineWidth = 2;
+    ctx.fillRect(cx - 6, cy - 6, 12, 12);
+    ctx.strokeRect(cx - 6, cy - 6, 12, 12);
+  });
+
+  // Floating label pill: "N layers selected"
+  const label = `${layersWithStates.length} layers selected`;
+  ctx.font = "600 16px 'Plus Jakarta Sans', sans-serif";
+  const tw = ctx.measureText(label).width;
+  const pillW = tw + 24;
+  const pillH = 30;
+  const pillX = boxX;
+  const pillY = boxY - pillH - 6;
+
+  ctx.fillStyle = 'rgba(21, 153, 71, 0.95)';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(pillX, pillY, pillW, pillH, 6);
+  else ctx.rect(pillX, pillY, pillW, pillH);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, pillX + 12, pillY + pillH / 2 + 1);
+  ctx.restore();
+}
+
+/**
+ * Active Snap Alignment Guidelines (Fase 3: Snap to Center & Edges)
+ */
+function drawActiveSnapGuides(ctx, width, height, guides) {
+  if (!guides) return;
+  ctx.save();
+  ctx.strokeStyle = '#4ade80';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 4]);
+
+  if (typeof guides.x === 'number') {
+    ctx.beginPath();
+    ctx.moveTo(guides.x, 0);
+    ctx.lineTo(guides.x, height);
+    ctx.stroke();
+  }
+  if (typeof guides.y === 'number') {
+    ctx.beginPath();
+    ctx.moveTo(0, guides.y);
+    ctx.lineTo(width, guides.y);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 

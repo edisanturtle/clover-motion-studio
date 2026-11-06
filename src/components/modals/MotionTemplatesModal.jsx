@@ -186,8 +186,8 @@ export default function MotionTemplatesModal({
                     min={0.2}
                     max={3}
                     step={0.1}
-                    value={speed}
-                    onChange={(e) => setSpeed(Number(e.target.value))}
+                    value={Number.isFinite(speed) ? speed : 1.0}
+                    onChange={(e) => setSpeed(Number(e.target.value) || 1.0)}
                     className="w-full accent-white"
                   />
                 </div>
@@ -195,15 +195,15 @@ export default function MotionTemplatesModal({
                 <div>
                   <div className="flex justify-between text-xs text-neutral-300 mb-1">
                     <span>Letter Stagger</span>
-                    <span className="font-mono">{Math.round(stagger * 1000)} ms</span>
+                    <span className="font-mono">{Math.round((Number.isFinite(stagger) ? stagger : 0.04) * 1000)} ms</span>
                   </div>
                   <input
                     type="range"
                     min={0}
                     max={0.15}
                     step={0.005}
-                    value={stagger}
-                    onChange={(e) => setStagger(Number(e.target.value))}
+                    value={Number.isFinite(stagger) ? stagger : 0.04}
+                    onChange={(e) => setStagger(Number(e.target.value) || 0.04)}
                     className="w-full accent-white"
                   />
                 </div>

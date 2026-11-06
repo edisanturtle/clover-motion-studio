@@ -85,6 +85,10 @@ export class ProceduralAudioEngine {
     this.mediaElementSource = null;
     this.micStream = null;
     this.micSource = null;
+
+    // Fase 5: Multi-Track Clip Buffer Cache & Active Playback Nodes
+    this.clipBuffers = new Map(); // assetId -> AudioBuffer
+    this.activeClipSources = [];  // Array of { clipId, trackId, source, gainNode, panner }
   }
 
   ensureContext() {
@@ -241,6 +245,20 @@ export class ProceduralAudioEngine {
     if (this.delayWetGain && typeof this.dspParams.delayMix === 'number') {
       this.delayWetGain.gain.setTargetAtTime(
         Math.max(0, Math.min(0.85, this.dspParams.delayMix)),
+        now,
+        0.02
+      );
+    }
+    if (this.delayNode && typeof this.dspParams.delayTime === 'number') {
+      this.delayNode.delayTime.setTargetAtTime(
+        Math.max(0.02, Math.min(1.2, this.dspParams.delayTime)),
+        now,
+        0.02
+      );
+    }
+    if (this.delayFeedback && typeof this.dspParams.delayFeedback === 'number') {
+      this.delayFeedback.gain.setTargetAtTime(
+        Math.max(0, Math.min(0.85, this.dspParams.delayFeedback)),
         now,
         0.02
       );
@@ -473,6 +491,165 @@ export class ProceduralAudioEngine {
     }
     if (this.audioElement) {
       this.audioElement.pause();
+    }
+    this.stopClipPlayback();
+  }
+
+  // ==========================================
+  // Fase 5: Multi-Track Clip Scheduling & DSP
+  // ==========================================
+
+  registerClipBuffer(assetId, audioBuffer) {
+    if (!assetId || !audioBuffer) return;
+    this.clipBuffers.set(assetId, audioBuffer);
+  }
+
+  hasClipBuffer(assetId) {
+    return this.clipBuffers.has(assetId);
+  }
+
+  getClipBuffer(assetId) {
+    return this.clipBuffers.get(assetId) || null;
+  }
+
+  async loadClipAudioBuffer(assetId, arrayBuffer) {
+    this.ensureContext();
+    if (!this.ctx || !arrayBuffer) return null;
+    try {
+      const decoded = await this.ctx.decodeAudioData(arrayBuffer.slice(0));
+      this.clipBuffers.set(assetId, decoded);
+      return decoded;
+    } catch (err) {
+      console.error('Failed to decode audio buffer:', err);
+      return null;
+    }
+  }
+
+  scheduleClipPlayback(tracks = [], playheadTime = 0) {
+    this.stopClipPlayback();
+    this.ensureContext();
+    if (!this.ctx || this.isMuted) return;
+
+    const hasSolo = tracks.some((t) => t.solo);
+    const audibleTracks = tracks.filter((t) => (hasSolo ? t.solo && !t.mute : !t.mute));
+    const now = this.ctx.currentTime;
+
+    audibleTracks.forEach((track) => {
+      const trackVol = track.volume ?? 1.0;
+      const trackPan = track.pan ?? 0.0;
+
+      (track.clips || []).forEach((clip) => {
+        const buffer = this.clipBuffers.get(clip.assetId);
+        if (!buffer) return;
+
+        const clipStart = Number(clip.trackTime) || 0;
+        const clipTrimIn = Number(clip.trimIn) || 0;
+        const clipTrimOut = Number(clip.trimOut) || (clipTrimIn + buffer.duration);
+        const clipDuration = Number(clip.duration) || (clipTrimOut - clipTrimIn);
+        const clipEnd = clipStart + clipDuration;
+
+        let scheduledStart = 0;
+        let bufferOffset = clipTrimIn;
+        let playDuration = clipDuration;
+
+        if (playheadTime < clipStart) {
+          // Scheduled in future
+          scheduledStart = now + (clipStart - playheadTime);
+          bufferOffset = clipTrimIn;
+          playDuration = clipDuration;
+        } else if (playheadTime >= clipStart && playheadTime < clipEnd) {
+          // Playhead currently inside clip
+          const elapsed = playheadTime - clipStart;
+          scheduledStart = now;
+          bufferOffset = clipTrimIn + elapsed;
+          playDuration = clipDuration - elapsed;
+        } else if (clip.loop) {
+          // Past clip but loop is active
+          scheduledStart = now;
+          const cycleOffset = (playheadTime - clipStart) % Math.max(0.05, clipDuration);
+          bufferOffset = clipTrimIn + cycleOffset;
+          playDuration = clipDuration - cycleOffset;
+        } else {
+          return; // Past non-looping clip
+        }
+
+        try {
+          const source = this.ctx.createBufferSource();
+          source.buffer = buffer;
+          source.loop = Boolean(clip.loop);
+          if (clip.loop) {
+            source.loopStart = clipTrimIn;
+            source.loopEnd = clipTrimOut;
+          }
+
+          const gainNode = this.ctx.createGain();
+          const targetGain = Math.max(0, Math.min(2.0, (clip.gain ?? 1.0) * trackVol));
+          const fadeInSec = Math.min(clip.fadeIn || 0, playDuration / 2);
+          const fadeOutSec = Math.min(clip.fadeOut || 0, playDuration / 2);
+
+          if (fadeInSec > 0.01) {
+            gainNode.gain.setValueAtTime(0.0001, scheduledStart);
+            gainNode.gain.linearRampToValueAtTime(targetGain, scheduledStart + fadeInSec);
+          } else {
+            gainNode.gain.setValueAtTime(targetGain, scheduledStart);
+          }
+
+          if (fadeOutSec > 0.01) {
+            const fadeOutStart = scheduledStart + playDuration - fadeOutSec;
+            gainNode.gain.setValueAtTime(targetGain, Math.max(scheduledStart, fadeOutStart));
+            gainNode.gain.linearRampToValueAtTime(0.0001, scheduledStart + playDuration);
+          }
+
+          let panner = null;
+          const totalPan = Math.max(-1.0, Math.min(1.0, trackPan + (clip.pan ?? 0.0)));
+          if (this.ctx.createStereoPanner) {
+            panner = this.ctx.createStereoPanner();
+            panner.pan.value = totalPan;
+            source.connect(gainNode);
+            gainNode.connect(panner);
+            panner.connect(this.masterGain);
+          } else {
+            source.connect(gainNode);
+            gainNode.connect(this.masterGain);
+          }
+
+          source.start(scheduledStart, bufferOffset, playDuration > 0 ? playDuration : undefined);
+
+          this.activeClipSources.push({
+            clipId: clip.id,
+            trackId: track.id,
+            source,
+            gainNode,
+            panner,
+          });
+        } catch (err) {
+          // Gracefully ignore audio graph errors during rapid scrubbing
+        }
+      });
+    });
+  }
+
+  stopClipPlayback() {
+    if (this.activeClipSources && this.activeClipSources.length > 0) {
+      this.activeClipSources.forEach(({ source, gainNode, panner }) => {
+        try {
+          source.stop();
+        } catch {}
+        try {
+          source.disconnect();
+          gainNode.disconnect();
+          if (panner) panner.disconnect();
+        } catch {}
+      });
+      this.activeClipSources = [];
+    }
+  }
+
+  seekClips(playheadTime, tracks = []) {
+    if (this.isPlaying) {
+      this.scheduleClipPlayback(tracks, playheadTime);
+    } else {
+      this.stopClipPlayback();
     }
   }
 
@@ -713,6 +890,9 @@ export class ProceduralAudioEngine {
         mid: 0.1,
         treble: 0.08,
         rms: 0.1,
+        amplitude: 0.1,
+        transient: 0,
+        beat: 0,
         bars: new Array(32).fill(0.12),
       };
     }
@@ -734,6 +914,20 @@ export class ProceduralAudioEngine {
     const treble = avgRange(18, 30);
     const rms = bass * 0.45 + mid * 0.35 + treble * 0.2;
 
-    return { bass, mid, treble, rms, bars };
+    // Transient Onset & Beat detection with exponential decay envelope
+    const prevEnergy = this.lastAnalysisEnergy || 0;
+    const currentEnergy = bass * 0.7 + rms * 0.3;
+    this.lastAnalysisEnergy = currentEnergy;
+    const energyDelta = Math.max(0, currentEnergy - prevEnergy);
+
+    if (energyDelta > 0.12) {
+      this.transientEnvelope = 1.0;
+    } else {
+      this.transientEnvelope = Math.max(0, (this.transientEnvelope || 0) * 0.75);
+    }
+    const transient = Number(this.transientEnvelope.toFixed(3));
+    const beat = transient > 0.35 ? 1 : 0;
+
+    return { bass, mid, treble, rms, amplitude: rms, transient, beat, bars };
   }
 }

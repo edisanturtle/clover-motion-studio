@@ -21,6 +21,10 @@ import {
   Film,
   Copy,
   FilePlus,
+  FolderOpen,
+  HelpCircle,
+  Music,
+  Clapperboard,
 } from 'lucide-react';
 import { BrandLogo } from '../common/BrandLogo';
 
@@ -54,6 +58,9 @@ export default function TopHeaderBar({
   onOpenFullscreen,
   onOpenFormatReview,
   onOpenExport,
+  onOpenMyProjects,
+  onOpenHelp,
+  onSaveAs,
 }) {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreRef = useRef(null);
@@ -151,6 +158,7 @@ export default function TopHeaderBar({
         {/* Design | Motion sub-mode + 3 Workspace Panel Toggles (Screenshots 34, 44, 45, 46) */}
         {editorMode === 'advanced' && (
           <>
+            {/* 4 Workspace Navigation Tabs: Design | Animate | Video | Audio */}
             <div className="flex items-center bg-[#1c1c1c] p-0.5 rounded-lg border border-neutral-800">
               <button
                 type="button"
@@ -160,19 +168,45 @@ export default function TopHeaderBar({
                     ? 'bg-[#159947]/25 text-[#4ade80] border border-[#22c55e]/40 shadow-sm'
                     : 'text-neutral-400 hover:text-white'
                 }`}
+                title="Design Workspace (1)"
               >
                 Design
               </button>
               <button
                 type="button"
-                onClick={() => setAdvancedSubMode('motion')}
+                onClick={() => setAdvancedSubMode('animate')}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                  advancedSubMode === 'motion'
+                  advancedSubMode === 'animate' || advancedSubMode === 'motion'
                     ? 'bg-[#159947]/25 text-[#4ade80] border border-[#22c55e]/40 shadow-sm'
                     : 'text-neutral-400 hover:text-white'
                 }`}
+                title="Animate Workspace (2)"
               >
-                Motion
+                Animate
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdvancedSubMode('video')}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                  advancedSubMode === 'video'
+                    ? 'bg-[#159947]/25 text-[#4ade80] border border-[#22c55e]/40 shadow-sm'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+                title="Video Workspace (3)"
+              >
+                Video
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdvancedSubMode('audio')}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                  advancedSubMode === 'audio'
+                    ? 'bg-[#159947]/25 text-[#4ade80] border border-[#22c55e]/40 shadow-sm'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+                title="Audio DSP Workspace (4)"
+              >
+                Audio
               </button>
             </div>
 
@@ -187,6 +221,7 @@ export default function TopHeaderBar({
                     : 'bg-[#1c1c1c] border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-800'
                 }`}
                 title={leftDrawerOpen ? 'Hide left panel' : 'Show left panel'}
+                aria-label={leftDrawerOpen ? 'Hide left panel' : 'Show left panel'}
               >
                 <PanelLeft className="w-3.5 h-3.5" />
               </button>
@@ -199,6 +234,7 @@ export default function TopHeaderBar({
                     : 'bg-[#1c1c1c] border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-800'
                 }`}
                 title={rightPanelOpen ? 'Hide properties panel' : 'Show properties panel'}
+                aria-label={rightPanelOpen ? 'Hide properties panel' : 'Show properties panel'}
               >
                 <PanelRight className="w-3.5 h-3.5" />
               </button>
@@ -207,6 +243,7 @@ export default function TopHeaderBar({
                 onClick={onResetWorkspaceLayout}
                 className="p-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
                 title="Reset workspace layout"
+                aria-label="Reset workspace layout"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
@@ -214,12 +251,24 @@ export default function TopHeaderBar({
           </>
         )}
 
+        {/* My Projects Browser */}
+        <button
+          type="button"
+          onClick={onOpenMyProjects}
+          className="p-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors"
+          title="Project Browser"
+          aria-label="Project Browser"
+        >
+          <FolderOpen className="w-3.5 h-3.5" />
+        </button>
+
         {/* Browse Templates icon button */}
         <button
           type="button"
           onClick={onOpenTemplates}
           className="p-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors"
           title="Template library"
+          aria-label="Template library"
         >
           <LayoutGrid className="w-3.5 h-3.5" />
         </button>
@@ -229,9 +278,21 @@ export default function TopHeaderBar({
           type="button"
           onClick={onSaveProject}
           className="p-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors"
-          title="Save project"
+          title="Save project (⌘S)"
+          aria-label="Save project"
         >
           <Save className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Help & Shortcuts button */}
+        <button
+          type="button"
+          onClick={onOpenHelp}
+          className="p-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors"
+          title="Help & Shortcuts (?)"
+          aria-label="Help and keyboard shortcuts"
+        >
+          <HelpCircle className="w-3.5 h-3.5" />
         </button>
 
         {/* More (...) menu matching Screenshot 47 */}
@@ -245,6 +306,7 @@ export default function TopHeaderBar({
                 : 'bg-[#1c1c1c] border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800'
             }`}
             title="More options"
+            aria-label="More options"
           >
             <MoreHorizontal className="w-3.5 h-3.5" />
           </button>
@@ -261,6 +323,28 @@ export default function TopHeaderBar({
               >
                 <FilePlus className="w-3.5 h-3.5 text-neutral-400" />
                 <span>New poster</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  onOpenMyProjects?.();
+                }}
+                className="w-full px-3.5 py-2 text-left hover:bg-neutral-800 flex items-center gap-2.5"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-neutral-400" />
+                <span>My Projects (Browser)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  onOpenHelp?.();
+                }}
+                className="w-full px-3.5 py-2 text-left hover:bg-neutral-800 flex items-center gap-2.5"
+              >
+                <HelpCircle className="w-3.5 h-3.5 text-neutral-400" />
+                <span>Help &amp; shortcuts (?)</span>
               </button>
               <button
                 type="button"
@@ -374,6 +458,20 @@ export default function TopHeaderBar({
                 <Copy className="w-3.5 h-3.5 text-neutral-400" />
                 <span>Save as template</span>
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  const newName = window.prompt('Save project as:', `${project.name} (Copy)`);
+                  if (newName && newName.trim()) {
+                    onSaveAs?.(newName.trim());
+                  }
+                }}
+                className="w-full px-3.5 py-2 text-left hover:bg-neutral-800 flex items-center gap-2.5"
+              >
+                <FilePlus className="w-3.5 h-3.5 text-neutral-400" />
+                <span>Save As... (Duplicate)</span>
+              </button>
             </div>
           )}
           <input
@@ -398,6 +496,7 @@ export default function TopHeaderBar({
           disabled={!canUndo}
           className="p-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-800 text-neutral-300 hover:text-white disabled:opacity-35 transition-colors"
           title="Undo (⌘Z)"
+          aria-label="Undo"
         >
           <Undo2 className="w-3.5 h-3.5" />
         </button>
@@ -407,6 +506,7 @@ export default function TopHeaderBar({
           disabled={!canRedo}
           className="p-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-800 text-neutral-300 hover:text-white disabled:opacity-35 transition-colors"
           title="Redo (⇧⌘Z)"
+          aria-label="Redo"
         >
           <Redo2 className="w-3.5 h-3.5" />
         </button>
@@ -417,6 +517,7 @@ export default function TopHeaderBar({
           onClick={onOpenFullscreen}
           className="p-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors"
           title="Fullscreen Preview (F)"
+          aria-label="Fullscreen stage preview"
         >
           <Maximize2 className="w-3.5 h-3.5" />
         </button>
@@ -427,6 +528,7 @@ export default function TopHeaderBar({
           onClick={onOpenFormatReview}
           className="p-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors"
           title="Review formats"
+          aria-label="Review multi-format layouts"
         >
           <Columns className="w-3.5 h-3.5" />
         </button>

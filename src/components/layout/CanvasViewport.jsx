@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   Grid,
   SlidersHorizontal,
   Palette,
   MousePointer,
+  Hand,
   Shuffle,
   Lock,
   Link2,
@@ -35,7 +36,10 @@ export default function CanvasViewport({
   audioSignals,
   selectedLayerId,
   setSelectedLayerId,
+  selectedLayerIds = null,
+  setSelectedLayerIds = null,
   onUpdateLayer,
+  onBatchUpdateLayers,
   showGrid,
   setShowGrid,
   showSafeGuides,
@@ -55,10 +59,25 @@ export default function CanvasViewport({
   const settingsRef = useRef(null);
   const [zoomMultiplier, setZoomMultiplier] = useState(1.0); // 1.0 = Fit
   const [zoomMode, setZoomMode] = useState('fit'); // 'fit' | 'custom'
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [activeTool, setActiveTool] = useState('select'); // 'select' | 'pan'
+  const [isSpaceDown, setIsSpaceDown] = useState(false);
   const [dragState, setDragState] = useState(null);
+  const [marqueeBox, setMarqueeBox] = useState(null);
+  const [activeSnapGuides, setActiveSnapGuides] = useState(null);
   const [colorsOpen, setColorsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showCenterCrosshair, setShowCenterCrosshair] = useState(false);
+
+  // Normalize selected IDs (array)
+  const effectiveSelectedIds = Array.isArray(selectedLayerIds)
+    ? selectedLayerIds
+    : selectedLayerId ? [selectedLayerId] : [];
+
+  const updateSelection = useCallback((ids) => {
+    if (setSelectedLayerIds) setSelectedLayerIds(ids);
+    if (setSelectedLayerId) setSelectedLayerId(ids[0] || null);
+  }, [setSelectedLayerIds, setSelectedLayerId]);
 
   const dim = ASPECT_RATIOS[project.ratio] || ASPECT_RATIOS['4:5'];
 
@@ -112,6 +131,8 @@ export default function CanvasViewport({
       localTime,
       audioSignals,
       selectedLayerId,
+      selectedLayerIds: effectiveSelectedIds,
+      activeSnapGuides,
       showGrid,
       showSafeGuides,
       showCenterCrosshair,
@@ -125,13 +146,15 @@ export default function CanvasViewport({
     localTime,
     audioSignals,
     selectedLayerId,
+    effectiveSelectedIds,
+    activeSnapGuides,
     showGrid,
     showSafeGuides,
     showCenterCrosshair,
     project,
   ]);
 
-  // Pointer Hit Testing & Interactive Dragging on Canvas (Move, Resize, Rotate)
+  // Pointer Hit Testing & Interactive Dragging on Canvas (Move, Resize, Rotate, Marquee, Pan)
   const getCanvasCoords = (e) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -144,14 +167,20 @@ export default function CanvasViewport({
     };
   };
 
-  // Keyboard shortcut listener for Zoom (+/-/0), Nudge (Arrows), and Delete
+  // Keyboard shortcut listener for Zoom (+/-/0), Nudge (Arrows), Space Pan, and Tool Switch
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Don't intercept if user is typing in an input/textarea
       const tag = e.target?.tagName?.toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
 
-      if (e.key === '=' || e.key === '+') {
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault();
+        setIsSpaceDown(true);
+      } else if (e.key === 'v' || e.key === 'V') {
+        setActiveTool('select');
+      } else if (e.key === 'h' || e.key === 'H') {
+        setActiveTool('pan');
+      } else if (e.key === '=' || e.key === '+') {
         e.preventDefault();
         stepZoom(0.1);
       } else if (e.key === '-' || e.key === '_') {
@@ -161,49 +190,77 @@ export default function CanvasViewport({
         e.preventDefault();
         resetZoomFit();
       } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-        if (!selectedLayerId || !activeScene) return;
+        if (!effectiveSelectedIds.length || !activeScene) return;
         e.preventDefault();
         const dist = e.shiftKey ? 10 : 2;
-        const target = (activeScene.layers || []).find((l) => l.id === selectedLayerId);
-        if (!target) return;
         let dx = 0;
         let dy = 0;
         if (e.key === 'ArrowUp') dy = -dist;
         if (e.key === 'ArrowDown') dy = dist;
         if (e.key === 'ArrowLeft') dx = -dist;
         if (e.key === 'ArrowRight') dx = dist;
-        onUpdateLayer(selectedLayerId, {
-          x: Math.round(target.x + dx),
-          y: Math.round(target.y + dy),
+
+        effectiveSelectedIds.forEach((id) => {
+          const target = (activeScene.layers || []).find((l) => l.id === id);
+          if (target && !target.locked) {
+            onUpdateLayer(id, {
+              x: Math.round(target.x + dx),
+              y: Math.round(target.y + dy),
+            });
+          }
         });
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedLayerId && onUpdateLayer) {
-          // If Backspace/Delete pressed and a layer is selected, remove it from scene
-          const target = (activeScene?.layers || []).find((l) => l.id === selectedLayerId);
-          if (target && target.role !== 'title') {
-            // keep primary title layer safe from accidental deletion, allow deleting others
-            onUpdateLayer(selectedLayerId, { visible: false });
-          }
+        if (effectiveSelectedIds.length && onUpdateLayer) {
+          effectiveSelectedIds.forEach((id) => {
+            const target = (activeScene?.layers || []).find((l) => l.id === id);
+            if (target && target.role !== 'title') {
+              onUpdateLayer(id, { visible: false });
+            }
+          });
         }
       }
     };
+
+    const handleKeyUp = (e) => {
+      if (e.code === 'Space') {
+        setIsSpaceDown(false);
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, activeScene, onUpdateLayer]);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [effectiveSelectedIds, activeScene, onUpdateLayer]);
 
   const handlePointerDown = (e) => {
     if (!activeScene) return;
+
+    // Pan Mode (Middle Mouse Button, Pan Tool, or Holding Space)
+    if (activeTool === 'pan' || isSpaceDown || e.button === 1) {
+      setDragState({
+        mode: 'pan',
+        startX: e.clientX,
+        startY: e.clientY,
+        origPanX: panOffset.x,
+        origPanY: panOffset.y,
+      });
+      return;
+    }
+
     const pt = getCanvasCoords(e);
 
-    // 1. Check if clicking on the selected layer's rotation or resize handles
-    if (selectedLayerId) {
-      const curLayer = (activeScene.layers || []).find((l) => l.id === selectedLayerId);
+    // 1. Single selection transform handles (Rotation or Resize)
+    if (effectiveSelectedIds.length === 1) {
+      const curLayer = (activeScene.layers || []).find((l) => l.id === effectiveSelectedIds[0]);
       if (curLayer && !curLayer.locked) {
         const box = getLayerBoundingBox(curLayer);
         const halfW = (box.width * (curLayer.scale ?? 1)) / 2;
         const halfH = (box.height * (curLayer.scale ?? 1)) / 2;
 
-        // Top rotation handle position
+        // Top rotation handle
         const rotHandleX = curLayer.x;
         const rotHandleY = curLayer.y - halfH - 48;
         if (Math.hypot(pt.x - rotHandleX, pt.y - rotHandleY) <= 24) {
@@ -218,7 +275,7 @@ export default function CanvasViewport({
           return;
         }
 
-        // Corner resize handles
+        // 4 corner resize handles
         const corners = [
           { name: 'tl', x: curLayer.x - halfW, y: curLayer.y - halfH },
           { name: 'tr', x: curLayer.x + halfW, y: curLayer.y - halfH },
@@ -241,15 +298,15 @@ export default function CanvasViewport({
       }
     }
 
-    // 2. Otherwise hit test layers top-to-bottom
+    // 2. Layer Hit Testing (Top to Bottom)
     const layers = [...(activeScene.layers || [])].reverse();
     let hitLayer = null;
 
     for (const layer of layers) {
       if (layer.visible === false || layer.locked) continue;
       const box = getLayerBoundingBox(layer);
-      const halfW = (box.width * (layer.scale ?? 1)) / 2 + 20;
-      const halfH = (box.height * (layer.scale ?? 1)) / 2 + 20;
+      const halfW = (box.width * (layer.scale ?? 1)) / 2 + 16;
+      const halfH = (box.height * (layer.scale ?? 1)) / 2 + 16;
       if (
         pt.x >= layer.x - halfW &&
         pt.x <= layer.x + halfW &&
@@ -262,22 +319,73 @@ export default function CanvasViewport({
     }
 
     if (hitLayer) {
-      setSelectedLayerId(hitLayer.id);
+      let nextSelectedIds = [];
+      if (e.shiftKey) {
+        // Toggle selection with Shift
+        if (effectiveSelectedIds.includes(hitLayer.id)) {
+          nextSelectedIds = effectiveSelectedIds.filter((id) => id !== hitLayer.id);
+        } else {
+          nextSelectedIds = [...effectiveSelectedIds, hitLayer.id];
+        }
+      } else {
+        // Normal click: if clicked layer is already part of selection, maintain it; otherwise select only this layer
+        if (effectiveSelectedIds.includes(hitLayer.id)) {
+          nextSelectedIds = effectiveSelectedIds;
+        } else {
+          nextSelectedIds = [hitLayer.id];
+        }
+      }
+
+      updateSelection(nextSelectedIds);
+
+      // Start drag move for all currently selected layers
+      const initialPositions = new Map();
+      (activeScene.layers || []).forEach((l) => {
+        if (nextSelectedIds.includes(l.id) && !l.locked) {
+          initialPositions.set(l.id, { x: l.x, y: l.y });
+        }
+      });
+
       setDragState({
         mode: 'move',
-        layerId: hitLayer.id,
+        primaryLayerId: hitLayer.id,
+        initialPositions,
         startX: pt.x,
         startY: pt.y,
-        origX: hitLayer.x,
-        origY: hitLayer.y,
       });
     } else {
-      setSelectedLayerId(null);
+      // Empty canvas click
+      if (!e.shiftKey) {
+        updateSelection([]);
+      }
+      // Start marquee selection drag
+      setDragState({
+        mode: 'marquee',
+        startX: pt.x,
+        startY: pt.y,
+      });
+      setMarqueeBox({
+        startX: pt.x,
+        startY: pt.y,
+        currentX: pt.x,
+        currentY: pt.y,
+      });
     }
   };
 
   const handlePointerMove = (e) => {
     if (!dragState) return;
+
+    if (dragState.mode === 'pan') {
+      const dx = e.clientX - dragState.startX;
+      const dy = e.clientY - dragState.startY;
+      setPanOffset({
+        x: dragState.origPanX + dx,
+        y: dragState.origPanY + dy,
+      });
+      return;
+    }
+
     const pt = getCanvasCoords(e);
 
     if (dragState.mode === 'rotate') {
@@ -290,17 +398,79 @@ export default function CanvasViewport({
       const ratio = curDist / (dragState.startDist || 1);
       const nextScale = Math.max(0.1, Math.min(5.0, Math.round(dragState.origScale * ratio * 100) / 100));
       onUpdateLayer(dragState.layerId, { scale: nextScale });
-    } else {
-      const dx = pt.x - dragState.startX;
-      const dy = pt.y - dragState.startY;
-      onUpdateLayer(dragState.layerId, {
-        x: Math.round(dragState.origX + dx),
-        y: Math.round(dragState.origY + dy),
+    } else if (dragState.mode === 'move') {
+      let dx = pt.x - dragState.startX;
+      let dy = pt.y - dragState.startY;
+
+      // Magnetic snap check on primary layer
+      const primaryInit = dragState.initialPositions.get(dragState.primaryLayerId);
+      const snapGuides = {};
+      if (primaryInit) {
+        const targetX = primaryInit.x + dx;
+        const targetY = primaryInit.y + dy;
+        const centerX = dim.width / 2;
+        const centerY = dim.height / 2;
+
+        if (Math.abs(targetX - centerX) < 14) {
+          dx = centerX - primaryInit.x;
+          snapGuides.x = centerX;
+        }
+        if (Math.abs(targetY - centerY) < 14) {
+          dy = centerY - primaryInit.y;
+          snapGuides.y = centerY;
+        }
+      }
+
+      setActiveSnapGuides(Object.keys(snapGuides).length > 0 ? snapGuides : null);
+
+      // Update all selected layers synchronously
+      dragState.initialPositions.forEach((initPos, layerId) => {
+        onUpdateLayer(layerId, {
+          x: Math.round(initPos.x + dx),
+          y: Math.round(initPos.y + dy),
+        });
+      });
+    } else if (dragState.mode === 'marquee') {
+      setMarqueeBox({
+        startX: dragState.startX,
+        startY: dragState.startY,
+        currentX: pt.x,
+        currentY: pt.y,
       });
     }
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e) => {
+    if (dragState?.mode === 'marquee' && marqueeBox) {
+      const minX = Math.min(marqueeBox.startX, marqueeBox.currentX);
+      const maxX = Math.max(marqueeBox.startX, marqueeBox.currentX);
+      const minY = Math.min(marqueeBox.startY, marqueeBox.currentY);
+      const maxY = Math.max(marqueeBox.startY, marqueeBox.currentY);
+
+      if (maxX - minX > 8 || maxY - minY > 8) {
+        // Find all visible, unlocked layers inside the marquee box
+        const hitIds = (activeScene.layers || [])
+          .filter((l) => {
+            if (l.visible === false || l.locked) return false;
+            const box = getLayerBoundingBox(l);
+            const halfW = (box.width * (l.scale ?? 1)) / 2;
+            const halfH = (box.height * (l.scale ?? 1)) / 2;
+            const lMinX = l.x - halfW;
+            const lMaxX = l.x + halfW;
+            const lMinY = l.y - halfH;
+            const lMaxY = l.y + halfH;
+            return lMaxX >= minX && lMinX <= maxX && lMaxY >= minY && lMinY <= maxY;
+          })
+          .map((l) => l.id);
+
+        if (hitIds.length > 0) {
+          updateSelection(hitIds);
+        }
+      }
+      setMarqueeBox(null);
+    }
+
+    setActiveSnapGuides(null);
     setDragState(null);
   };
 
@@ -315,6 +485,7 @@ export default function CanvasViewport({
   const resetZoomFit = () => {
     setZoomMode('fit');
     setZoomMultiplier(1.0);
+    setPanOffset({ x: 0, y: 0 });
   };
 
   // Wheel zoom (mouse wheel with Ctrl / trackpad pinch gesture) & pan
@@ -375,17 +546,35 @@ export default function CanvasViewport({
                 })}
               </div>
 
-              <button
-                type="button"
-                onClick={() => setSelectedLayerId(null)}
-                className="p-1.5 rounded-lg bg-[#202020] border border-neutral-800 text-neutral-300 hover:text-white transition-colors"
-                title="Select tool (V)"
-              >
-                <MousePointer className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-1 bg-[#202020] p-0.5 rounded-lg border border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setActiveTool('select')}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    activeTool === 'select'
+                      ? 'bg-[#159947] text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                  title="Select tool (V)"
+                >
+                  <MousePointer className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTool('pan')}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    activeTool === 'pan'
+                      ? 'bg-[#159947] text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                  title="Hand / Pan tool (H or hold Space)"
+                >
+                  <Hand className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           ) : (
-            /* Advanced Mode: Ratio Dropdown + Grid + Link/Snap + Sliders + Colors + Pointer (Screenshot 19) */
+            /* Advanced Mode: Ratio Dropdown + Grid + Link/Snap + Sliders + Colors + Tools */
             <div className="flex items-center gap-1.5">
               <select
                 value={project.ratio}
@@ -423,6 +612,7 @@ export default function CanvasViewport({
                     : 'bg-[#202020] border-neutral-800 text-neutral-400 hover:text-white'
                 }`}
                 title="Snap & alignment guides"
+                aria-label="Snap and safe alignment guides"
               >
                 <Link2 className="w-3.5 h-3.5" />
               </button>
@@ -438,6 +628,7 @@ export default function CanvasViewport({
                       : 'bg-[#202020] border-neutral-800 text-neutral-400 hover:text-white'
                   }`}
                   title="Canvas Viewport & Guide Settings"
+                  aria-label="Canvas Viewport & Guide Settings"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5" />
                 </button>
@@ -491,6 +682,7 @@ export default function CanvasViewport({
                           onClick={() => {
                             setZoomMode('fit');
                             setZoomMultiplier(1.0);
+                            setPanOffset({ x: 0, y: 0 });
                           }}
                           className={`px-2 py-0.5 rounded text-[10px] font-mono ${
                             zoomMode === 'fit'
@@ -534,7 +726,7 @@ export default function CanvasViewport({
                 )}
               </div>
 
-              {/* Colors Popover matching Screenshots 24 & 25 */}
+              {/* Colors Popover */}
               <div className="relative" ref={colorsRef}>
                 <button
                   type="button"
@@ -611,39 +803,79 @@ export default function CanvasViewport({
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => setSelectedLayerId(null)}
-                className="p-1.5 rounded-lg bg-[#202020] border border-neutral-800 text-neutral-300 hover:text-white transition-colors"
-                title="Select tool (V)"
-              >
-                <MousePointer className="w-3.5 h-3.5" />
-              </button>
+              {/* Tool Selection: Pointer & Hand */}
+              <div className="flex items-center gap-1 bg-[#202020] p-0.5 rounded-lg border border-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setActiveTool('select')}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    activeTool === 'select'
+                      ? 'bg-[#159947] text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                  title="Select tool (V)"
+                >
+                  <MousePointer className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTool('pan')}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    activeTool === 'pan'
+                      ? 'bg-[#159947] text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                  title="Hand / Pan tool (H or hold Space)"
+                >
+                  <Hand className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Center Interactive Stage */}
+        {/* Center Interactive Stage with Zoom, Pan & Marquee */}
         <div
           ref={containerRef}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          className="flex-1 flex items-center justify-center overflow-auto relative p-4"
+          className={`flex-1 flex items-center justify-center overflow-auto relative p-4 ${
+            activeTool === 'pan' || isSpaceDown ? 'cursor-grab active:cursor-grabbing' : ''
+          }`}
         >
           <div
             style={{
               width: Math.round(dim.width * effectiveCanvasScale),
               height: Math.round(dim.height * effectiveCanvasScale),
+              transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
             }}
-            className="relative shadow-[0_20px_60px_rgba(0,0,0,0.75)] ring-1 ring-white/10 transition-all duration-150 shrink-0"
+            className="relative shadow-[0_20px_60px_rgba(0,0,0,0.75)] ring-1 ring-white/10 shrink-0 select-none"
           >
             <canvas
               ref={canvasRef}
               width={dim.width}
               height={dim.height}
               onPointerDown={handlePointerDown}
-              className="w-full h-full block cursor-move"
+              className={`w-full h-full block ${
+                activeTool === 'pan' || isSpaceDown
+                  ? 'cursor-grab'
+                  : effectiveSelectedIds.length > 0
+                  ? 'cursor-move'
+                  : 'cursor-default'
+              }`}
             />
+            {/* Visual Marquee Selection Overlay Box */}
+            {marqueeBox && (
+              <div
+                style={{
+                  left: Math.min(marqueeBox.startX, marqueeBox.currentX) * effectiveCanvasScale,
+                  top: Math.min(marqueeBox.startY, marqueeBox.currentY) * effectiveCanvasScale,
+                  width: Math.abs(marqueeBox.currentX - marqueeBox.startX) * effectiveCanvasScale,
+                  height: Math.abs(marqueeBox.currentY - marqueeBox.startY) * effectiveCanvasScale,
+                }}
+                className="absolute pointer-events-none border border-[#22c55e] bg-[#22c55e]/15 z-30"
+              />
+            )}
           </div>
         </div>
 
@@ -657,13 +889,24 @@ export default function CanvasViewport({
           </span>
           <div
             className="flex items-center gap-2"
-            title="Canvas: Pinch trackpad / Alt+Wheel to zoom, + / - / 0, arrow keys to nudge"
+            title="Canvas: Pinch trackpad / Alt+Wheel to zoom, + / - / 0, arrow keys to nudge, hold Space to pan"
           >
+            {(panOffset.x !== 0 || panOffset.y !== 0) && (
+              <button
+                type="button"
+                onClick={() => setPanOffset({ x: 0, y: 0 })}
+                className="px-1.5 py-0.5 rounded bg-neutral-800 text-[10px] text-[#4ade80] hover:bg-neutral-700 transition-colors"
+                title="Reset pan offset"
+              >
+                Reset Pan
+              </button>
+            )}
             <button
               type="button"
               onClick={() => stepZoom(-0.1)}
               className="hover:text-white px-1 transition-colors"
               title="Zoom out (-)"
+              aria-label="Zoom out"
             >
               -
             </button>
@@ -672,6 +915,7 @@ export default function CanvasViewport({
               onClick={resetZoomFit}
               className="text-neutral-300 hover:text-white px-1 font-sans text-xs transition-colors"
               title="Reset zoom to Fit (0)"
+              aria-label="Reset zoom to fit"
             >
               {zoomMode === 'fit' ? 'Fit' : `${zoomMultiplier.toFixed(1)}×`}
             </button>
@@ -680,6 +924,7 @@ export default function CanvasViewport({
               onClick={() => stepZoom(0.1)}
               className="hover:text-white px-1 transition-colors"
               title="Zoom in (+)"
+              aria-label="Zoom in"
             >
               +
             </button>

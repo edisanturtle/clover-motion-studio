@@ -153,8 +153,8 @@ export default function LiveTemplatePreviewInspector({
           min={0}
           max={totalDuration || 12}
           step={0.1}
-          value={localTime}
-          onChange={(e) => setLocalTime(Number(e.target.value))}
+          value={Number.isFinite(localTime) ? localTime : 0}
+          onChange={(e) => setLocalTime(Number(e.target.value) || 0)}
           className="flex-1 accent-[#16a34a] cursor-pointer"
         />
         <span className="font-mono text-[10px] text-neutral-400">

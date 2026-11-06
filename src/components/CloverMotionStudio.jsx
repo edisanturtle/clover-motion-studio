@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { STUDIO_TEMPLATES } from '../constants/templateCatalog';
 import { DEMO_TRACKS } from '../constants/audioTracks';
-import { ASPECT_RATIOS } from '../constants/fonts';
+import { ASPECT_RATIOS } from '../constants/fonts.js';
 import { COLOR_PALETTES } from '../constants/motionPresets';
 import { EFFECTCRAFT_FX_RACK } from '../constants/effectCraftEffects';
 import { buildProjectFromTemplate } from '../utils/projectBuilder';
@@ -26,7 +26,54 @@ import {
   updateSceneMediaSlots,
   updateLayer,
   reorderLayers,
+  addTextLayerToScene,
+  addShapeLayerToScene,
+  addImageLayerToScene,
+  deleteLayersFromScene,
+  duplicateLayersInScene,
+  groupLayersInScene,
+  ungroupLayersInScene,
+  alignLayersInScene,
+  distributeLayersInScene,
+  reorderLayersZ,
+  duplicateKeyframesInLayer,
+  addMarkerToScene,
+  deleteMarkerFromScene,
+  addAudioTrackToProject,
+  deleteAudioTrackFromProject,
+  updateAudioTrackInProject,
+  addAudioClipToTrackInProject,
+  updateAudioClipInProject,
+  trimAudioClipInProject,
+  splitAudioClipInProject,
+  deleteAudioClipFromProject,
+  updateMasterDspInProject,
+  addVideoTrackToProject,
+  deleteVideoTrackFromProject,
+  updateVideoTrackInProject,
+  addVideoClipToTrackInProject,
+  updateVideoClipInProject,
+  splitVideoClipInProject,
+  trimVideoClipInProject,
+  rippleDeleteVideoClipInProject,
+  updateVideoClipTransformInProject,
+  updateVideoClipCropInProject,
+  setVideoClipTransitionInProject,
+  updateVideoClipCaptionsInProject,
+  setLayerFormatOverrideInProject,
+  removeLayerFormatOverrideInProject,
 } from '../core/services/projectService';
+import {
+  validateAudioFile,
+  extractWaveformPeaks,
+  generateSyntheticTestAudio,
+} from '../core/services/audioService';
+import {
+  createAudioClip,
+  createAudioTrack,
+} from '../core/domain/audioModels';
+import { frameStepTime } from '../core/domain/timebase';
+import { createSampleAnimationProject } from '../fixtures/sampleAnimationProject';
 
 import TopHeaderBar from './layout/TopHeaderBar';
 import LeftSidebar from './layout/LeftSidebar';
@@ -34,6 +81,8 @@ import CanvasViewport from './layout/CanvasViewport';
 import RightInspector from './layout/RightInspector';
 import TimelinePanel from './layout/TimelinePanel';
 import BottomAudioBar from './layout/BottomAudioBar';
+import VideoWorkspaceView from './workspace/VideoWorkspaceView';
+import AudioWorkspaceView from './workspace/AudioWorkspaceView';
 
 import TemplateLibraryModal from './modals/TemplateLibraryModal';
 import FormatReviewModal from './modals/FormatReviewModal';
@@ -43,6 +92,49 @@ import FullscreenPreviewModal from './modals/FullscreenPreviewModal';
 import HelpShortcutsModal from './modals/HelpShortcutsModal';
 import BrandKitsModal from './modals/BrandKitsModal';
 import MotionTemplatesModal from './modals/MotionTemplatesModal';
+import {
+  atomicSaveProject,
+  saveAsProject,
+  loadSavedProjects,
+  recordRecoveryJournal,
+  checkRecoveryJournal,
+  clearRecoveryJournal,
+} from '../core/services/storageService';
+import { saveProjectAsCustomTemplate } from '../core/services/templateService';
+import {
+  migrateProjectSchema,
+  serializeProject,
+  deserializeProject,
+  ensureStableIds,
+  CURRENT_SCHEMA_VERSION,
+} from '../core/domain/projectSchema';
+import {
+  createAssetRecord,
+  importLocalFileToAsset,
+  registerAssetInProject,
+  relinkAssetInProject,
+  verifyProjectAssets,
+} from '../core/services/assetRegistry';
+import {
+  encodeWavPcm,
+  renderPngSequence,
+  exportNativeProjectBundle,
+} from '../core/services/exportEngine';
+import {
+  createExportItem,
+  addExportItem,
+  updateExportItem,
+  cancelExportItem,
+  retryExportItem,
+  appendExportLog,
+  createBatchVariantItems,
+  EXPORT_STATUS,
+} from '../core/services/exportQueueService';
+import {
+  exportToSvg,
+  exportToLottie,
+  exportToOtio,
+} from '../core/services/interchangeService';
 
 const STORAGE_KEY = 'clover_motion_saved_projects_v1';
 
@@ -51,12 +143,13 @@ export default function CloverMotionStudio() {
     STUDIO_TEMPLATES.find((t) => t.id === 'tpl_shutter') || STUDIO_TEMPLATES[0];
 
   const [project, setProject] = useState(() =>
-    buildProjectFromTemplate(initialTemplate, '1:1')
+    migrateProjectSchema(buildProjectFromTemplate(initialTemplate, '1:1'))
   );
   const [history, setHistory] = useState([]);
   const [future, setFuture] = useState([]);
   const [projectSavedStatus, setProjectSavedStatus] = useState('Saved to your account');
   const [showReadyBanner, setShowReadyBanner] = useState(false);
+  const [recoveredSession, setRecoveredSession] = useState(null);
 
   const [editorMode, setEditorMode] = useState('quick'); // 'quick' | 'advanced'
   const [advancedSubMode, setAdvancedSubMode] = useState('motion'); // 'design' | 'motion'
@@ -66,6 +159,18 @@ export default function CloverMotionStudio() {
 
   const [activeSceneIndex, setActiveSceneIndex] = useState(1); // Default to 'Poster' scene
   const [selectedLayerId, setSelectedLayerId] = useState(null);
+  const [selectedLayerIds, setSelectedLayerIds] = useState([]);
+
+  const handleSetSelectedLayerId = (id) => {
+    setSelectedLayerId(id);
+    setSelectedLayerIds(id ? [id] : []);
+  };
+
+  const handleSetSelectedLayerIds = (ids) => {
+    const list = Array.isArray(ids) ? ids : [];
+    setSelectedLayerIds(list);
+    setSelectedLayerId(list[0] || null);
+  };
 
   // Playback & Time State
   const [isPlaying, setIsPlaying] = useState(false);
@@ -89,6 +194,12 @@ export default function CloverMotionStudio() {
   });
   const [spectrum, setSpectrum] = useState(() => new Array(32).fill(0.08));
 
+  // Fase 5: Local Audio Import Progress & Error State
+  const [audioImportProgress, setAudioImportProgress] = useState(null); // null or 0..100
+  const [audioImportStatus, setAudioImportStatus] = useState('');
+  const [audioImportError, setAudioImportError] = useState(null);
+  const audioFileReaderRef = useRef(null);
+
   // Modals State (Open Template Library on initial launch)
   const [templatesModalOpen, setTemplatesModalOpen] = useState(true);
   const [templateLibraryInitialTab, setTemplateLibraryInitialTab] = useState('templates');
@@ -107,6 +218,7 @@ export default function CloverMotionStudio() {
   // Export Video Recording State
   const [isRecording, setIsRecording] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [exportQueue, setExportQueue] = useState([]);
 
   const canvasRef = useRef(null);
   const audioEngineRef = useRef(null);
@@ -118,13 +230,16 @@ export default function CloverMotionStudio() {
   const totalProjectDuration = getGlobalProjectDuration(project.scenes);
   const currentGlobalTime = mapSceneTimeToGlobal(project.scenes, activeSceneIndex, localTime);
 
-  // Initialize Audio Engine & Load Saved Projects from localStorage
+  // Initialize Audio Engine, Load Saved Projects & Check Crash Recovery Journal
   useEffect(() => {
     audioEngineRef.current = new ProceduralAudioEngine();
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        setSavedProjects(JSON.parse(raw));
+      const saved = loadSavedProjects();
+      setSavedProjects(saved);
+
+      const recovery = checkRecoveryJournal();
+      if (recovery.hasRecovery && recovery.project) {
+        setRecoveredSession(recovery);
       }
     } catch {
       // ignore storage errors
@@ -197,6 +312,91 @@ export default function CloverMotionStudio() {
     });
   }, [project]);
 
+  const handleSaveCurrentProject = useCallback(() => {
+    setProjectSavedStatus('Saving...');
+    try {
+      atomicSaveProject(project);
+      setSavedProjects(loadSavedProjects());
+      setTimeout(() => {
+        setProjectSavedStatus('Saved to your account');
+      }, 400);
+    } catch (err) {
+      console.error('Save failed:', err);
+      setProjectSavedStatus('Unsaved changes');
+    }
+  }, [project]);
+
+  const handleSaveAsProject = useCallback((newName) => {
+    try {
+      const saved = saveAsProject(project, newName);
+      setSavedProjects(loadSavedProjects());
+      updateProjectWithHistory(saved);
+      setProjectSavedStatus('Saved to your account');
+    } catch (err) {
+      console.error('Save As failed:', err);
+    }
+  }, [project, updateProjectWithHistory]);
+
+  const handleSaveAsTemplate = useCallback(() => {
+    const tplName = window.prompt('Save Current Project as Template:', `${project.name} Template`);
+    if (!tplName || !tplName.trim()) return;
+    try {
+      const savedTpl = saveProjectAsCustomTemplate(project, {
+        name: tplName.trim(),
+        author: 'You',
+        license: 'local-user',
+        category: 'User Custom',
+        source: 'User Studio Project',
+      });
+      setProjectSavedStatus(`Saved as template "${savedTpl.name}"`);
+      setShowReadyBanner(true);
+      setTimeout(() => setShowReadyBanner(false), 3000);
+    } catch (err) {
+      alert(`Failed to save template: ${err.message}`);
+    }
+  }, [project]);
+
+  const handleDeleteSavedProject = useCallback((id) => {
+    setSavedProjects((prev) => {
+      const next = prev.filter((p) => p.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
+
+  const handleDuplicateProject = useCallback((proj) => {
+    const copy = {
+      ...proj,
+      id: `proj_${Date.now()}`,
+      name: `${proj.name} (Copy)`,
+      updatedAt: Date.now(),
+    };
+    setSavedProjects((prev) => {
+      const next = [copy, ...prev.slice(0, 19)];
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  const handleRenameProject = useCallback((id, newName) => {
+    setSavedProjects((prev) => {
+      const next = prev.map((p) => (p.id === id ? { ...p, name: newName } : p));
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    if (project.id === id) {
+      setProject((prev) => ({ ...prev, name: newName }));
+    }
+  }, [project.id]);
+
   // Animation & Audio FFT Loop
   useEffect(() => {
     if (!isPlaying) return;
@@ -220,6 +420,9 @@ export default function CloverMotionStudio() {
             mid: analysis.mid,
             treble: analysis.treble,
             rms: analysis.rms,
+            amplitude: analysis.amplitude || analysis.rms,
+            transient: analysis.transient || 0,
+            beat: analysis.beat || 0,
           });
           setSpectrum(analysis.bars);
         }
@@ -289,6 +492,7 @@ export default function CloverMotionStudio() {
         DEMO_TRACKS.find((t) => t.id === targetTrackId) || DEMO_TRACKS[0];
       if (next) {
         audioEngineRef.current?.start(track);
+        audioEngineRef.current?.scheduleClipPlayback(project.audioTracks || [], localTime);
         if (activeScene?.sfxOnEnter && activeScene.sfxOnEnter !== 'none') {
           audioEngineRef.current?.triggerSfx(activeScene.sfxOnEnter);
         }
@@ -297,7 +501,7 @@ export default function CloverMotionStudio() {
       }
       return next;
     });
-  }, [activeScene?.audioTrackId, activeScene?.sfxOnEnter, project.audioTrackId]);
+  }, [activeScene?.audioTrackId, activeScene?.sfxOnEnter, project.audioTrackId, project.audioTracks, localTime]);
 
   const handleRestart = useCallback(() => {
     if (playbackScope === 'all') {
@@ -356,7 +560,7 @@ export default function CloverMotionStudio() {
   useEffect(() => {
     const onKeyDown = (e) => {
       const tag = e.target?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return;
 
       if (e.code === 'Space' && !e.shiftKey) {
         e.preventDefault();
@@ -368,15 +572,65 @@ export default function CloverMotionStudio() {
         e.preventDefault();
         if (e.shiftKey) handleRedo();
         else handleUndo();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleSaveCurrentProject();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        setMyProjectsOpen(true);
       } else if (e.key.toLowerCase() === 'g') {
         setShowGrid((v) => !v);
       } else if (e.key.toLowerCase() === 'f') {
         setFullscreenOpen((v) => !v);
+      } else if (e.key === '?') {
+        setHelpOpen((v) => !v);
+      } else if (e.key === ',') {
+        e.preventDefault();
+        setLocalTime((t) => frameStepTime(t, -1, project.fps || 30, activeScene?.duration || 4));
+      } else if (e.key === '.') {
+        e.preventDefault();
+        setLocalTime((t) => frameStepTime(t, 1, project.fps || 30, activeScene?.duration || 4));
+      } else if (editorMode === 'advanced' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (e.key === '1') setAdvancedSubMode('design');
+        else if (e.key === '2') setAdvancedSubMode('animate');
+        else if (e.key === '3') setAdvancedSubMode('video');
+        else if (e.key === '4') setAdvancedSubMode('audio');
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [handleTogglePlay, handleGeneratePalette, handleUndo, handleRedo]);
+  }, [handleTogglePlay, handleGeneratePalette, handleUndo, handleRedo, handleSaveCurrentProject, editorMode]);
+
+  // Debounced Autosave to localStorage & Crash Recovery Journal
+  useEffect(() => {
+    if (projectSavedStatus !== 'Unsaved changes') return;
+    recordRecoveryJournal(project);
+    const timer = setTimeout(() => {
+      try {
+        setProjectSavedStatus('Saving...');
+        atomicSaveProject(project);
+        setSavedProjects(loadSavedProjects());
+        setTimeout(() => {
+          setProjectSavedStatus('Saved locally');
+        }, 400);
+      } catch {
+        setProjectSavedStatus('Unsaved changes');
+      }
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [project, projectSavedStatus]);
+
+  // Browser BeforeUnload Unsaved Changes Safety
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (projectSavedStatus === 'Unsaved changes') {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [projectSavedStatus]);
 
   // Template & Aspect Ratio Selection
   const handleSelectTemplate = (template, targetRatio = project.ratio) => {
@@ -419,22 +673,10 @@ export default function CloverMotionStudio() {
   };
 
   const handleChangeRatio = (newRatio) => {
-    const oldDim = ASPECT_RATIOS[project.ratio] || ASPECT_RATIOS['4:5'];
-    const newDim = ASPECT_RATIOS[newRatio] || ASPECT_RATIOS['4:5'];
-    const sx = newDim.width / oldDim.width;
-    const sy = newDim.height / oldDim.height;
-
     updateProjectWithHistory((prev) => ({
       ...prev,
       ratio: newRatio,
-      scenes: prev.scenes.map((sc) => ({
-        ...sc,
-        layers: sc.layers.map((l) => ({
-          ...l,
-          x: Math.round(l.x * sx),
-          y: Math.round(l.y * sy),
-        })),
-      })),
+      baseRatio: prev.baseRatio || prev.ratio || '4:5',
     }));
   };
 
@@ -611,7 +853,7 @@ export default function CloverMotionStudio() {
   };
 
   const handleToggleLockSwatch = (idx) => {
-    setProject((prev) => {
+    updateProjectWithHistory((prev) => {
       const nextLocks = [...(prev.lockedSwatches || [false, false, false, false, false, false])];
       nextLocks[idx] = !nextLocks[idx];
       return { ...prev, lockedSwatches: nextLocks };
@@ -858,6 +1100,108 @@ export default function CloverMotionStudio() {
     }));
   };
 
+  const handleAddShapeLayer = (shapeType = 'rectangle', options = {}) => {
+    const dim = ASPECT_RATIOS[project.ratio] || ASPECT_RATIOS['4:5'];
+    let createdId = null;
+    updateProjectWithHistory((prev) => {
+      const res = addShapeLayerToScene(prev, activeSceneIndex, shapeType, {
+        x: Math.round(dim.width / 2),
+        y: Math.round(dim.height / 2),
+        fill: project.palette?.[2] || '#159947',
+        stroke: project.palette?.[1] || '#22c55e',
+        ...options,
+      });
+      createdId = res.newLayerId;
+      return res.project;
+    });
+    if (createdId) {
+      handleSetSelectedLayerId(createdId);
+    }
+  };
+
+  const handleAddImageLayer = (imageOptions = {}) => {
+    const dim = ASPECT_RATIOS[project.ratio] || ASPECT_RATIOS['4:5'];
+    let createdId = null;
+    updateProjectWithHistory((prev) => {
+      const res = addImageLayerToScene(prev, activeSceneIndex, {
+        x: Math.round(dim.width / 2),
+        y: Math.round(dim.height / 2),
+        ...imageOptions,
+      });
+      createdId = res.newLayerId;
+      return res.project;
+    });
+    if (createdId) {
+      handleSetSelectedLayerId(createdId);
+    }
+  };
+
+  const handleAlignLayers = (layerIds, alignType) => {
+    const dim = ASPECT_RATIOS[project.ratio] || ASPECT_RATIOS['4:5'];
+    updateProjectWithHistory((prev) =>
+      alignLayersInScene(prev, activeSceneIndex, layerIds, alignType, dim.width, dim.height)
+    );
+  };
+
+  const handleDistributeLayers = (layerIds, axis) => {
+    updateProjectWithHistory((prev) =>
+      distributeLayersInScene(prev, activeSceneIndex, layerIds, axis)
+    );
+  };
+
+  const handleGroupLayers = (layerIds) => {
+    updateProjectWithHistory((prev) => {
+      const res = groupLayersInScene(prev, activeSceneIndex, layerIds);
+      return res.project;
+    });
+  };
+
+  const handleUngroupLayers = (layerIds) => {
+    updateProjectWithHistory((prev) =>
+      ungroupLayersInScene(prev, activeSceneIndex, layerIds)
+    );
+  };
+
+  const handleReorderZ = (layerIds, action) => {
+    updateProjectWithHistory((prev) =>
+      reorderLayersZ(prev, activeSceneIndex, layerIds, action)
+    );
+  };
+
+  const handleDeleteSelectedLayers = (layerIds) => {
+    updateProjectWithHistory((prev) =>
+      deleteLayersFromScene(prev, activeSceneIndex, layerIds)
+    );
+    handleSetSelectedLayerIds([]);
+  };
+
+  const handleDuplicateSelectedLayers = (layerIds) => {
+    let duplicated = [];
+    updateProjectWithHistory((prev) => {
+      const res = duplicateLayersInScene(prev, activeSceneIndex, layerIds);
+      duplicated = res.duplicatedIds || [];
+      return res.project;
+    });
+    if (duplicated.length > 0) {
+      handleSetSelectedLayerIds(duplicated);
+    }
+  };
+
+  const handleBatchUpdateLayers = (patchesMap) => {
+    updateProjectWithHistory((prev) => ({
+      ...prev,
+      scenes: prev.scenes.map((sc, idx) => {
+        if (idx !== activeSceneIndex) return sc;
+        return {
+          ...sc,
+          layers: (sc.layers || []).map((l) =>
+            patchesMap.has(l.id) ? { ...l, ...patchesMap.get(l.id) } : l
+          ),
+        };
+      }),
+    }));
+  };
+
   // Scene Management (Hexagonal Architecture Domain Services)
   const handleAddScene = () => {
     updateProjectWithHistory((prev) => addScene(prev, activeSceneIndex));
@@ -942,8 +1286,26 @@ export default function CloverMotionStudio() {
     });
   };
 
+  const handleDuplicateKeyframes = (layerId, keyframeIds) => {
+    updateProjectWithHistory((prev) =>
+      duplicateKeyframesInLayer(prev, activeSceneIndex, layerId, keyframeIds, 0.5)
+    );
+  };
+
   const handleClearLayerKeyframes = (layerId) => {
     handleUpdateLayer(layerId, { keyframes: [] });
+  };
+
+  const handleAddMarker = (markerData) => {
+    updateProjectWithHistory((prev) =>
+      addMarkerToScene(prev, activeSceneIndex, markerData)
+    );
+  };
+
+  const handleDeleteMarker = (markerId) => {
+    updateProjectWithHistory((prev) =>
+      deleteMarkerFromScene(prev, activeSceneIndex, markerId)
+    );
   };
 
   // Custom Font & Image Upload
@@ -969,51 +1331,49 @@ export default function CloverMotionStudio() {
     }
   };
 
-  const handleUploadCustomImage = (file) => {
-    const url = URL.createObjectURL(file);
-    const img = new window.Image();
-    img.onload = () => {
-      if (selectedLayer?.type === 'graphic') {
-        handleUpdateLayer(selectedLayer.id, {
-          customImageElement: img,
-          name: file.name.slice(0, 20),
-        });
-      } else {
+  const handleUploadCustomImage = async (file) => {
+    try {
+      const assetRecord = await importLocalFileToAsset(file);
+      const url = assetRecord.dataUrl || URL.createObjectURL(file);
+      const img = new window.Image();
+      img.onload = () => {
         const dim = ASPECT_RATIOS[project.ratio] || ASPECT_RATIOS['4:5'];
-        const newId = `layer_img_${Date.now()}`;
-        const newLayer = {
-          id: newId,
-          type: 'graphic',
-          name: file.name.slice(0, 20),
-          assetId: 'customImage',
-          customImageElement: img,
-          x: Math.round(dim.width / 2),
-          y: Math.round(dim.height / 2),
-          size: 460,
-          scale: 1,
-          rotation: 0,
-          opacity: 1,
-          color: '#ffffff',
-          secondaryColor: '#ffffff',
-          strokeWidth: 2,
-          audioReactive: true,
-          audioSignal: 'bass',
-          audioTarget: 'scale',
-          audioIntensity: 35,
-          visible: true,
-          locked: false,
-          keyframes: [],
-        };
-        updateProjectWithHistory((prev) => ({
-          ...prev,
-          scenes: prev.scenes.map((sc, idx) =>
-            idx !== activeSceneIndex ? sc : { ...sc, layers: [...sc.layers, newLayer] }
-          ),
-        }));
-        setSelectedLayerId(newId);
-      }
-    };
-    img.src = url;
+        const aspect = (img.naturalWidth || 300) / (img.naturalHeight || 300);
+        const w = 400;
+        const h = Math.round(400 / aspect);
+
+        if (selectedLayer && (selectedLayer.type === 'graphic' || selectedLayer.type === 'image')) {
+          handleUpdateLayer(selectedLayer.id, {
+            type: 'image',
+            customImageElement: img,
+            assetId: assetRecord.id,
+            src: url,
+            name: file.name.slice(0, 24),
+            width: w,
+            height: h,
+          });
+        } else {
+          updateProjectWithHistory((prev) => {
+            const withAsset = registerAssetInProject(prev, assetRecord);
+            const res = addImageLayerToScene(withAsset, activeSceneIndex, {
+              name: file.name.slice(0, 24),
+              assetId: assetRecord.id,
+              src: url,
+              width: w,
+              height: h,
+              x: Math.round(dim.width / 2),
+              y: Math.round(dim.height / 2),
+              customImageElement: img,
+            });
+            handleSetSelectedLayerId(res.newLayerId);
+            return res.project;
+          });
+        }
+      };
+      img.src = url;
+    } catch (err) {
+      console.error('Failed to import local image asset:', err);
+    }
   };
 
   // Audio Handlers
@@ -1027,13 +1387,292 @@ export default function CloverMotionStudio() {
     audioEngineRef.current?.setTrack(track);
   };
 
-  const handleUploadAudioFile = (file) => {
-    audioEngineRef.current?.loadAudioFile(file);
-    updateProjectWithHistory((prev) => ({
-      ...prev,
-      customAudioName: file.name,
-    }));
-    setIsPlaying(true);
+  const handleUploadAudioFile = async (file) => {
+    setAudioImportError(null);
+    const validation = validateAudioFile(file);
+    if (!validation.valid) {
+      setAudioImportError(validation.error);
+      return;
+    }
+
+    setAudioImportProgress(10);
+    setAudioImportStatus(`Reading ${file.name}...`);
+
+    try {
+      const reader = new FileReader();
+      audioFileReaderRef.current = reader;
+
+      const arrayBuffer = await new Promise((resolve, reject) => {
+        reader.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 35) + 10;
+            setAudioImportProgress(pct);
+          }
+        };
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Failed to read audio file from disk'));
+        reader.onabort = () => reject(new Error('Import cancelled by user'));
+        reader.readAsArrayBuffer(file);
+      });
+
+      setAudioImportProgress(50);
+      setAudioImportStatus('Decoding audio samples with Web Audio API...');
+
+      const assetId = `asset_audio_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const decodedBuffer = await audioEngineRef.current?.loadClipAudioBuffer(assetId, arrayBuffer);
+
+      if (!decodedBuffer) {
+        throw new Error('Web Audio decoder could not process this audio format');
+      }
+
+      setAudioImportProgress(80);
+      setAudioImportStatus('Generating downsampled waveform peak cache...');
+
+      const peaks = extractWaveformPeaks(decodedBuffer, 120);
+
+      const assetRecord = createAssetRecord({
+        id: assetId,
+        type: 'audio',
+        name: file.name,
+        size: file.size,
+        format: validation.format,
+        duration: decodedBuffer.duration,
+        sampleRate: decodedBuffer.sampleRate,
+        channels: decodedBuffer.numberOfChannels,
+      });
+
+      setAudioImportProgress(95);
+      setAudioImportStatus('Attaching clip to audio track...');
+
+      updateProjectWithHistory((prev) => {
+        let withAsset = registerAssetInProject(prev, assetRecord);
+        let tracks = withAsset.audioTracks || [];
+        if (tracks.length === 0) {
+          tracks = [createAudioTrack({}, 'Audio Track 1')];
+          withAsset = { ...withAsset, audioTracks: tracks };
+        }
+        const targetTrackId = tracks[0].id;
+        const clipData = {
+          assetId,
+          name: file.name,
+          trackTime: localTime || 0,
+          trimIn: 0,
+          trimOut: decodedBuffer.duration,
+          duration: decodedBuffer.duration,
+          waveformPeaks: peaks,
+        };
+        const updated = addAudioClipToTrackInProject(withAsset, targetTrackId, clipData);
+        if (isPlaying) {
+          audioEngineRef.current?.scheduleClipPlayback(updated.audioTracks, localTime);
+        }
+        return updated;
+      });
+
+      setAudioImportProgress(100);
+      setAudioImportStatus('Import complete!');
+      setTimeout(() => {
+        setAudioImportProgress(null);
+        setAudioImportStatus('');
+      }, 500);
+    } catch (err) {
+      if (err.message !== 'Import cancelled by user') {
+        setAudioImportError(err.message || 'An error occurred during audio import');
+      }
+      setAudioImportProgress(null);
+      setAudioImportStatus('');
+    } finally {
+      audioFileReaderRef.current = null;
+    }
+  };
+
+  const handleCancelImport = () => {
+    if (audioFileReaderRef.current) {
+      audioFileReaderRef.current.abort();
+      audioFileReaderRef.current = null;
+    }
+    setAudioImportProgress(null);
+    setAudioImportStatus('');
+  };
+
+  const handleGenerateTestTone = async () => {
+    setAudioImportError(null);
+    try {
+      const tone = generateSyntheticTestAudio(440, 3.0, 48000);
+      const assetId = `asset_tone_440hz_${Date.now()}`;
+      await audioEngineRef.current?.loadClipAudioBuffer(assetId, tone.buffer);
+
+      const assetRecord = createAssetRecord({
+        id: assetId,
+        type: 'audio',
+        name: '440Hz Concert A (3.0s Sine)',
+        size: tone.buffer.byteLength,
+        format: 'WAV',
+        duration: tone.duration,
+        sampleRate: tone.sampleRate,
+        channels: tone.channels,
+      });
+
+      updateProjectWithHistory((prev) => {
+        let withAsset = registerAssetInProject(prev, assetRecord);
+        let tracks = withAsset.audioTracks || [];
+        if (tracks.length === 0) {
+          tracks = [createAudioTrack({}, 'Audio Track 1')];
+          withAsset = { ...withAsset, audioTracks: tracks };
+        }
+        const targetTrackId = tracks[0].id;
+        const clipData = {
+          assetId,
+          name: '440Hz Concert A (3.0s Sine)',
+          trackTime: localTime || 0,
+          trimIn: 0,
+          trimOut: 3.0,
+          duration: 3.0,
+          waveformPeaks: tone.peaks,
+        };
+        const updated = addAudioClipToTrackInProject(withAsset, targetTrackId, clipData);
+        if (isPlaying) {
+          audioEngineRef.current?.scheduleClipPlayback(updated.audioTracks, localTime);
+        }
+        return updated;
+      });
+    } catch (err) {
+      setAudioImportError(`Failed to generate test tone: ${err.message}`);
+    }
+  };
+
+  const handleRelinkClipAudio = async (clipId, file) => {
+    setAudioImportError(null);
+    const validation = validateAudioFile(file);
+    if (!validation.valid) {
+      setAudioImportError(validation.error);
+      return;
+    }
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      let targetAssetId = null;
+      for (const t of project.audioTracks || []) {
+        const found = (t.clips || []).find((c) => c.id === clipId);
+        if (found) {
+          targetAssetId = found.assetId;
+          break;
+        }
+      }
+      if (!targetAssetId) return;
+
+      const decoded = await audioEngineRef.current?.loadClipAudioBuffer(targetAssetId, arrayBuffer);
+      if (decoded) {
+        setProject((prev) => ({ ...prev }));
+      }
+    } catch (err) {
+      setAudioImportError(`Failed to relink audio file: ${err.message}`);
+    }
+  };
+
+  const handleAddAudioTrack = () => {
+    updateProjectWithHistory((prev) => addAudioTrackToProject(prev));
+  };
+
+  const handleDeleteAudioTrack = (trackId) => {
+    updateProjectWithHistory((prev) => deleteAudioTrackFromProject(prev, trackId));
+  };
+
+  const handleUpdateAudioTrack = (trackId, patch) => {
+    updateProjectWithHistory((prev) => {
+      const next = updateAudioTrackInProject(prev, trackId, patch);
+      if (isPlaying) {
+        audioEngineRef.current?.scheduleClipPlayback(next.audioTracks || [], localTime);
+      }
+      return next;
+    });
+  };
+
+  const handleUpdateAudioClip = (clipId, patch) => {
+    updateProjectWithHistory((prev) => {
+      const next = updateAudioClipInProject(prev, clipId, patch);
+      if (isPlaying) {
+        audioEngineRef.current?.scheduleClipPlayback(next.audioTracks || [], localTime);
+      }
+      return next;
+    });
+  };
+
+  const handleTrimAudioClip = (clipId, trimIn, trimOut) => {
+    updateProjectWithHistory((prev) => {
+      const next = trimAudioClipInProject(prev, clipId, trimIn, trimOut);
+      if (isPlaying) {
+        audioEngineRef.current?.scheduleClipPlayback(next.audioTracks || [], localTime);
+      }
+      return next;
+    });
+  };
+
+  const handleSplitAudioClip = (clipId, splitTime) => {
+    updateProjectWithHistory((prev) => {
+      const next = splitAudioClipInProject(prev, clipId, splitTime);
+      if (isPlaying) {
+        audioEngineRef.current?.scheduleClipPlayback(next.audioTracks || [], localTime);
+      }
+      return next;
+    });
+  };
+
+  const handleDeleteAudioClip = (clipId) => {
+    updateProjectWithHistory((prev) => {
+      const next = deleteAudioClipFromProject(prev, clipId);
+      if (isPlaying) {
+        audioEngineRef.current?.scheduleClipPlayback(next.audioTracks || [], localTime);
+      }
+      return next;
+    });
+  };
+
+  // Video Track & Clip Handlers (Fase 7)
+  const handleAddVideoTrack = (name) => {
+    updateProjectWithHistory((prev) => addVideoTrackToProject(prev, name));
+  };
+
+  const handleDeleteVideoTrack = (trackId) => {
+    updateProjectWithHistory((prev) => deleteVideoTrackFromProject(prev, trackId));
+  };
+
+  const handleUpdateVideoTrack = (trackId, patch) => {
+    updateProjectWithHistory((prev) => updateVideoTrackInProject(prev, trackId, patch));
+  };
+
+  const handleAddVideoClip = (trackId, clipData) => {
+    updateProjectWithHistory((prev) => addVideoClipToTrackInProject(prev, trackId, clipData));
+  };
+
+  const handleUpdateVideoClip = (clipId, patch) => {
+    updateProjectWithHistory((prev) => updateVideoClipInProject(prev, clipId, patch));
+  };
+
+  const handleSplitVideoClip = (clipId, splitTime) => {
+    updateProjectWithHistory((prev) => splitVideoClipInProject(prev, clipId, splitTime));
+  };
+
+  const handleTrimVideoClip = (clipId, trimIn, trimOut) => {
+    updateProjectWithHistory((prev) => trimVideoClipInProject(prev, clipId, trimIn, trimOut));
+  };
+
+  const handleRippleDeleteVideoClip = (clipId) => {
+    updateProjectWithHistory((prev) => rippleDeleteVideoClipInProject(prev, clipId));
+  };
+
+  const handleUpdateClipTransform = (clipId, transformPatch) => {
+    updateProjectWithHistory((prev) => updateVideoClipTransformInProject(prev, clipId, transformPatch));
+  };
+
+  const handleUpdateClipCrop = (clipId, cropPatch) => {
+    updateProjectWithHistory((prev) => updateVideoClipCropInProject(prev, clipId, cropPatch));
+  };
+
+  const handleSetClipTransition = (clipId, edge, transition) => {
+    updateProjectWithHistory((prev) => setVideoClipTransitionInProject(prev, clipId, edge, transition));
+  };
+
+  const handleUpdateClipCaptions = (clipId, captions) => {
+    updateProjectWithHistory((prev) => updateVideoClipCaptionsInProject(prev, clipId, captions));
   };
 
   const handleForgetCustomAudio = () => {
@@ -1186,7 +1825,7 @@ export default function CloverMotionStudio() {
 
   // Master Sound DSP & Live Event SFX Triggers
   const handleUpdateAudioDsp = (patch) => {
-    setProject((prev) => {
+    updateProjectWithHistory((prev) => {
       const nextDsp = { ...(prev.audioDsp || {}), ...patch };
       audioEngineRef.current?.setDspParams(nextDsp);
       return {
@@ -1196,18 +1835,72 @@ export default function CloverMotionStudio() {
     });
   };
 
+  // Fase 8 Layout Overrides Handler
+  const handleSetLayerFormatOverride = (layerId, formatRatio, layoutPatch) => {
+    updateProjectWithHistory((prev) => {
+      const activeSc = prev.scenes[activeSceneIndex];
+      if (!activeSc) return prev;
+      return setLayerFormatOverrideInProject(prev, activeSc.id, layerId, formatRatio, layoutPatch);
+    });
+  };
+
+  const handleRemoveLayerFormatOverride = (layerId, formatRatio) => {
+    updateProjectWithHistory((prev) => {
+      const activeSc = prev.scenes[activeSceneIndex];
+      if (!activeSc) return prev;
+      return removeLayerFormatOverrideInProject(prev, activeSc.id, layerId, formatRatio);
+    });
+  };
+
   const handleTriggerSfx = (sfxId) => {
     audioEngineRef.current?.triggerSoundEffect(sfxId);
   };
 
   // Export & Project Persistence
-  const handleExportPNG = (options = {}) => {
+  const handleExportPNG = async (options = {}) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ratioToUse = options.ratioOverride || project.ratio;
+    const ratioToUse = options.ratioOverride || options.ratio || project.ratio;
     const scaleFactor = options.resolutionScale === 'double' ? 2 : options.resolutionScale === 'half' ? 0.5 : 1;
+    const isTransparent = Boolean(options.transparentBg);
 
-    if (scaleFactor === 1 && !options.ratioOverride) {
+    // Sequence Export (ZIP / numbered frames)
+    if (options.format === 'zip') {
+      try {
+        setIsRecording(true);
+        setExportProgress(0);
+        const seqFps = options.fps || project.fps || 30;
+        const res = await renderPngSequence({
+          project,
+          sceneIndex: activeSceneIndex,
+          rangeIn: options.rangeIn || 0,
+          rangeOut: options.rangeOut || (activeScene?.duration || 4),
+          fps: seqFps,
+          ratio: ratioToUse,
+          scaleFactor,
+          transparentBg: isTransparent,
+          onProgress: ({ progress }) => setExportProgress(progress),
+        });
+
+        // Trigger download for the primary representative frame
+        if (res.frames.length > 0) {
+          const firstFrame = res.frames[0];
+          const a = document.createElement('a');
+          a.href = firstFrame.dataUrl;
+          a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}-seq-frame-00001.png`;
+          a.click();
+        }
+      } catch (err) {
+        console.error('Sequence export error:', err);
+      } finally {
+        setIsRecording(false);
+        setExportProgress(0);
+      }
+      return;
+    }
+
+    // Still Frame Export
+    if (scaleFactor === 1 && !options.ratioOverride && !isTransparent) {
       const url = canvas.toDataURL('image/png');
       const a = document.createElement('a');
       a.href = url;
@@ -1226,6 +1919,10 @@ export default function CloverMotionStudio() {
     const exportCtx = exportCanvas.getContext('2d');
     exportCtx.scale(scaleFactor, scaleFactor);
 
+    if (isTransparent) {
+      exportCtx.clearRect(0, 0, targetDim.width, targetDim.height);
+    }
+
     renderSceneToCanvas({
       ctx: exportCtx,
       width: targetDim.width,
@@ -1242,31 +1939,132 @@ export default function CloverMotionStudio() {
     const url = exportCanvas.toDataURL('image/png');
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}-${ratioToUse.replace(':', 'x')}${scaleFactor !== 1 ? `@${scaleFactor}x` : ''}.png`;
+    a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}-${ratioToUse.replace(':', 'x')}${scaleFactor !== 1 ? `@${scaleFactor}x` : ''}${isTransparent ? '-transparent' : ''}.png`;
     a.click();
   };
 
-  const handleExportJSON = () => {
-    const json = JSON.stringify(project, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
+  const handleExportAudio = (options = {}) => {
+    try {
+      const sampleRate = options.audioSampleRate || 48000;
+      const duration = options.rangeOut && options.rangeIn !== undefined
+        ? Math.max(0.5, options.rangeOut - options.rangeIn)
+        : (activeScene?.duration || 4);
+      const numSamples = Math.floor(sampleRate * duration);
+
+      // Generate synthesized 2-channel stereo audio PCM
+      const left = new Float32Array(numSamples);
+      const right = new Float32Array(numSamples);
+      const bpm = project.bpm || 120;
+      const beatInterval = 60 / bpm;
+
+      for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
+        const beatPos = (t % beatInterval) / beatInterval;
+        const env = Math.exp(-beatPos * 9);
+        const wave = Math.sin(2 * Math.PI * 220 * t) * 0.45 * env;
+        left[i] = wave;
+        right[i] = wave;
+      }
+
+      const { blob } = encodeWavPcm({
+        channelData: [left, right],
+        sampleRate,
+      });
+
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}-audio.wav`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error('Audio export error:', err);
+    }
+  };
+
+  const handleBatchEnqueue = (ratios = ['4:5', '1:1', '9:16'], baseOptions = {}) => {
+    const items = createBatchVariantItems(project, ratios, baseOptions);
+    setExportQueue((prev) => [...prev, ...items]);
+  };
+
+  const handleCancelQueueItem = (itemId) => {
+    setExportQueue((prev) => cancelExportItem(prev, itemId));
+  };
+
+  const handleRetryQueueItem = (itemId) => {
+    setExportQueue((prev) => retryExportItem(prev, itemId));
+  };
+
+  const handleExportJSON = (targetProject = project) => {
+    const jsonStr = serializeProject(targetProject);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}.clovermotion.json`;
+    a.download = `${(targetProject.name || 'project').toLowerCase().replace(/\s+/g, '-')}_v${CURRENT_SCHEMA_VERSION}.clovermotion.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const handleImportProjectJson = async (file) => {
+    if (!file) return;
     try {
       const text = await file.text();
-      const imported = JSON.parse(text);
-      if (imported && Array.isArray(imported.scenes)) {
-        updateProjectWithHistory(imported);
-        setActiveSceneIndex(0);
-      }
+      const imported = deserializeProject(text);
+      updateProjectWithHistory(imported);
+      setActiveSceneIndex(0);
+      setLocalTime(0);
+      setProjectSavedStatus('Saved locally');
     } catch (err) {
       console.error('Invalid project JSON:', err);
+      alert(`Could not load project: ${err.message}`);
+    }
+  };
+
+  const handleExportSvg = () => {
+    try {
+      const svgDoc = exportToSvg(project, activeSceneIndex);
+      const blob = new Blob([svgDoc], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}-scene.svg`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('SVG export error:', err);
+    }
+  };
+
+  const handleExportLottie = () => {
+    try {
+      const lottieDoc = exportToLottie(project, activeSceneIndex);
+      const blob = new Blob([JSON.stringify(lottieDoc, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}-lottie.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Lottie export error:', err);
+    }
+  };
+
+  const handleExportOtio = () => {
+    try {
+      const otioDoc = exportToOtio(project);
+      const blob = new Blob([JSON.stringify(otioDoc, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}.otio`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('OTIO export error:', err);
     }
   };
 
@@ -1274,7 +2072,7 @@ export default function CloverMotionStudio() {
     const canvas = canvasRef.current;
     if (!canvas || isRecording) return;
     try {
-      const fps = project.fps || 30;
+      const fps = exportOptions.fps || project.fps || 30;
       const canvasStream = canvas.captureStream(fps);
       let combinedStream = canvasStream;
 
@@ -1290,9 +2088,12 @@ export default function CloverMotionStudio() {
         }
       }
 
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+      const mimeType = exportOptions.codec && MediaRecorder.isTypeSupported(exportOptions.codec)
+        ? exportOptions.codec
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
         ? 'video/webm;codecs=vp9'
         : 'video/webm';
+
       const recorder = new MediaRecorder(combinedStream, { mimeType });
       const chunks = [];
 
@@ -1314,17 +2115,22 @@ export default function CloverMotionStudio() {
       };
 
       const exportScope = exportOptions.exportScope || playbackScope;
-      const isExportAll = exportScope === 'all' && (project.scenes?.length || 1) > 1;
-      const totalSeconds = isExportAll
-        ? getGlobalProjectDuration(project.scenes)
-        : (activeScene?.duration || 4);
+      let totalSeconds = 4;
+      if (exportOptions.rangeOut && exportOptions.rangeIn !== undefined) {
+        totalSeconds = Math.max(0.5, exportOptions.rangeOut - exportOptions.rangeIn);
+      } else {
+        const isExportAll = exportScope === 'all' && (project.scenes?.length || 1) > 1;
+        totalSeconds = isExportAll
+          ? getGlobalProjectDuration(project.scenes)
+          : (activeScene?.duration || 4);
+      }
       const totalMs = totalSeconds * 1000;
 
       setIsRecording(true);
-      if (isExportAll) {
+      if (exportScope === 'all') {
         setActiveSceneIndex(0);
       }
-      setLocalTime(0);
+      setLocalTime(exportOptions.rangeIn || 0);
       if (!isPlaying) handleTogglePlay();
       recorder.start();
 
@@ -1341,35 +2147,6 @@ export default function CloverMotionStudio() {
       console.error('Video export error:', err);
       setIsRecording(false);
     }
-  };
-
-  const handleSaveCurrentProject = () => {
-    setProjectSavedStatus('Saving...');
-    setSavedProjects((prev) => {
-      const copy = { ...project, id: `saved_${Date.now()}` };
-      const next = [copy, ...prev.slice(0, 19)];
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore quota errors
-      }
-      return next;
-    });
-    setTimeout(() => {
-      setProjectSavedStatus('Saved to your account');
-    }, 600);
-  };
-
-  const handleDeleteSavedProject = (id) => {
-    setSavedProjects((prev) => {
-      const next = prev.filter((p) => p.id !== id);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
   };
 
   return (
@@ -1400,7 +2177,7 @@ export default function CloverMotionStudio() {
         onOpenBrandKits={() => setBrandKitsOpen(true)}
         onOpenMotionTemplates={() => setMotionTemplatesOpen(true)}
         onSaveProject={handleSaveCurrentProject}
-        onSaveAsTemplate={handleSaveCurrentProject}
+        onSaveAsTemplate={handleSaveAsTemplate}
         onNewProject={handleNewProject}
         onDownloadProjectJson={handleExportJSON}
         onImportProjectJson={handleImportProjectJson}
@@ -1411,7 +2188,41 @@ export default function CloverMotionStudio() {
         onOpenFullscreen={() => setFullscreenOpen(true)}
         onOpenFormatReview={() => setFormatReviewOpen(true)}
         onOpenExport={() => setExportModalOpen(true)}
+        onOpenMyProjects={() => setMyProjectsOpen(true)}
+        onOpenHelp={() => setHelpOpen(true)}
+        onSaveAs={handleSaveAsProject}
       />
+
+      {/* Crash Recovery Notification Toast Banner */}
+      {recoveredSession && (
+        <div className="absolute left-1/2 -translate-x-1/2 top-14 z-50 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-[#1c1c1c] border border-amber-500/50 text-xs text-neutral-200 shadow-2xl animate-fade-in">
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+          <span>
+            Crash recovery session found for &ldquo;<strong className="text-white">{recoveredSession.projectName}</strong>&rdquo;
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              updateProjectWithHistory(recoveredSession.project);
+              setRecoveredSession(null);
+              clearRecoveryJournal();
+            }}
+            className="px-2.5 py-1 rounded-lg bg-[#159947] hover:bg-[#19b353] text-white font-semibold text-[11px] transition-colors"
+          >
+            Restore Session
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setRecoveredSession(null);
+              clearRecoveryJournal();
+            }}
+            className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white text-[11px] transition-colors"
+          >
+            Discard
+          </button>
+        </div>
+      )}
 
       {/* Main Studio Workspace Split: Left Sidebar + Center/Right Column */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
@@ -1425,7 +2236,9 @@ export default function CloverMotionStudio() {
           setActiveSceneIndex={setActiveSceneIndex}
           selectedLayer={selectedLayer}
           selectedLayerId={selectedLayerId}
-          setSelectedLayerId={setSelectedLayerId}
+          setSelectedLayerId={handleSetSelectedLayerId}
+          selectedLayerIds={selectedLayerIds}
+          setSelectedLayerIds={handleSetSelectedLayerIds}
           leftDrawerOpen={leftDrawerOpen}
           onEnsureDrawerOpen={() => setLeftDrawerOpen(true)}
           onUpdateQuickCopy={handleUpdateQuickCopy}
@@ -1438,8 +2251,14 @@ export default function CloverMotionStudio() {
           onUpdateSceneProp={handleUpdateSceneProp}
           onChangeRatio={handleChangeRatio}
           onAddTextLayer={handleAddTextLayer}
+          onAddShapeLayer={handleAddShapeLayer}
           onAddGraphicLayer={handleAddGraphicLayer}
           onApplyGraphicTemplate={handleApplyGraphicTemplate}
+          onGroupLayers={handleGroupLayers}
+          onUngroupLayers={handleUngroupLayers}
+          onReorderZ={handleReorderZ}
+          onDeleteSelectedLayers={handleDeleteSelectedLayers}
+          onDuplicateSelectedLayers={handleDuplicateSelectedLayers}
           onUpdateLayer={handleUpdateLayer}
           onDeleteLayer={handleDeleteLayer}
           onDuplicateLayer={handleDuplicateLayer}
@@ -1467,88 +2286,181 @@ export default function CloverMotionStudio() {
           onNewProject={handleNewProject}
         />
 
-        {/* Right Workspace Column: Canvas + RightInspector + Timeline + BottomAudioBar */}
+        {/* Right Workspace Column: Workspace Specific View or Canvas + Inspector + Timeline */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-          <div className="flex-1 flex min-h-0 overflow-hidden">
-            <CanvasViewport
-              canvasRef={canvasRef}
+          {editorMode === 'advanced' && advancedSubMode === 'video' ? (
+            <VideoWorkspaceView
               project={project}
-              activeScene={activeScene}
               activeSceneIndex={activeSceneIndex}
               setActiveSceneIndex={setActiveSceneIndex}
-              localTime={localTime}
               isPlaying={isPlaying}
-              audioSignals={audioSignals}
-              selectedLayerId={selectedLayerId}
-              setSelectedLayerId={setSelectedLayerId}
-              onUpdateLayer={handleUpdateLayer}
-              showGrid={showGrid}
-              setShowGrid={setShowGrid}
-              showSafeGuides={showSafeGuides}
-              setShowSafeGuides={setShowSafeGuides}
-              editorMode={editorMode}
-              onChangeRatio={handleChangeRatio}
-              onGeneratePalette={handleGeneratePalette}
-              onToggleLockSwatch={handleToggleLockSwatch}
-              onAddScene={handleAddScene}
-              playbackScope={playbackScope}
-              setPlaybackScope={setPlaybackScope}
-              totalProjectDuration={totalProjectDuration}
-              currentGlobalTime={currentGlobalTime}
-            />
-
-            {editorMode === 'advanced' && rightPanelOpen && (
-              <RightInspector
-                selectedLayer={selectedLayer}
-                activeScene={activeScene}
-                project={project}
-                audioSignals={audioSignals}
-                onUpdateLayer={handleUpdateLayer}
-                onUpdateSceneProp={handleUpdateSceneProp}
-                onSelectSceneAudio={handleSelectSceneAudio}
-                onTriggerSfx={handleTriggerSfx}
-                onUploadCustomFont={handleUploadCustomFont}
-                onUploadCustomImage={handleUploadCustomImage}
-                onOpenMotionTemplates={() => setMotionTemplatesOpen(true)}
-                customFonts={customFonts}
-                advancedSubMode={advancedSubMode}
-              />
-            )}
-          </div>
-
-          {/* Multi-Track Keyframe Timeline & Proportional Scenes Bar (Advanced Mode) */}
-          {editorMode === 'advanced' && (
-            <TimelinePanel
-              project={project}
-              activeScene={activeScene}
-              activeSceneIndex={activeSceneIndex}
-              setActiveSceneIndex={setActiveSceneIndex}
-              selectedLayer={selectedLayer}
-              selectedLayerId={selectedLayerId}
-              setSelectedLayerId={setSelectedLayerId}
-              localTime={localTime}
-              isPlaying={isPlaying}
-              loopPlayback={loopPlayback}
-              setLoopPlayback={setLoopPlayback}
-              playbackScope={playbackScope}
-              setPlaybackScope={setPlaybackScope}
-              totalProjectDuration={totalProjectDuration}
-              currentGlobalTime={currentGlobalTime}
-              timelineExpanded={timelineExpanded}
-              setTimelineExpanded={setTimelineExpanded}
               onTogglePlay={handleTogglePlay}
               onRestart={handleRestart}
-              onSeekLocalTime={setLocalTime}
-              onSeekGlobalTime={handleSeekGlobalTime}
-              onAddKeyframe={handleAddKeyframe}
-              onUpdateKeyframe={handleUpdateKeyframe}
-              onPasteKeyframes={handlePasteKeyframes}
-              onDeleteKeyframe={handleDeleteKeyframe}
-              onClearLayerKeyframes={handleClearLayerKeyframes}
-              onUpdateSceneDuration={(dur) => handleUpdateSceneProp('duration', dur)}
-              onChangeFps={handleChangeFps}
-              onAddScene={handleAddScene}
+              localTime={localTime}
+              currentGlobalTime={currentGlobalTime}
+              totalProjectDuration={totalProjectDuration}
+              onSeekLocalTime={(t) => setLocalTime(t)}
+              onAddVideoTrack={handleAddVideoTrack}
+              onDeleteVideoTrack={handleDeleteVideoTrack}
+              onUpdateVideoTrack={handleUpdateVideoTrack}
+              onAddVideoClip={handleAddVideoClip}
+              onUpdateVideoClip={handleUpdateVideoClip}
+              onSplitVideoClip={handleSplitVideoClip}
+              onTrimVideoClip={handleTrimVideoClip}
+              onRippleDeleteVideoClip={handleRippleDeleteVideoClip}
+              onUpdateClipTransform={handleUpdateClipTransform}
+              onUpdateClipCrop={handleUpdateClipCrop}
+              onSetClipTransition={handleSetClipTransition}
+              onUpdateClipCaptions={handleUpdateClipCaptions}
+              onSwitchToAnimate={() => setAdvancedSubMode('animate')}
+              onOpenFormatReview={() => setFormatReviewOpen(true)}
+              onOpenExport={() => setExportModalOpen(true)}
             />
+          ) : editorMode === 'advanced' && advancedSubMode === 'audio' ? (
+            <AudioWorkspaceView
+              project={project}
+              activeScene={activeScene}
+              isPlaying={isPlaying}
+              onTogglePlay={handleTogglePlay}
+              onRestart={handleRestart}
+              localTime={localTime}
+              onSeekLocalTime={(t) => {
+                setLocalTime(t);
+                if (isPlaying) {
+                  audioEngineRef.current?.seekClips(t, project.audioTracks || []);
+                }
+              }}
+              volume={volume}
+              isMuted={isMuted}
+              micActive={micActive}
+              spectrum={spectrum}
+              onSelectTrack={handleSelectTrack}
+              onSelectSceneAudio={handleSelectSceneAudio}
+              onUploadAudioFile={handleUploadAudioFile}
+              onForgetCustomAudio={handleForgetCustomAudio}
+              onToggleMic={handleToggleMic}
+              onToggleMute={handleToggleMute}
+              onChangeVolume={handleChangeVolume}
+              onUpdateAudioDsp={handleUpdateAudioDsp}
+              onTriggerSfx={handleTriggerSfx}
+              onReturnToCanvas={() => setAdvancedSubMode('animate')}
+              audioEngineRef={audioEngineRef}
+              onAddAudioTrack={handleAddAudioTrack}
+              onDeleteAudioTrack={handleDeleteAudioTrack}
+              onUpdateAudioTrack={handleUpdateAudioTrack}
+              onUpdateAudioClip={handleUpdateAudioClip}
+              onTrimAudioClip={handleTrimAudioClip}
+              onSplitAudioClip={handleSplitAudioClip}
+              onDeleteAudioClip={handleDeleteAudioClip}
+              onGenerateTestTone={handleGenerateTestTone}
+              onRelinkClipAudio={handleRelinkClipAudio}
+              importProgress={audioImportProgress}
+              importStatusText={audioImportStatus}
+              importError={audioImportError}
+              onCancelImport={handleCancelImport}
+              onClearImportError={() => setAudioImportError(null)}
+            />
+          ) : (
+            <>
+              <div className="flex-1 flex min-h-0 overflow-hidden">
+                <CanvasViewport
+                  canvasRef={canvasRef}
+                  project={project}
+                  activeScene={activeScene}
+                  activeSceneIndex={activeSceneIndex}
+                  setActiveSceneIndex={setActiveSceneIndex}
+                  localTime={localTime}
+                  isPlaying={isPlaying}
+                  audioSignals={audioSignals}
+                  selectedLayerId={selectedLayerId}
+                  setSelectedLayerId={handleSetSelectedLayerId}
+                  selectedLayerIds={selectedLayerIds}
+                  setSelectedLayerIds={handleSetSelectedLayerIds}
+                  onUpdateLayer={handleUpdateLayer}
+                  onBatchUpdateLayers={handleBatchUpdateLayers}
+                  showGrid={showGrid}
+                  setShowGrid={setShowGrid}
+                  showSafeGuides={showSafeGuides}
+                  setShowSafeGuides={setShowSafeGuides}
+                  editorMode={editorMode}
+                  onChangeRatio={handleChangeRatio}
+                  onGeneratePalette={handleGeneratePalette}
+                  onToggleLockSwatch={handleToggleLockSwatch}
+                  onAddScene={handleAddScene}
+                  playbackScope={playbackScope}
+                  setPlaybackScope={setPlaybackScope}
+                  totalProjectDuration={totalProjectDuration}
+                  currentGlobalTime={currentGlobalTime}
+                />
+
+                {editorMode === 'advanced' && rightPanelOpen && (
+                  <RightInspector
+                    selectedLayer={selectedLayer}
+                    selectedLayerIds={selectedLayerIds}
+                    activeScene={activeScene}
+                    activeSceneIndex={activeSceneIndex}
+                    project={project}
+                    audioSignals={audioSignals}
+                    onUpdateLayer={handleUpdateLayer}
+                    onAlignLayers={handleAlignLayers}
+                    onDistributeLayers={handleDistributeLayers}
+                    onGroupLayers={handleGroupLayers}
+                    onUngroupLayers={handleUngroupLayers}
+                    onReorderZ={handleReorderZ}
+                    onDeleteSelectedLayers={handleDeleteSelectedLayers}
+                    onDuplicateSelectedLayers={handleDuplicateSelectedLayers}
+                    onUpdateSceneProp={handleUpdateSceneProp}
+                    onSelectSceneAudio={handleSelectSceneAudio}
+                    onTriggerSfx={handleTriggerSfx}
+                    onUploadCustomFont={handleUploadCustomFont}
+                    onUploadCustomImage={handleUploadCustomImage}
+                    onOpenMotionTemplates={() => setMotionTemplatesOpen(true)}
+                    customFonts={customFonts}
+                    advancedSubMode={advancedSubMode}
+                    onSetLayerFormatOverride={handleSetLayerFormatOverride}
+                    onRemoveLayerFormatOverride={handleRemoveLayerFormatOverride}
+                  />
+                )}
+              </div>
+
+              {/* Multi-Track Keyframe Timeline (Advanced Design/Animate Mode) */}
+              {editorMode === 'advanced' && (
+                <TimelinePanel
+                  project={project}
+                  activeScene={activeScene}
+                  activeSceneIndex={activeSceneIndex}
+                  setActiveSceneIndex={setActiveSceneIndex}
+                  selectedLayer={selectedLayer}
+                  selectedLayerId={selectedLayerId}
+                  setSelectedLayerId={setSelectedLayerId}
+                  localTime={localTime}
+                  isPlaying={isPlaying}
+                  loopPlayback={loopPlayback}
+                  setLoopPlayback={setLoopPlayback}
+                  playbackScope={playbackScope}
+                  setPlaybackScope={setPlaybackScope}
+                  totalProjectDuration={totalProjectDuration}
+                  currentGlobalTime={currentGlobalTime}
+                  timelineExpanded={timelineExpanded}
+                  setTimelineExpanded={setTimelineExpanded}
+                  onTogglePlay={handleTogglePlay}
+                  onRestart={handleRestart}
+                  onSeekLocalTime={setLocalTime}
+                  onSeekGlobalTime={handleSeekGlobalTime}
+                  onAddKeyframe={handleAddKeyframe}
+                  onUpdateKeyframe={handleUpdateKeyframe}
+                  onDuplicateKeyframes={handleDuplicateKeyframes}
+                  onPasteKeyframes={handlePasteKeyframes}
+                  onDeleteKeyframe={handleDeleteKeyframe}
+                  onClearLayerKeyframes={handleClearLayerKeyframes}
+                  onUpdateSceneDuration={(dur) => handleUpdateSceneProp('duration', dur)}
+                  onChangeFps={handleChangeFps}
+                  onAddScene={handleAddScene}
+                  onAddMarker={handleAddMarker}
+                  onDeleteMarker={handleDeleteMarker}
+                />
+              )}
+            </>
           )}
 
           {/* Bottom Procedural Sound & FFT Spectrum Bar */}
@@ -1621,9 +2533,17 @@ export default function CloverMotionStudio() {
         exportProgress={exportProgress}
         onExportPNG={handleExportPNG}
         onExportVideo={handleExportVideo}
+        onExportAudio={handleExportAudio}
         onExportJSON={handleExportJSON}
+        onExportSvg={handleExportSvg}
+        onExportLottie={handleExportLottie}
+        onExportOtio={handleExportOtio}
         onOpenFormatReview={() => setFormatReviewOpen(true)}
         onChangeRatio={handleChangeRatio}
+        exportQueue={exportQueue}
+        onCancelQueueItem={handleCancelQueueItem}
+        onRetryQueueItem={handleRetryQueueItem}
+        onBatchEnqueue={handleBatchEnqueue}
       />
 
       <MyProjectsModal
@@ -1638,6 +2558,10 @@ export default function CloverMotionStudio() {
         }}
         onDeleteSavedProject={handleDeleteSavedProject}
         onNewProject={handleNewProject}
+        onDuplicateProject={handleDuplicateProject}
+        onRenameProject={handleRenameProject}
+        onExportProjectJson={handleExportJSON}
+        onImportProjectJson={handleImportProjectJson}
       />
 
       <FullscreenPreviewModal

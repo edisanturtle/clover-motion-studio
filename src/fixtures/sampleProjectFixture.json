@@ -1,0 +1,220 @@
+{
+  "schemaVersion": 1,
+  "appVersion": "2.0.0",
+  "id": "proj_fixture_swiss_01",
+  "name": "Swiss Modernism Typographic Showcase",
+  "createdAt": 1730900000000,
+  "updatedAt": 1730900000000,
+  "ratio": "1:1",
+  "fps": 30,
+  "audioTrackId": "funk",
+  "palette": [
+    "#0e1424",
+    "#f8fafc",
+    "#159947",
+    "#38bdf8",
+    "#f43f5e",
+    "#fbbf24"
+  ],
+  "lockedSwatches": [
+    false,
+    false,
+    false,
+    false,
+    false,
+    false
+  ],
+  "templateId": "tpl_shutter",
+  "scenes": [
+    {
+      "id": "scene_fixture_01",
+      "name": "Intro Headline",
+      "duration": 4,
+      "bg": "#0e1424",
+      "palette": [
+        "#0e1424",
+        "#f8fafc",
+        "#159947",
+        "#38bdf8",
+        "#f43f5e",
+        "#fbbf24"
+      ],
+      "transition": "Cut",
+      "gridStyle": "swiss",
+      "decorStyle": "none",
+      "posterLayout": "swiss",
+      "shaderBg": "none",
+      "shaderOpacity": 0.85,
+      "fxRack": {
+        "glow": false,
+        "rgbSplit": false
+      },
+      "layers": [
+        {
+          "id": "layer_fixture_text_01",
+          "type": "text",
+          "role": "title",
+          "name": "Main Headline",
+          "text": "SWISS TYPOGRAPHY IN MOTION",
+          "x": 50,
+          "y": 42,
+          "fontSize": 72,
+          "fontFamily": "Inter, sans-serif",
+          "fontWeight": "800",
+          "color": "#f8fafc",
+          "align": "center",
+          "letterSpacing": -1,
+          "lineHeight": 1.05,
+          "opacity": 1,
+          "rotation": 0,
+          "scale": 1,
+          "visible": true,
+          "locked": false,
+          "motionPreset": "typewriter",
+          "motionSpeed": 1,
+          "keyframes": [],
+          "audioReactive": true,
+          "audioSignal": "bass",
+          "audioIntensity": 25,
+          "audioTarget": "scale"
+        },
+        {
+          "id": "layer_fixture_graphic_01",
+          "type": "graphic",
+          "name": "Accent Rule",
+          "x": 50,
+          "y": 58,
+          "width": 240,
+          "height": 4,
+          "color": "#159947",
+          "opacity": 0.9,
+          "rotation": 0,
+          "scale": 1,
+          "visible": true,
+          "locked": false,
+          "keyframes": []
+        }
+      ],
+      "showcase": {
+        "templateId": "none",
+        "slots": 8,
+        "cardSize": 26,
+        "cardAspect": "1:1",
+        "cornerRadius": 3,
+        "tilt": -18,
+        "ringWidth": 68,
+        "ringDepth": 48,
+        "backFade": 55,
+        "shadowEnabled": true,
+        "audioReactive": true,
+        "bgGradient": "none",
+        "offsetX": 0,
+        "offsetY": 0
+      },
+      "audioTrackId": "funk",
+      "audioVolume": 1,
+      "sfxOnEnter": "sfx_pop",
+      "customAudioName": null,
+      "motionPreset": "fade",
+      "mediaSlots": []
+    },
+    {
+      "id": "scene_fixture_02",
+      "name": "Showcase Gallery",
+      "duration": 4,
+      "bg": "#0e1424",
+      "palette": [
+        "#0e1424",
+        "#f8fafc",
+        "#159947",
+        "#38bdf8",
+        "#f43f5e",
+        "#fbbf24"
+      ],
+      "transition": "Cut",
+      "gridStyle": "swiss",
+      "decorStyle": "none",
+      "posterLayout": "grid",
+      "shaderBg": "aurora",
+      "shaderOpacity": 0.5,
+      "fxRack": {
+        "glow": true,
+        "rgbSplit": false
+      },
+      "layers": [
+        {
+          "id": "layer_fixture_text_02",
+          "type": "text",
+          "role": "title",
+          "name": "Gallery Subtitle",
+          "text": "3D PERSPECTIVE CAROUSEL",
+          "x": 50,
+          "y": 20,
+          "fontSize": 48,
+          "fontFamily": "Inter, sans-serif",
+          "fontWeight": "700",
+          "color": "#f8fafc",
+          "align": "center",
+          "letterSpacing": 0,
+          "lineHeight": 1.1,
+          "opacity": 1,
+          "rotation": 0,
+          "scale": 1,
+          "visible": true,
+          "locked": false,
+          "keyframes": []
+        }
+      ],
+      "showcase": {
+        "templateId": "orbit_ring",
+        "slots": 8,
+        "cardSize": 26,
+        "cardAspect": "1:1",
+        "cornerRadius": 4,
+        "tilt": -15,
+        "ringWidth": 72,
+        "ringDepth": 50,
+        "backFade": 50,
+        "shadowEnabled": true,
+        "audioReactive": true,
+        "bgGradient": "none",
+        "offsetX": 0,
+        "offsetY": 8
+      },
+      "audioTrackId": "ambient",
+      "audioVolume": 0.85,
+      "sfxOnEnter": "sfx_woosh",
+      "customAudioName": null,
+      "motionPreset": "orbit",
+      "mediaSlots": [
+        "asset_fixture_sample_logo"
+      ]
+    }
+  ],
+  "assets": {
+    "asset_fixture_sample_logo": {
+      "id": "asset_fixture_sample_logo",
+      "name": "clover-sample-symbol.svg",
+      "type": "image",
+      "mimeType": "image/svg+xml",
+      "size": 512,
+      "dataUrl": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23159947'/><circle cx='50' cy='50' r='30' fill='%23ffffff'/></svg>",
+      "thumbnail": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23159947'/><circle cx='50' cy='50' r='30' fill='%23ffffff'/></svg>",
+      "status": "loaded",
+      "license": "permissive",
+      "createdAt": 1730900000000,
+      "updatedAt": 1730900000000
+    }
+  },
+  "timebase": {
+    "ticksPerSecond": "254016000000",
+    "totalTicks": "2032128000000",
+    "timecodeStandard": "SMPTE_30"
+  },
+  "metadata": {
+    "license": "MIT",
+    "author": "Clover Motion Studio Engineering",
+    "fontLicense": "SIL Open Font License 1.1",
+    "notes": "Canonical Fase 2 test fixture for save-close-reopen equality and migration verification"
+  }
+}

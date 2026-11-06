@@ -26,6 +26,8 @@ import {
 import { EVENT_SFX_PADS } from '../../constants/effectCraftEffects';
 import { formatTimecode, getSceneTimeRanges } from '../../utils/timecode';
 
+const safeNum = (val, fallback) => (typeof val === 'number' && Number.isFinite(val) ? val : fallback);
+
 export default function BottomAudioBar({
   project,
   activeScene = null,
@@ -529,7 +531,7 @@ export default function BottomAudioBar({
                       <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
                         <span>Low-Shelf Bass (110 Hz)</span>
                         <span className="font-mono text-neutral-400">
-                          {project.audioDsp?.bassGain ? `${project.audioDsp.bassGain > 0 ? '+' : ''}${project.audioDsp.bassGain} dB` : '0 dB'}
+                          {safeNum(project.audioDsp?.bassGain, 0) ? `${safeNum(project.audioDsp?.bassGain, 0) > 0 ? '+' : ''}${safeNum(project.audioDsp?.bassGain, 0)} dB` : '0 dB'}
                         </span>
                       </div>
                       <input
@@ -537,9 +539,9 @@ export default function BottomAudioBar({
                         min={-12}
                         max={18}
                         step={1}
-                        value={project.audioDsp?.bassGain ?? 0}
+                        value={safeNum(project.audioDsp?.bassGain, 0)}
                         onChange={(e) =>
-                          onUpdateAudioDsp?.({ bassGain: Number(e.target.value) })
+                          onUpdateAudioDsp?.({ bassGain: Number(e.target.value) || 0 })
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -549,7 +551,7 @@ export default function BottomAudioBar({
                       <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
                         <span>Peaking Mid Body (1400 Hz)</span>
                         <span className="font-mono text-neutral-400">
-                          {project.audioDsp?.midGain ? `${project.audioDsp.midGain > 0 ? '+' : ''}${project.audioDsp.midGain} dB` : '0 dB'}
+                          {safeNum(project.audioDsp?.midGain, 0) ? `${safeNum(project.audioDsp?.midGain, 0) > 0 ? '+' : ''}${safeNum(project.audioDsp?.midGain, 0)} dB` : '0 dB'}
                         </span>
                       </div>
                       <input
@@ -557,9 +559,9 @@ export default function BottomAudioBar({
                         min={-12}
                         max={12}
                         step={1}
-                        value={project.audioDsp?.midGain ?? 0}
+                        value={safeNum(project.audioDsp?.midGain, 0)}
                         onChange={(e) =>
-                          onUpdateAudioDsp?.({ midGain: Number(e.target.value) })
+                          onUpdateAudioDsp?.({ midGain: Number(e.target.value) || 0 })
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -569,7 +571,7 @@ export default function BottomAudioBar({
                       <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
                         <span>High-Shelf Air (7500 Hz)</span>
                         <span className="font-mono text-neutral-400">
-                          {project.audioDsp?.trebleGain ? `${project.audioDsp.trebleGain > 0 ? '+' : ''}${project.audioDsp.trebleGain} dB` : '0 dB'}
+                          {safeNum(project.audioDsp?.trebleGain, 0) ? `${safeNum(project.audioDsp?.trebleGain, 0) > 0 ? '+' : ''}${safeNum(project.audioDsp?.trebleGain, 0)} dB` : '0 dB'}
                         </span>
                       </div>
                       <input
@@ -577,9 +579,9 @@ export default function BottomAudioBar({
                         min={-12}
                         max={15}
                         step={1}
-                        value={project.audioDsp?.trebleGain ?? 0}
+                        value={safeNum(project.audioDsp?.trebleGain, 0)}
                         onChange={(e) =>
-                          onUpdateAudioDsp?.({ trebleGain: Number(e.target.value) })
+                          onUpdateAudioDsp?.({ trebleGain: Number(e.target.value) || 0 })
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -589,7 +591,7 @@ export default function BottomAudioBar({
                       <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
                         <span>Lowpass Filter Cutoff</span>
                         <span className="font-mono text-neutral-400">
-                          {project.audioDsp?.lowpassFreq ?? 20000} Hz
+                          {safeNum(project.audioDsp?.lowpassFreq, 20000)} Hz
                         </span>
                       </div>
                       <input
@@ -597,9 +599,9 @@ export default function BottomAudioBar({
                         min={200}
                         max={20000}
                         step={100}
-                        value={project.audioDsp?.lowpassFreq ?? 20000}
+                        value={safeNum(project.audioDsp?.lowpassFreq, 20000)}
                         onChange={(e) =>
-                          onUpdateAudioDsp?.({ lowpassFreq: Number(e.target.value) })
+                          onUpdateAudioDsp?.({ lowpassFreq: Number(e.target.value) || 20000 })
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -614,7 +616,7 @@ export default function BottomAudioBar({
                       <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
                         <span>Algorithmic Reverb Wet Mix</span>
                         <span className="font-mono text-neutral-400">
-                          {Math.round((project.audioDsp?.reverbMix ?? 0) * 100)}%
+                          {Math.round(safeNum(project.audioDsp?.reverbMix, 0) * 100)}%
                         </span>
                       </div>
                       <input
@@ -622,9 +624,9 @@ export default function BottomAudioBar({
                         min={0}
                         max={0.8}
                         step={0.05}
-                        value={project.audioDsp?.reverbMix ?? 0}
+                        value={safeNum(project.audioDsp?.reverbMix, 0)}
                         onChange={(e) =>
-                          onUpdateAudioDsp?.({ reverbMix: Number(e.target.value) })
+                          onUpdateAudioDsp?.({ reverbMix: Number(e.target.value) || 0 })
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -634,7 +636,7 @@ export default function BottomAudioBar({
                       <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
                         <span>Reverb Chamber Decay</span>
                         <span className="font-mono text-neutral-400">
-                          {(project.audioDsp?.reverbDecay ?? 1.8).toFixed(1)} s
+                          {safeNum(project.audioDsp?.reverbDecay, 1.8).toFixed(1)} s
                         </span>
                       </div>
                       <input
@@ -642,9 +644,9 @@ export default function BottomAudioBar({
                         min={0.4}
                         max={4.5}
                         step={0.2}
-                        value={project.audioDsp?.reverbDecay ?? 1.8}
+                        value={safeNum(project.audioDsp?.reverbDecay, 1.8)}
                         onChange={(e) =>
-                          onUpdateAudioDsp?.({ reverbDecay: Number(e.target.value) })
+                          onUpdateAudioDsp?.({ reverbDecay: Number(e.target.value) || 1.8 })
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -654,7 +656,7 @@ export default function BottomAudioBar({
                       <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
                         <span>Dub Echo Delay Mix</span>
                         <span className="font-mono text-neutral-400">
-                          {Math.round((project.audioDsp?.delayMix ?? 0) * 100)}%
+                          {Math.round(safeNum(project.audioDsp?.delayMix, 0) * 100)}%
                         </span>
                       </div>
                       <input
@@ -662,9 +664,9 @@ export default function BottomAudioBar({
                         min={0}
                         max={0.75}
                         step={0.05}
-                        value={project.audioDsp?.delayMix ?? 0}
+                        value={safeNum(project.audioDsp?.delayMix, 0)}
                         onChange={(e) =>
-                          onUpdateAudioDsp?.({ delayMix: Number(e.target.value) })
+                          onUpdateAudioDsp?.({ delayMix: Number(e.target.value) || 0 })
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -674,11 +676,11 @@ export default function BottomAudioBar({
                       <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
                         <span>Stereo Pan</span>
                         <span className="font-mono text-neutral-400">
-                          {(project.audioDsp?.pan ?? 0) === 0
+                          {safeNum(project.audioDsp?.pan, 0) === 0
                             ? 'Center'
-                            : (project.audioDsp?.pan ?? 0) < 0
-                            ? `${Math.round(Math.abs(project.audioDsp?.pan ?? 0) * 100)}% Left`
-                            : `${Math.round((project.audioDsp?.pan ?? 0) * 100)}% Right`}
+                            : safeNum(project.audioDsp?.pan, 0) < 0
+                            ? `${Math.round(Math.abs(safeNum(project.audioDsp?.pan, 0)) * 100)}% Left`
+                            : `${Math.round(safeNum(project.audioDsp?.pan, 0) * 100)}% Right`}
                         </span>
                       </div>
                       <input
@@ -686,9 +688,9 @@ export default function BottomAudioBar({
                         min={-1}
                         max={1}
                         step={0.05}
-                        value={project.audioDsp?.pan ?? 0}
+                        value={safeNum(project.audioDsp?.pan, 0)}
                         onChange={(e) =>
-                          onUpdateAudioDsp?.({ pan: Number(e.target.value) })
+                          onUpdateAudioDsp?.({ pan: Number(e.target.value) || 0 })
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -703,7 +705,7 @@ export default function BottomAudioBar({
                       <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
                         <span>Analog Tape Saturation Drive</span>
                         <span className="font-mono text-neutral-400">
-                          {Math.round((project.audioDsp?.drive ?? 0) * 100)}%
+                          {Math.round(safeNum(project.audioDsp?.drive, 0) * 100)}%
                         </span>
                       </div>
                       <input
@@ -711,9 +713,9 @@ export default function BottomAudioBar({
                         min={0}
                         max={1}
                         step={0.05}
-                        value={project.audioDsp?.drive ?? 0}
+                        value={safeNum(project.audioDsp?.drive, 0)}
                         onChange={(e) =>
-                          onUpdateAudioDsp?.({ drive: Number(e.target.value) })
+                          onUpdateAudioDsp?.({ drive: Number(e.target.value) || 0 })
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -723,7 +725,7 @@ export default function BottomAudioBar({
                       <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
                         <span>Swing Groove Shuffle</span>
                         <span className="font-mono text-neutral-400">
-                          {Math.round((project.audioDsp?.swing ?? 0.15) * 100)}%
+                          {Math.round(safeNum(project.audioDsp?.swing, 0.15) * 100)}%
                         </span>
                       </div>
                       <input
@@ -731,9 +733,9 @@ export default function BottomAudioBar({
                         min={0}
                         max={0.5}
                         step={0.02}
-                        value={project.audioDsp?.swing ?? 0.15}
+                        value={safeNum(project.audioDsp?.swing, 0.15)}
                         onChange={(e) =>
-                          onUpdateAudioDsp?.({ swing: Number(e.target.value) })
+                          onUpdateAudioDsp?.({ swing: Number(e.target.value) || 0.15 })
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -743,7 +745,7 @@ export default function BottomAudioBar({
                       <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
                         <span>Tempo Multiplier</span>
                         <span className="font-mono text-neutral-400">
-                          {(project.audioDsp?.tempoMultiplier ?? 1.0).toFixed(2)}×
+                          {safeNum(project.audioDsp?.tempoMultiplier, 1.0).toFixed(2)}×
                         </span>
                       </div>
                       <input
@@ -751,9 +753,9 @@ export default function BottomAudioBar({
                         min={0.7}
                         max={1.4}
                         step={0.05}
-                        value={project.audioDsp?.tempoMultiplier ?? 1.0}
+                        value={safeNum(project.audioDsp?.tempoMultiplier, 1.0)}
                         onChange={(e) =>
-                          onUpdateAudioDsp?.({ tempoMultiplier: Number(e.target.value) })
+                          onUpdateAudioDsp?.({ tempoMultiplier: Number(e.target.value) || 1.0 })
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -980,8 +982,8 @@ export default function BottomAudioBar({
               min={0}
               max={1}
               step={0.02}
-              value={isMuted ? 0 : volume}
-              onChange={(e) => onChangeVolume(Number(e.target.value))}
+              value={safeNum(isMuted ? 0 : volume, 0.8)}
+              onChange={(e) => onChangeVolume(Number(e.target.value) || 0)}
               className="w-20 accent-[#16a34a] cursor-pointer"
             />
           </div>
