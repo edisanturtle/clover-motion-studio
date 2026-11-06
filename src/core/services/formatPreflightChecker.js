@@ -242,3 +242,7 @@ export function checkProjectFormatVariants(project, { sampleCount = 6, ratios = 
         : `Found ${totalIssuesCount} layout advisory item(s) across duration in 6 format variants.`,
   };
 }
+
+// Canonical alias for backward and forward export compatibility
+export const checkFormatPreflight = checkProjectFormatVariants;
+

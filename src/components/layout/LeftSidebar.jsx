@@ -54,6 +54,8 @@ import {
 } from '../../constants/effectCraftEffects';
 import { formatTimecode } from '../../utils/timecode';
 
+const safeNum = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
+
 function ScopeBanner({ targetScope, setTargetScope, activeSceneIndex, activeSceneName }) {
   return (
     <div className="flex items-center justify-between bg-[#141414] px-2.5 py-1.5 rounded-xl border border-neutral-800/90 mb-3 shadow-inner">
@@ -788,14 +790,14 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Vertical Framing (Y-Offset)</span>
                         <span className="font-mono text-neutral-400">
-                          {typeof currentShowcase.offsetY === 'number' && !Number.isNaN(currentShowcase.offsetY) ? currentShowcase.offsetY : 0}%
+                          {safeNum(currentShowcase.offsetY, 0)}%
                         </span>
                       </div>
                       <input
                         type="range"
                         min={-40}
                         max={40}
-                        value={typeof currentShowcase.offsetY === 'number' && !Number.isNaN(currentShowcase.offsetY) ? currentShowcase.offsetY : 0}
+                        value={safeNum(currentShowcase.offsetY, 0)}
                         onChange={(e) =>
                           onUpdateShowcase?.({ offsetY: Number(e.target.value) || 0 }, targetScope)
                         }
@@ -828,14 +830,14 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Card Size</span>
                         <span className="font-mono text-neutral-400">
-                          {typeof currentShowcase.cardSize === 'number' && !Number.isNaN(currentShowcase.cardSize) ? currentShowcase.cardSize : 24}%
+                          {safeNum(currentShowcase.cardSize, 24)}%
                         </span>
                       </div>
                       <input
                         type="range"
                         min={12}
                         max={65}
-                        value={typeof currentShowcase.cardSize === 'number' && !Number.isNaN(currentShowcase.cardSize) ? currentShowcase.cardSize : 24}
+                        value={safeNum(currentShowcase.cardSize, 24)}
                         onChange={(e) =>
                           onUpdateShowcase?.({ cardSize: Number(e.target.value) || 24 }, targetScope)
                         }
@@ -848,14 +850,14 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Card Spread Spacing</span>
                         <span className="font-mono text-neutral-400">
-                          {typeof currentShowcase.spreadGap === 'number' && !Number.isNaN(currentShowcase.spreadGap) ? currentShowcase.spreadGap : 6}px
+                          {safeNum(currentShowcase.spreadGap, 6)}px
                         </span>
                       </div>
                       <input
                         type="range"
                         min={0}
                         max={32}
-                        value={typeof currentShowcase.spreadGap === 'number' && !Number.isNaN(currentShowcase.spreadGap) ? currentShowcase.spreadGap : 6}
+                        value={safeNum(currentShowcase.spreadGap, 6)}
                         onChange={(e) =>
                           onUpdateShowcase?.({ spreadGap: Number(e.target.value) || 0 }, targetScope)
                         }
@@ -888,10 +890,10 @@ export default function LeftSidebar({
 
                         <div>
                           <label className="block text-[10px] text-neutral-400 mb-1">
-                            Motion Speed ({Number.isFinite(currentShowcase.motionSpeed) ? currentShowcase.motionSpeed : 1.0}×)
+                            Motion Speed ({safeNum(currentShowcase.motionSpeed, 1.0)}×)
                           </label>
                           <select
-                            value={Number.isFinite(currentShowcase.motionSpeed) ? currentShowcase.motionSpeed : 1.0}
+                            value={safeNum(currentShowcase.motionSpeed, 1.0)}
                             onChange={(e) =>
                               onUpdateShowcase?.({ motionSpeed: Number(e.target.value) || 1.0 }, targetScope)
                             }
@@ -955,14 +957,14 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Camera Tilt</span>
                         <span className="font-mono text-neutral-400">
-                          {typeof currentShowcase.tilt === 'number' && !Number.isNaN(currentShowcase.tilt) ? currentShowcase.tilt : -18}°
+                          {safeNum(currentShowcase.tilt, -18)}°
                         </span>
                       </div>
                       <input
                         type="range"
                         min={-60}
                         max={60}
-                        value={typeof currentShowcase.tilt === 'number' && !Number.isNaN(currentShowcase.tilt) ? currentShowcase.tilt : -18}
+                        value={safeNum(currentShowcase.tilt, -18)}
                         onChange={(e) =>
                           onUpdateShowcase?.({ tilt: Number(e.target.value) || 0 }, targetScope)
                         }
@@ -975,14 +977,14 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Depth Fade</span>
                         <span className="font-mono text-neutral-400">
-                          {typeof currentShowcase.backFade === 'number' && !Number.isNaN(currentShowcase.backFade) ? currentShowcase.backFade : 55}%
+                          {safeNum(currentShowcase.backFade, 55)}%
                         </span>
                       </div>
                       <input
                         type="range"
                         min={0}
                         max={90}
-                        value={typeof currentShowcase.backFade === 'number' && !Number.isNaN(currentShowcase.backFade) ? currentShowcase.backFade : 55}
+                        value={safeNum(currentShowcase.backFade, 55)}
                         onChange={(e) =>
                           onUpdateShowcase?.({ backFade: Number(e.target.value) || 0 }, targetScope)
                         }
@@ -999,14 +1001,14 @@ export default function LeftSidebar({
                         <div className="flex justify-between text-[10px] mb-1">
                           <span className="text-neutral-400">Transitions.dev Glare Sheen</span>
                           <span className="font-mono text-neutral-400">
-                            {typeof currentShowcase.glareIntensity === 'number' && !Number.isNaN(currentShowcase.glareIntensity) ? currentShowcase.glareIntensity : 60}%
+                            {safeNum(currentShowcase.glareIntensity, 60)}%
                           </span>
                         </div>
                         <input
                           type="range"
                           min={0}
                           max={100}
-                          value={typeof currentShowcase.glareIntensity === 'number' && !Number.isNaN(currentShowcase.glareIntensity) ? currentShowcase.glareIntensity : 60}
+                          value={safeNum(currentShowcase.glareIntensity, 60)}
                           onChange={(e) =>
                             onUpdateShowcase?.({ glareIntensity: Number(e.target.value) || 0 }, targetScope)
                           }
@@ -1263,14 +1265,14 @@ export default function LeftSidebar({
                                 <div className="flex justify-between text-[10px] text-neutral-300 mb-0.5">
                                   <span>Intensity</span>
                                   <span className="font-mono">
-                                    {state.intensity ?? fxDef.defaultIntensity}%
+                                    {safeNum(state.intensity, fxDef.defaultIntensity ?? 50)}%
                                   </span>
                                 </div>
                                 <input
                                   type="range"
                                   min={0}
                                   max={100}
-                                  value={typeof state.intensity === 'number' && !Number.isNaN(state.intensity) ? state.intensity : (fxDef.defaultIntensity || 50)}
+                                  value={safeNum(state.intensity, fxDef.defaultIntensity ?? 50)}
                                   onChange={(e) =>
                                     onUpdateFxParam?.(fxDef.id, {
                                       intensity: Number(e.target.value) || 0,
@@ -1284,14 +1286,14 @@ export default function LeftSidebar({
                                 <div className="flex justify-between text-[10px] text-neutral-300 mb-0.5">
                                   <span>{fxDef.secondaryLabel || 'Parameter'}</span>
                                   <span className="font-mono">
-                                    {typeof state.secondary === 'number' && !Number.isNaN(state.secondary) ? state.secondary : (fxDef.defaultSecondary || 30)}
+                                    {safeNum(state.secondary, fxDef.defaultSecondary ?? 30)}
                                   </span>
                                 </div>
                                 <input
                                   type="range"
                                   min={fxDef.secondaryMin ?? 0}
                                   max={fxDef.secondaryMax ?? 100}
-                                  value={typeof state.secondary === 'number' && !Number.isNaN(state.secondary) ? state.secondary : (fxDef.defaultSecondary || 30)}
+                                  value={safeNum(state.secondary, fxDef.defaultSecondary ?? 30)}
                                   onChange={(e) =>
                                     onUpdateFxParam?.(fxDef.id, {
                                       secondary: Number(e.target.value) || 0,
@@ -1441,7 +1443,7 @@ export default function LeftSidebar({
                           type="number"
                           min={1}
                           max={60}
-                          value={Number.isFinite(activeScene.duration) ? activeScene.duration : 4}
+                          value={safeNum(activeScene.duration, 4)}
                           onChange={(e) =>
                             onUpdateSceneProp?.(
                               'duration',
@@ -1572,14 +1574,14 @@ export default function LeftSidebar({
 
                         <div>
                           <label className="block text-[10px] text-neutral-400 mb-0.5">
-                            Speed ({Number.isFinite(activeScene.motionSpeed) ? activeScene.motionSpeed : 1.0}×)
+                            Speed ({safeNum(activeScene.motionSpeed, 1.0)}×)
                           </label>
                           <input
                             type="range"
                             min={0.5}
                             max={2.0}
                             step={0.1}
-                            value={Number.isFinite(activeScene.motionSpeed) ? activeScene.motionSpeed : 1.0}
+                            value={safeNum(activeScene.motionSpeed, 1.0)}
                             onChange={(e) => onUpdateSceneProp?.('motionSpeed', Number(e.target.value) || 1.0)}
                             className="w-full accent-[#16a34a] mt-1"
                           />

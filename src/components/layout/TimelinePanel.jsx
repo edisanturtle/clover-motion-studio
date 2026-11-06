@@ -47,6 +47,8 @@ const BEZIER_PRESETS = {
   easeInOut: { label: 'Ease In Out', coords: [0.42, 0.0, 0.58, 1.0] },
 };
 
+const safeNum = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
+
 export default function TimelinePanel({
   project,
   activeScene,
@@ -101,7 +103,7 @@ export default function TimelinePanel({
     (acc, sc) => acc + (sc.duration || 4),
     0
   );
-  const displayDuration = isFullVideo ? effectiveTotalDuration : duration;
+  const displayDuration = safeNum(isFullVideo ? effectiveTotalDuration : duration, 4);
   const effectiveCurrentTime = isFullVideo ? (currentGlobalTime ?? localTime) : localTime;
   const sceneRanges = getSceneTimeRanges(project?.scenes || []);
 
@@ -296,7 +298,7 @@ export default function TimelinePanel({
                 type="number"
                 min={1}
                 max={120}
-                value={displayDuration}
+                value={safeNum(displayDuration, 4)}
                 onChange={(e) =>
                   onUpdateSceneDuration(
                     Math.max(1, Math.min(120, Number(e.target.value) || 4))
@@ -443,7 +445,7 @@ export default function TimelinePanel({
                     type="number"
                     min={1}
                     max={120}
-                    value={displayDuration}
+                    value={safeNum(displayDuration, 4)}
                     onChange={(e) =>
                       onUpdateSceneDuration(
                         Math.max(1, Math.min(120, Number(e.target.value) || 4))

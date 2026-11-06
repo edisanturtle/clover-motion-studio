@@ -297,9 +297,16 @@ export class ProceduralAudioEngine {
     }
   }
 
+  triggerSfx(sfxId) {
+    return this.triggerSoundEffect(sfxId);
+  }
+
   triggerSoundEffect(sfxId) {
     this.ensureContext();
     if (!this.ctx || !this.masterGain) return;
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
     const now = this.ctx.currentTime;
 
     switch (sfxId) {
@@ -472,6 +479,9 @@ export class ProceduralAudioEngine {
 
   start(track) {
     this.ensureContext();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
     this.currentTrack = track || this.currentTrack || { id: 'funk', bpm: 104, rootFreq: 110 };
     this.isPlaying = true;
 

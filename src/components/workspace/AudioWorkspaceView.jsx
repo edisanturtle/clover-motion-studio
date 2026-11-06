@@ -34,6 +34,8 @@ import { EVENT_SFX_PADS } from '../../constants/effectCraftEffects';
 import { formatTimecode } from '../../utils/timecode';
 import { calculateBeatGrid, snapTimeToBeat, renderAudioMixdownWav, downloadWavBlob } from '../../core/services/audioService';
 
+const safeNum = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
+
 export default function AudioWorkspaceView({
   project,
   activeScene,
@@ -423,15 +425,15 @@ export default function AudioWorkspaceView({
                 {/* Track Sliders: Volume & Pan */}
                 <div className="space-y-1.5 pt-1">
                   <div className="flex justify-between text-[10px] text-neutral-400 font-mono">
-                    <span>Vol: {Math.round((track.volume ?? 1) * 100)}%</span>
-                    <span>Pan: {(track.pan ?? 0) === 0 ? 'C' : (track.pan > 0 ? `R${Math.round(track.pan * 100)}` : `L${Math.round(-track.pan * 100)}`)}</span>
+                    <span>Vol: {Math.round(safeNum(track.volume, 1) * 100)}%</span>
+                    <span>Pan: {safeNum(track.pan, 0) === 0 ? 'C' : (safeNum(track.pan, 0) > 0 ? `R${Math.round(safeNum(track.pan, 0) * 100)}` : `L${Math.round(-safeNum(track.pan, 0) * 100)}`)}</span>
                   </div>
                   <input
                     type="range"
                     min="0"
                     max="1"
                     step="0.02"
-                    value={track.volume ?? 1}
+                    value={safeNum(track.volume, 1)}
                     onChange={(e) => onUpdateAudioTrack?.(track.id, { volume: parseFloat(e.target.value) })}
                     className="w-full accent-[#22c55e] h-1 bg-neutral-800 rounded-lg cursor-pointer"
                   />
@@ -440,7 +442,7 @@ export default function AudioWorkspaceView({
                     min="-1"
                     max="1"
                     step="0.05"
-                    value={track.pan ?? 0}
+                    value={safeNum(track.pan, 0)}
                     onChange={(e) => onUpdateAudioTrack?.(track.id, { pan: parseFloat(e.target.value) })}
                     className="w-full accent-[#22c55e] h-1 bg-neutral-800 rounded-lg cursor-pointer"
                   />
@@ -639,19 +641,19 @@ export default function AudioWorkspaceView({
               <div className="space-y-1 bg-[#141414] p-3 rounded-lg border border-neutral-800">
                 <div className="flex justify-between text-xs text-neutral-300">
                   <span>Trim In</span>
-                  <span className="font-mono text-[#4ade80]">{selectedClip.clip.trimIn.toFixed(2)}s</span>
+                  <span className="font-mono text-[#4ade80]">{safeNum(selectedClip.clip.trimIn, 0).toFixed(2)}s</span>
                 </div>
                 <input
                   type="range"
                   min="0"
-                  max={Math.max(0, selectedClip.clip.trimOut - 0.1)}
+                  max={Math.max(0, safeNum(selectedClip.clip.trimOut, 1) - 0.1)}
                   step="0.05"
-                  value={selectedClip.clip.trimIn}
+                  value={safeNum(selectedClip.clip.trimIn, 0)}
                   onChange={(e) =>
                     onTrimAudioClip?.(
                       selectedClip.clip.id,
                       parseFloat(e.target.value),
-                      selectedClip.clip.trimOut
+                      safeNum(selectedClip.clip.trimOut, 1)
                     )
                   }
                   className="w-full accent-[#22c55e] h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
@@ -659,18 +661,18 @@ export default function AudioWorkspaceView({
 
                 <div className="flex justify-between text-xs text-neutral-300 pt-2">
                   <span>Trim Out</span>
-                  <span className="font-mono text-[#4ade80]">{selectedClip.clip.trimOut.toFixed(2)}s</span>
+                  <span className="font-mono text-[#4ade80]">{safeNum(selectedClip.clip.trimOut, 1).toFixed(2)}s</span>
                 </div>
                 <input
                   type="range"
-                  min={selectedClip.clip.trimIn + 0.1}
-                  max={selectedClip.clip.trimIn + 20}
+                  min={safeNum(selectedClip.clip.trimIn, 0) + 0.1}
+                  max={safeNum(selectedClip.clip.trimIn, 0) + 20}
                   step="0.05"
-                  value={selectedClip.clip.trimOut}
+                  value={safeNum(selectedClip.clip.trimOut, 1)}
                   onChange={(e) =>
                     onTrimAudioClip?.(
                       selectedClip.clip.id,
-                      selectedClip.clip.trimIn,
+                      safeNum(selectedClip.clip.trimIn, 0),
                       parseFloat(e.target.value)
                     )
                   }
@@ -683,7 +685,7 @@ export default function AudioWorkspaceView({
                 <div className="flex justify-between text-xs text-neutral-300">
                   <span>Clip Gain</span>
                   <span className="font-mono text-[#4ade80]">
-                    {Math.round((selectedClip.clip.gain ?? 1) * 100)}%
+                    {Math.round(safeNum(selectedClip.clip.gain, 1) * 100)}%
                   </span>
                 </div>
                 <input
@@ -691,7 +693,7 @@ export default function AudioWorkspaceView({
                   min="0"
                   max="2.0"
                   step="0.05"
-                  value={selectedClip.clip.gain ?? 1}
+                  value={safeNum(selectedClip.clip.gain, 1)}
                   onChange={(e) =>
                     onUpdateAudioClip?.(selectedClip.clip.id, { gain: parseFloat(e.target.value) })
                   }
@@ -707,11 +709,11 @@ export default function AudioWorkspaceView({
                 <div className="flex justify-between text-xs text-neutral-300">
                   <span>Clip Stereo Pan</span>
                   <span className="font-mono text-[#4ade80]">
-                    {(selectedClip.clip.pan ?? 0) === 0
+                    {safeNum(selectedClip.clip.pan, 0) === 0
                       ? 'Center'
-                      : selectedClip.clip.pan > 0
-                      ? `R ${Math.round(selectedClip.clip.pan * 100)}`
-                      : `L ${Math.round(-selectedClip.clip.pan * 100)}`}
+                      : safeNum(selectedClip.clip.pan, 0) > 0
+                      ? `R ${Math.round(safeNum(selectedClip.clip.pan, 0) * 100)}`
+                      : `L ${Math.round(-safeNum(selectedClip.clip.pan, 0) * 100)}`}
                   </span>
                 </div>
                 <input
@@ -719,7 +721,7 @@ export default function AudioWorkspaceView({
                   min="-1"
                   max="1"
                   step="0.05"
-                  value={selectedClip.clip.pan ?? 0}
+                  value={safeNum(selectedClip.clip.pan, 0)}
                   onChange={(e) =>
                     onUpdateAudioClip?.(selectedClip.clip.id, { pan: parseFloat(e.target.value) })
                   }
@@ -735,15 +737,15 @@ export default function AudioWorkspaceView({
                 <div className="flex justify-between text-xs text-neutral-300">
                   <span>Fade In</span>
                   <span className="font-mono text-[#4ade80]">
-                    {(selectedClip.clip.fadeIn || 0).toFixed(1)}s
+                    {safeNum(selectedClip.clip.fadeIn, 0).toFixed(1)}s
                   </span>
                 </div>
                 <input
                   type="range"
                   min="0"
-                  max={selectedClip.clip.duration / 2}
+                  max={Math.max(0.5, safeNum(selectedClip.clip.duration, 2) / 2)}
                   step="0.1"
-                  value={selectedClip.clip.fadeIn || 0}
+                  value={safeNum(selectedClip.clip.fadeIn, 0)}
                   onChange={(e) =>
                     onUpdateAudioClip?.(selectedClip.clip.id, { fadeIn: parseFloat(e.target.value) })
                   }
@@ -753,15 +755,15 @@ export default function AudioWorkspaceView({
                 <div className="flex justify-between text-xs text-neutral-300 pt-2">
                   <span>Fade Out</span>
                   <span className="font-mono text-[#4ade80]">
-                    {(selectedClip.clip.fadeOut || 0).toFixed(1)}s
+                    {safeNum(selectedClip.clip.fadeOut, 0).toFixed(1)}s
                   </span>
                 </div>
                 <input
                   type="range"
                   min="0"
-                  max={selectedClip.clip.duration / 2}
+                  max={Math.max(0.5, safeNum(selectedClip.clip.duration, 2) / 2)}
                   step="0.1"
-                  value={selectedClip.clip.fadeOut || 0}
+                  value={safeNum(selectedClip.clip.fadeOut, 0)}
                   onChange={(e) =>
                     onUpdateAudioClip?.(selectedClip.clip.id, { fadeOut: parseFloat(e.target.value) })
                   }
@@ -789,13 +791,13 @@ export default function AudioWorkspaceView({
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-xs text-neutral-300">
               <span className="text-neutral-400">Tempo:</span>
-              <span className="font-mono text-[#4ade80] font-bold">{bpm} BPM</span>
+              <span className="font-mono text-[#4ade80] font-bold">{safeNum(bpm, 126)} BPM</span>
             </div>
             <input
               type="range"
               min="40"
               max="220"
-              value={bpm}
+              value={safeNum(bpm, 126)}
               onChange={(e) => onUpdateAudioDsp?.({ bpm: Number(e.target.value) })}
               className="w-24 accent-[#22c55e] h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
             />
@@ -899,14 +901,14 @@ export default function AudioWorkspaceView({
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs font-medium">
                 <span className="text-neutral-300">Master Volume</span>
-                <span className="text-[#4ade80] font-mono">{Math.round(volume * 100)}%</span>
+                <span className="text-[#4ade80] font-mono">{Math.round(safeNum(volume, 0.8) * 100)}%</span>
               </div>
               <input
                 type="range"
                 min="0"
                 max="1"
                 step="0.01"
-                value={volume}
+                value={safeNum(volume, 0.8)}
                 onChange={(e) => onChangeVolume?.(parseFloat(e.target.value))}
                 className="w-full accent-[#22c55e] h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
               />
@@ -916,7 +918,7 @@ export default function AudioWorkspaceView({
               <div className="flex justify-between text-xs font-medium">
                 <span className="text-neutral-300">Master Stereo Pan</span>
                 <span className="text-[#4ade80] font-mono">
-                  {(masterDsp.pan ?? 0) === 0 ? 'Center' : masterDsp.pan > 0 ? `R${Math.round(masterDsp.pan * 100)}` : `L${Math.round(-masterDsp.pan * 100)}`}
+                  {safeNum(masterDsp.pan, 0) === 0 ? 'Center' : safeNum(masterDsp.pan, 0) > 0 ? `R${Math.round(safeNum(masterDsp.pan, 0) * 100)}` : `L${Math.round(-safeNum(masterDsp.pan, 0) * 100)}`}
                 </span>
               </div>
               <input
@@ -924,7 +926,7 @@ export default function AudioWorkspaceView({
                 min="-1"
                 max="1"
                 step="0.05"
-                value={masterDsp.pan ?? 0}
+                value={safeNum(masterDsp.pan, 0)}
                 onChange={(e) => onUpdateAudioDsp?.({ pan: parseFloat(e.target.value) })}
                 className="w-full accent-[#22c55e] h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
               />
@@ -942,7 +944,7 @@ export default function AudioWorkspaceView({
                 <div className="flex justify-between text-[11px] font-mono">
                   <span className="text-neutral-400">Sub-Bass (110Hz)</span>
                   <span className="text-[#4ade80]">
-                    {(masterDsp.bassGain ?? 0) > 0 ? `+${masterDsp.bassGain}` : masterDsp.bassGain ?? 0} dB
+                    {safeNum(masterDsp.bassGain, 0) > 0 ? `+${safeNum(masterDsp.bassGain, 0)}` : safeNum(masterDsp.bassGain, 0)} dB
                   </span>
                 </div>
                 <input
@@ -950,7 +952,7 @@ export default function AudioWorkspaceView({
                   min="-12"
                   max="18"
                   step="1"
-                  value={masterDsp.bassGain ?? 0}
+                  value={safeNum(masterDsp.bassGain, 0)}
                   onChange={(e) => onUpdateAudioDsp?.({ bassGain: parseFloat(e.target.value) })}
                   className="w-full accent-[#22c55e] h-1 bg-neutral-800 rounded-lg cursor-pointer"
                 />
@@ -961,7 +963,7 @@ export default function AudioWorkspaceView({
                 <div className="flex justify-between text-[11px] font-mono">
                   <span className="text-neutral-400">Mid (1.4kHz)</span>
                   <span className="text-[#4ade80]">
-                    {(masterDsp.midGain ?? 0) > 0 ? `+${masterDsp.midGain}` : masterDsp.midGain ?? 0} dB
+                    {safeNum(masterDsp.midGain, 0) > 0 ? `+${safeNum(masterDsp.midGain, 0)}` : safeNum(masterDsp.midGain, 0)} dB
                   </span>
                 </div>
                 <input
@@ -969,7 +971,7 @@ export default function AudioWorkspaceView({
                   min="-12"
                   max="12"
                   step="1"
-                  value={masterDsp.midGain ?? 0}
+                  value={safeNum(masterDsp.midGain, 0)}
                   onChange={(e) => onUpdateAudioDsp?.({ midGain: parseFloat(e.target.value) })}
                   className="w-full accent-[#22c55e] h-1 bg-neutral-800 rounded-lg cursor-pointer"
                 />
@@ -980,7 +982,7 @@ export default function AudioWorkspaceView({
                 <div className="flex justify-between text-[11px] font-mono">
                   <span className="text-neutral-400">Treble (7.5kHz)</span>
                   <span className="text-[#4ade80]">
-                    {(masterDsp.trebleGain ?? 0) > 0 ? `+${masterDsp.trebleGain}` : masterDsp.trebleGain ?? 0} dB
+                    {safeNum(masterDsp.trebleGain, 0) > 0 ? `+${safeNum(masterDsp.trebleGain, 0)}` : safeNum(masterDsp.trebleGain, 0)} dB
                   </span>
                 </div>
                 <input
@@ -988,7 +990,7 @@ export default function AudioWorkspaceView({
                   min="-12"
                   max="15"
                   step="1"
-                  value={masterDsp.trebleGain ?? 0}
+                  value={safeNum(masterDsp.trebleGain, 0)}
                   onChange={(e) => onUpdateAudioDsp?.({ trebleGain: parseFloat(e.target.value) })}
                   className="w-full accent-[#22c55e] h-1 bg-neutral-800 rounded-lg cursor-pointer"
                 />
@@ -999,7 +1001,7 @@ export default function AudioWorkspaceView({
                 <div className="flex justify-between text-[11px] font-mono">
                   <span className="text-neutral-400">Lowpass Cutoff</span>
                   <span className="text-[#4ade80]">
-                    {Math.round(masterDsp.lowpassFreq ?? 20000)} Hz
+                    {Math.round(safeNum(masterDsp.lowpassFreq, 20000))} Hz
                   </span>
                 </div>
                 <input
@@ -1007,7 +1009,7 @@ export default function AudioWorkspaceView({
                   min="200"
                   max="20000"
                   step="200"
-                  value={masterDsp.lowpassFreq ?? 20000}
+                  value={safeNum(masterDsp.lowpassFreq, 20000)}
                   onChange={(e) => onUpdateAudioDsp?.({ lowpassFreq: parseFloat(e.target.value) })}
                   className="w-full accent-[#22c55e] h-1 bg-neutral-800 rounded-lg cursor-pointer"
                 />
@@ -1026,7 +1028,7 @@ export default function AudioWorkspaceView({
                 <div className="flex justify-between text-xs">
                   <span className="text-neutral-300 font-medium">Dub Echo Wet Mix</span>
                   <span className="text-[#4ade80] font-mono">
-                    {Math.round((masterDsp.delayMix ?? 0) * 100)}%
+                    {Math.round(safeNum(masterDsp.delayMix, 0) * 100)}%
                   </span>
                 </div>
                 <input
@@ -1034,7 +1036,7 @@ export default function AudioWorkspaceView({
                   min="0"
                   max="0.85"
                   step="0.05"
-                  value={masterDsp.delayMix ?? 0}
+                  value={safeNum(masterDsp.delayMix, 0)}
                   onChange={(e) => onUpdateAudioDsp?.({ delayMix: parseFloat(e.target.value) })}
                   className="w-full accent-[#22c55e] h-1 bg-neutral-800 rounded-lg cursor-pointer"
                 />
@@ -1049,7 +1051,7 @@ export default function AudioWorkspaceView({
                 <div className="flex justify-between text-xs">
                   <span className="text-neutral-300 font-medium">Chamber Reverb Wet Mix</span>
                   <span className="text-[#4ade80] font-mono">
-                    {Math.round((masterDsp.reverbMix ?? 0) * 100)}%
+                    {Math.round(safeNum(masterDsp.reverbMix, 0) * 100)}%
                   </span>
                 </div>
                 <input
@@ -1057,7 +1059,7 @@ export default function AudioWorkspaceView({
                   min="0"
                   max="0.85"
                   step="0.05"
-                  value={masterDsp.reverbMix ?? 0}
+                  value={safeNum(masterDsp.reverbMix, 0)}
                   onChange={(e) => onUpdateAudioDsp?.({ reverbMix: parseFloat(e.target.value) })}
                   className="w-full accent-[#22c55e] h-1 bg-neutral-800 rounded-lg cursor-pointer"
                 />

@@ -50,6 +50,8 @@ import {
   evaluateActiveVideoClipsAtTime,
 } from '../../core/services/videoService.js';
 
+const safeNum = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
+
 export default function VideoWorkspaceView({
   project,
   activeSceneIndex,
@@ -554,13 +556,13 @@ export default function VideoWorkspaceView({
             <input
               type="range"
               min={0}
-              max={Math.max(1, totalProjectDuration)}
+              max={Math.max(1, safeNum(totalProjectDuration, 1))}
               step={0.033}
-              value={localTime}
+              value={safeNum(localTime, 0)}
               onChange={(e) => onSeekLocalTime && onSeekLocalTime(Number(e.target.value))}
               className="w-48 accent-[#159947]"
             />
-            <span className="text-[#4ade80] font-bold">{localTime.toFixed(2)}s</span>
+            <span className="text-[#4ade80] font-bold">{safeNum(localTime, 0).toFixed(2)}s</span>
           </div>
         </div>
 
@@ -723,7 +725,7 @@ export default function VideoWorkspaceView({
                     <label className="text-[10px] text-neutral-500">X (px)</label>
                     <input
                       type="number"
-                      value={selectedClip.transform?.x || 0}
+                      value={safeNum(selectedClip.transform?.x, 0)}
                       onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { x: Number(e.target.value) })}
                       className="w-full bg-[#111] border border-neutral-700 rounded-lg px-2 py-1 text-white font-mono"
                     />
@@ -732,7 +734,7 @@ export default function VideoWorkspaceView({
                     <label className="text-[10px] text-neutral-500">Y (px)</label>
                     <input
                       type="number"
-                      value={selectedClip.transform?.y || 0}
+                      value={safeNum(selectedClip.transform?.y, 0)}
                       onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { y: Number(e.target.value) })}
                       className="w-full bg-[#111] border border-neutral-700 rounded-lg px-2 py-1 text-white font-mono"
                     />
@@ -744,25 +746,25 @@ export default function VideoWorkspaceView({
                 <span className="text-[11px] font-mono text-neutral-400 uppercase">Scale & Rotation</span>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <label className="text-[10px] text-neutral-500">Scale ({selectedClip.transform?.scale || 1.0}x)</label>
+                    <label className="text-[10px] text-neutral-500">Scale ({safeNum(selectedClip.transform?.scale, 1.0)}x)</label>
                     <input
                       type="range"
                       min={0.2}
                       max={3.0}
                       step={0.05}
-                      value={selectedClip.transform?.scale || 1.0}
+                      value={safeNum(selectedClip.transform?.scale, 1.0)}
                       onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { scale: Number(e.target.value) })}
                       className="w-full accent-[#159947]"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-neutral-500">Rot ({selectedClip.transform?.rotation || 0}°)</label>
+                    <label className="text-[10px] text-neutral-500">Rot ({safeNum(selectedClip.transform?.rotation, 0)}°)</label>
                     <input
                       type="range"
                       min={-180}
                       max={180}
                       step={5}
-                      value={selectedClip.transform?.rotation || 0}
+                      value={safeNum(selectedClip.transform?.rotation, 0)}
                       onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { rotation: Number(e.target.value) })}
                       className="w-full accent-[#159947]"
                     />
@@ -774,13 +776,13 @@ export default function VideoWorkspaceView({
                 <span className="text-[11px] font-mono text-neutral-400 uppercase">Opacity & Blend Mode</span>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <label className="text-[10px] text-neutral-500">Opacity ({Math.round((selectedClip.transform?.opacity ?? 1) * 100)}%)</label>
+                    <label className="text-[10px] text-neutral-500">Opacity ({Math.round(safeNum(selectedClip.transform?.opacity, 1) * 100)}%)</label>
                     <input
                       type="range"
                       min={0}
                       max={1}
                       step={0.05}
-                      value={selectedClip.transform?.opacity ?? 1}
+                      value={safeNum(selectedClip.transform?.opacity, 1)}
                       onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { opacity: Number(e.target.value) })}
                       className="w-full accent-[#159947]"
                     />
@@ -809,14 +811,14 @@ export default function VideoWorkspaceView({
                 <div key={side} className="bg-[#181818] p-3.5 rounded-xl border border-neutral-800/80 space-y-2">
                   <div className="flex justify-between text-[11px] font-mono">
                     <span className="text-neutral-400 uppercase">Crop {side}</span>
-                    <span className="text-[#4ade80] font-bold">{selectedClip.crop?.[side] || 0}%</span>
+                    <span className="text-[#4ade80] font-bold">{safeNum(selectedClip.crop?.[side], 0)}%</span>
                   </div>
                   <input
                     type="range"
                     min={0}
                     max={80}
                     step={1}
-                    value={selectedClip.crop?.[side] || 0}
+                    value={safeNum(selectedClip.crop?.[side], 0)}
                     onChange={(e) => onUpdateClipCrop && onUpdateClipCrop(selectedClip.id, { [side]: Number(e.target.value) })}
                     className="w-full accent-[#159947]"
                   />
@@ -850,13 +852,13 @@ export default function VideoWorkspaceView({
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] text-neutral-500">Duration ({selectedClip.transitionIn?.duration || 0.5}s)</label>
+                    <label className="text-[10px] text-neutral-500">Duration ({safeNum(selectedClip.transitionIn?.duration, 0.5)}s)</label>
                     <input
                       type="range"
                       min={0.1}
                       max={2.0}
                       step={0.1}
-                      value={selectedClip.transitionIn?.duration || 0.5}
+                      value={safeNum(selectedClip.transitionIn?.duration, 0.5)}
                       onChange={(e) => onSetClipTransition && onSetClipTransition(selectedClip.id, 'in', {
                         ...selectedClip.transitionIn,
                         duration: Number(e.target.value),
@@ -889,13 +891,13 @@ export default function VideoWorkspaceView({
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] text-neutral-500">Duration ({selectedClip.transitionOut?.duration || 0.5}s)</label>
+                    <label className="text-[10px] text-neutral-500">Duration ({safeNum(selectedClip.transitionOut?.duration, 0.5)}s)</label>
                     <input
                       type="range"
                       min={0.1}
                       max={2.0}
                       step={0.1}
-                      value={selectedClip.transitionOut?.duration || 0.5}
+                      value={safeNum(selectedClip.transitionOut?.duration, 0.5)}
                       onChange={(e) => onSetClipTransition && onSetClipTransition(selectedClip.id, 'out', {
                         ...selectedClip.transitionOut,
                         duration: Number(e.target.value),
