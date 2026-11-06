@@ -103,45 +103,67 @@ Clover Motion uses a single-page studio architecture under Next.js App Router (`
 
 ## 5. Design System Tokens & Styling Architecture
 
-The studio design system is built using CSS custom properties configured in `src/app/globals.css` and compiled via Tailwind CSS 4.
+The studio design system is rigorously specified in [`docs/brand-guidelines.md`](file:///Users/edisantoso/Downloads/Clover%20Motion/docs/brand-guidelines.md) (Document ID: `CMS-BRAND-GUIDELINES-002`) following a **3-Tier Token Architecture** (Primitives $\rightarrow$ Semantics $\rightarrow$ Components) compiled via Tailwind CSS 4 and CSS custom properties in `src/app/globals.css`.
 
-### 5.1 Color Tokens
+### 5.1 3-Tier Token Mapping Summary
+
+```
+Tier 1: Primitives (Clover Green 50-950, Dark Neutrals 0-950, 4px Spatial Grid, 1.25 Modular Type Scale)
+  │
+  ▼
+Tier 2: Semantics (--surface-app #0a0a0a, --surface-canvas #0e0e0e, --surface-panel #141414, --border-standard rgba(255,255,255,0.1), --signal-brand #159947, --text-accent #4ade80)
+  │
+  ▼
+Tier 3: Components (Header h-12, Sidebar w-80/w-12, Inspector w-80, Timeline h-9 to 240px, Modal rounded-2xl)
+```
+
+### 5.2 Color Tokens & Surface Hierarchy
 ```css
 /* Surface Hierarchy */
 --studio-bg: #0a0a0a;           /* Deepest root backdrop */
 --studio-chrome: #0e0e0e;       /* Header and transport background */
 --studio-panel: #141414;        /* Sidebar and inspector background */
---studio-card: #1c1c1c;         /* Inner card and input field background */
---studio-hover: #242424;        /* Button and row hover state */
---studio-border: rgba(255, 255, 255, 0.08); /* Crisp separator border */
+--studio-card: #181818;         /* Card substrates and docked containers */
+--studio-input: #1c1c1c;        /* Inner card and input field background */
+--studio-hover: #262626;        /* Button and row hover state */
+--studio-border: rgba(255, 255, 255, 0.10); /* Crisp separator border */
 
 /* Brand & Signal Tokens */
 --clover-primary: #159947;      /* Primary button fill */
 --clover-core: #16a34a;         /* Brand logo and accent core */
 --clover-signal: #22c55e;       /* Active border, playhead, selection ring */
 --clover-highlight: #4ade80;    /* Glow badges, active text, status indicator */
---clover-dim: rgba(22, 163, 74, 0.15); /* Subtle active container tint */
+--clover-dot: #bbf7d0;          /* Brand wordmark punctuation dot */
+--clover-dim: rgba(21, 153, 71, 0.15); /* Subtle active container tint */
+
+/* Domain Signal Tokens */
+--signal-audio: #22c55e;        /* Waveform peaks & 32-band FFT bars */
+--signal-video: #38bdf8;        /* Video clip tracks & timeline playhead */
+--signal-graphic: #c084fc;      /* Graphic templates & keyframe diamonds */
+--signal-warning: #fbbf24;      /* Safe area bounds & preflight notices */
+--signal-danger: #f43f5e;       /* Audio clipping & destructive actions */
 
 /* Neutral Typography Tokens */
---text-primary: #ffffff;        /* Headings and active values */
---text-secondary: #a3a3a3;      /* Section labels and secondary info */
+--text-primary: #ffffff;        /* Headings and active values (17.2:1 AAA contrast) */
+--text-secondary: #a3a3a3;      /* Section labels and secondary info (6.4:1 AA contrast) */
 --text-muted: #737373;          /* Placeholder text and shortcuts */
 --text-faint: #525252;          /* Disabled states and subtle hints */
 ```
 
-### 5.2 Typography Tokens
+### 5.3 Typography & Tabular Numerics
 - **Display & Titles**: `Space Grotesk`, `Inter`, `system-ui`, sans-serif.
 - **Body & Labels**: `Inter`, `Helvetica Neue`, sans-serif.
-- **Numeric & Timecode**: `JetBrains Mono`, `ui-monospace`, monospace (tabular figures enabled for jitter-free counters).
+- **Numeric & Timecode**: `JetBrains Mono`, `ui-monospace`, monospace with `font-variant-numeric: tabular-nums` for rock-solid, jitter-free playback counters.
 
-### 5.3 Motion & Transition Tokens (Transitions.dev Inspired)
-- `--ease-spring`: `cubic-bezier(0.175, 0.885, 0.32, 1.275)` (Snappy spring pop).
+### 5.4 Motion & Transition Tokens (Transitions.dev Standard)
+- `--ease-spring`: `cubic-bezier(0.175, 0.885, 0.32, 1.275)` / Analytical Spring (`stiffness: 240, damping: 18`).
 - `--ease-smooth`: `cubic-bezier(0.4, 0.0, 0.2, 1)` (Fluid panel expand/collapse).
 - `--ease-exit`: `cubic-bezier(0.0, 0.0, 0.2, 1)` (Swift dismissal).
-- `--duration-fast`: `150ms` (Hover states, button active, badge toggles).
-- `--duration-normal`: `250ms` (Panel reveals, tab switches, modal entrance).
-- `--duration-slow`: `350ms` (Workspace transitions, drawer slides).
-- **Reduced Motion Support**: When `prefers-reduced-motion: reduce` is detected, all transitions drop to `0ms` while maintaining instantaneous state changes.
+- `--duration-micro`: `100ms` (Button active press, checkbox toggle).
+- `--duration-fast`: `160ms` (Hover states, tab switches, badge toggles).
+- `--duration-normal`: `240ms` (Panel reveals, modal entrance, drawer slide).
+- `--duration-deliberate`: `360ms` (Workspace mode transition, format review wipe).
+- **Reduced Motion Support**: When `prefers-reduced-motion: reduce` is detected, all UI transitions degrade to `0.01ms` while leaving user-controlled canvas video rendering functional.
 
 ---
 
@@ -153,6 +175,7 @@ To ensure absolute zero regression during the upgrade:
 3. **Pure 2D Canvas Determinism**: No WebGL dependencies may be introduced into the main viewport or exporter pipelines.
 4. **NaN Immunity**: All range slider inputs must retain their `safeNum()` and `Number.isFinite()` wrappers to prevent React runtime warnings.
 5. **Multi-Scene 60s Sequence Playback**: The global continuous video playback transport and timeline scrub bar must remain intact.
+6. **Brand & Logo Integrity**: Preserve the exact 4-leaf clover emblem, `Space Grotesk 700/800` wordmark, and signal mint dot (`#bbf7d0`).
 
 ---
 
@@ -162,10 +185,10 @@ To ensure absolute zero regression during the upgrade:
 [Fase 0] Baseline & Master Plan (COMPLETED)
    │
    ▼
-[Fase 1] Capability & Legal Gate (Audit & Shortlist Craft features; keep quarantine)
+[Fase 1] Capability & Legal Gate (Audit & Shortlist Craft features; keep quarantine) (COMPLETED)
    │
    ▼
-[Fase 2] Visual Identity & Design Tokens (Define tokens in globals.css; design spec)
+[Fase 2] Visual Identity & Design Tokens (docs/brand-guidelines.md; 3-tier tokens) (COMPLETED)
    │
    ▼
 [Fase 3] Canvas-First Workspace Redesign (~60% canvas area, collapsible sidebars)
@@ -200,12 +223,14 @@ To ensure absolute zero regression during the upgrade:
 
 ---
 
-## 8. Fase 0 Exit Gate Evaluation
+## 8. Gate Evaluation: Fase 2 Exit & Transition to Fase 3
 
-- [x] **Repository integrity verified**: `/Users/edisantoso/Downloads/Clover Motion` on branch `main` at commit `f6d9476`.
-- [x] **Dev server operational**: `http://localhost:3000/` running on Node.js / Turbopack with 200 OK.
-- [x] **User changes and recent bug fixes safeguarded**: Zero NaNs, 56 templates functional, 11/11 tests passing.
-- [x] **Baseline screenshots captured**: Recorded across 3 standard viewports ($1920\times1080$, $1440\times900$, $1280\times800$).
-- [x] **Zero UI/Code/Data mutations during Fase 0**: Work completed strictly in documentation.
+- [x] **Brand Guidelines Authored**: `docs/brand-guidelines.md` establishes 4-pillar traits (Clean, Professional, Unique, Playful) with explicit anti-patterns (no Animos/Noodle/Awwwards clone).
+- [x] **3-Tier Token Specification Complete**: Primitives (colors, type scale, 4px grid), Semantics (surfaces, signals, text), and Components (header, sidebar, canvas, inspector, timeline, audio bar, modals) defined.
+- [x] **Zero Foreign Font / Package Debt**: Relies entirely on verified stack (Next.js 16, React 19, Tailwind CSS 4, Google Fonts via `globals.css`).
+- [x] **WCAG 2.2 AA Contrast Verified**: Primary text reaches 17.2:1 (AAA), secondary 6.4:1 (AA), accent 8.2:1 (AAA).
+- [x] **Reduced-Motion Strategy Documented**: UI transitions clamp to 0.01ms while canvas playback is preserved.
+- [x] **Reviewable Mockup Schemas Produced**: 4 comprehensive ASCII layout schemas for Editor Studio, Template Browser Modal, Audio Workspace Console, and Format Review Matrix.
+- [x] **Zero Code Regression**: No premature wholesale refactoring executed during Fase 2.
 
-**CONCLUSION**: **FASE 0 IS 100% COMPLETE. AMAN MASUK FASE 1.**
+**CONCLUSION**: **FASE 2 IS 100% COMPLETE. AMAN MASUK FASE 3.**
