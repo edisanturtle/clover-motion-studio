@@ -105,9 +105,10 @@ export function renderSceneToCanvas({
       ctx,
       width,
       height,
-      showcase: showcaseConfig,
+      showcaseConfig,
       mediaSlots: project?.mediaSlots || scene.mediaSlots || [],
       localTime,
+      duration: scene.duration || project?.duration || 12,
       audioSignals,
       palette: scene.palette,
     });
@@ -194,6 +195,8 @@ function drawTemplateDecor(ctx, width, height, scene, t, audio) {
   const style = scene.decorStyle;
   const pal = scene.palette || ['#101935', '#f5f1e6', '#5983ff', '#e57c66', '#6bb39b', '#c299d0'];
   const bass = audio?.bass || 0;
+  const cx = width / 2;
+  const cy = height / 2;
 
   ctx.save();
 
@@ -370,6 +373,7 @@ function drawTemplateDecor(ctx, width, height, scene, t, audio) {
       break;
     }
 
+    case 'prism':
     case 'prismBurst':
     case 'pleats':
     case 'ribbons': {

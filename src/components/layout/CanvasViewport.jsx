@@ -293,8 +293,8 @@ export default function CanvasViewport({
   const stepZoom = (delta) => {
     setZoomMode('custom');
     setZoomMultiplier((prev) => {
-      const next = Math.round((prev + delta) * 10) / 10;
-      return Math.max(0.4, Math.min(2.0, next));
+      const next = Math.round((prev + delta) * 100) / 100;
+      return Math.max(0.2, Math.min(4.0, next));
     });
   };
 
@@ -302,6 +302,33 @@ export default function CanvasViewport({
     setZoomMode('fit');
     setZoomMultiplier(1.0);
   };
+
+  // Wheel zoom (mouse wheel with Ctrl / trackpad pinch gesture) & pan
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e) => {
+      // Check if user is pinching trackpad (e.ctrlKey === true) or holding Ctrl/Cmd or scrolling mouse
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const zoomDelta = -e.deltaY * 0.008;
+        setZoomMode('custom');
+        setZoomMultiplier((prev) => {
+          const next = Math.round((prev + zoomDelta) * 100) / 100;
+          return Math.max(0.2, Math.min(4.0, next));
+        });
+      } else if (e.altKey) {
+        // Alt + wheel for mouse wheel zoom without trackpad pinch
+        e.preventDefault();
+        const zoomDelta = e.deltaY < 0 ? 0.1 : -0.1;
+        stepZoom(zoomDelta);
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, []);
 
   return (
     <div className="flex-1 flex flex-col bg-[#0e0e0e] min-w-0 min-h-0 overflow-hidden select-none p-2.5 gap-2.5">
@@ -518,7 +545,7 @@ export default function CanvasViewport({
           </span>
           <div
             className="flex items-center gap-2"
-            title="Canvas: + / - to zoom, 0 to fit, arrow keys to scroll"
+            title="Canvas: Pinch trackpad / Alt+Wheel to zoom, + / - / 0, arrow keys to nudge"
           >
             <button
               type="button"

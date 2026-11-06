@@ -959,6 +959,13 @@ export default function CloverMotionStudio() {
         ...patch,
       },
     }));
+    // Auto start playback if paused so the user immediately sees the 3D motion preview!
+    if (!isPlaying && patch.templateId && patch.templateId !== 'none') {
+      setIsPlaying(true);
+      const track =
+        DEMO_TRACKS.find((t) => t.id === project.audioTrackId) || DEMO_TRACKS[0];
+      audioEngineRef.current?.start(track);
+    }
   };
 
   const handleUploadMediaSlots = (files) => {
