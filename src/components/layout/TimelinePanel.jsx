@@ -51,6 +51,8 @@ export default function TimelinePanel({
   onRestart,
   onSeekLocalTime,
   onAddKeyframe,
+  onUpdateKeyframe,
+  onPasteKeyframes,
   onDeleteKeyframe,
   onClearLayerKeyframes,
   onUpdateSceneDuration,
@@ -63,6 +65,8 @@ export default function TimelinePanel({
   const [markers, setMarkers] = useState([]);
   const [copiedKeyframes, setCopiedKeyframes] = useState([]);
   const [expandedLayerIds, setExpandedLayerIds] = useState({});
+  const [timelineZoom, setTimelineZoom] = useState('fit'); // 'fit' | '2x' | '4x'
+  const [trackHeight, setTrackHeight] = useState('compact'); // 'compact' | 'tall'
   const trackAreaRef = useRef(null);
 
   if (!activeScene) return null;
@@ -406,20 +410,19 @@ export default function TimelinePanel({
                     </select>
                     <button
                       type="button"
-                      className="p-1.5 rounded-lg bg-[#1e1e1e] border border-neutral-800 text-neutral-400 hover:text-white"
-                      title="Vertical zoom"
+                      onClick={() => setTrackHeight((h) => (h === 'compact' ? 'tall' : 'compact'))}
+                      className={`p-1.5 rounded-lg border transition-colors ${
+                        trackHeight === 'tall'
+                          ? 'bg-[#159947]/30 border-[#22c55e]/50 text-white'
+                          : 'bg-[#1e1e1e] border-neutral-800 text-neutral-400 hover:text-white'
+                      }`}
+                      title={`Toggle track height (${trackHeight})`}
                     >
                       <ArrowUpDown className="w-3.5 h-3.5" />
                     </button>
-                    <button
-                      type="button"
-                      className="p-1.5 rounded-lg bg-[#1e1e1e] border border-neutral-800 text-neutral-400 hover:text-white"
-                      title="Zoom timeline"
-                    >
-                      <Search className="w-3.5 h-3.5" />
-                    </button>
                     <select
-                      defaultValue="fit"
+                      value={timelineZoom}
+                      onChange={(e) => setTimelineZoom(e.target.value)}
                       className="px-2 py-1 rounded-lg bg-[#1e1e1e] border border-neutral-800 text-xs text-white focus:outline-none"
                     >
                       <option value="fit">Fit</option>
@@ -440,7 +443,11 @@ export default function TimelinePanel({
                     <button
                       type="button"
                       disabled={copiedKeyframes.length === 0}
-                      onClick={() => onAddKeyframe(activeProp)}
+                      onClick={() => {
+                        if (selectedLayer && copiedKeyframes.length) {
+                          onPasteKeyframes?.(selectedLayer.id, copiedKeyframes, localTime);
+                        }
+                      }}
                       className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#1e1e1e] hover:bg-neutral-800 disabled:opacity-40 border border-neutral-800 text-xs text-neutral-300"
                     >
                       <Clipboard className="w-3 h-3" />
@@ -500,19 +507,67 @@ export default function TimelinePanel({
 
                     <button
                       type="button"
-                      onClick={handleAddMarker}
+                      onClick={() => {
+                        // Generate beat markers based on BPM (e.g. 120 BPM = 0.5s intervals)
+                        const bpm = project?.bpm || 120;
+                        const beatInterval = 60 / bpm;
+                        const newMarkers = [];
+                        let t = 0;
+                        let count = 1;
+                        while (t < duration) {
+                          newMarkers.push({
+                            id: `beat_${count}_${Date.now()}`,
+                            time: Number(t.toFixed(2)),
+                            label: `B${count}`,
+                          });
+                          t += beatInterval;
+                          count++;
+                        }
+                        setMarkers(newMarkers);
+                      }}
                       className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#1e1e1e] hover:bg-neutral-800 border border-neutral-800 text-xs text-neutral-200"
                     >
-                      <Activity className="w-3 h-3 text-neutral-400" />
+                      <Activity className="w-3 h-3 text-[#22c55e]" />
                       <span>Find beats</span>
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => onAddKeyframe(activeProp)}
+                      onClick={() => {
+                        if (!selectedLayer) return;
+                        // Automatically generate beat-synced keyframe pulses on the selected layer
+                        const bpm = project?.bpm || 120;
+                        const beatInterval = 60 / bpm;
+                        const generatedKfs = [];
+                        let t = 0;
+                        const baseVal =
+                          activeProp === 'scale' ? 1.0 : activeProp === 'opacity' ? 1.0 : 0;
+                        const peakVal =
+                          activeProp === 'scale' ? 1.25 : activeProp === 'opacity' ? 0.35 : 30;
+
+                        while (t < duration) {
+                          generatedKfs.push({
+                            id: `kf_beat_up_${t}_${Date.now()}`,
+                            time: Number(t.toFixed(2)),
+                            prop: activeProp,
+                            value: peakVal,
+                            easing: 'easeOutCubic',
+                          });
+                          const downTime = Math.min(duration, t + beatInterval * 0.4);
+                          generatedKfs.push({
+                            id: `kf_beat_down_${downTime}_${Date.now()}`,
+                            time: Number(downTime.toFixed(2)),
+                            prop: activeProp,
+                            value: baseVal,
+                            easing: 'easeInOutQuad',
+                          });
+                          t += beatInterval;
+                        }
+                        onPasteKeyframes?.(selectedLayer.id, generatedKfs, 0);
+                      }}
                       className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#1e1e1e] hover:bg-neutral-800 border border-neutral-800 text-xs text-neutral-200"
                     >
-                      <Waves className="w-3 h-3 text-neutral-400" />
+                      <Waves className="w-3 h-3 text-[#4ade80]" />
                       <span>Animate beats</span>
                     </button>
                   </div>
@@ -760,8 +815,33 @@ export default function TimelinePanel({
                                           e.stopPropagation();
                                           onSeekLocalTime(kf.time);
                                         }}
+                                        onPointerDown={(e) => {
+                                          e.stopPropagation();
+                                          const startClientX = e.clientX;
+                                          const origTime = kf.time;
+                                          const handleMove = (ev) => {
+                                            const dx = ev.clientX - startClientX;
+                                            const timeDelta = (dx / 600) * duration;
+                                            const newTime = Math.max(
+                                              0,
+                                              Math.min(duration, Number((origTime + timeDelta).toFixed(2)))
+                                            );
+                                            onUpdateKeyframe?.(layer.id, kf.id, { time: newTime });
+                                          };
+                                          const handleUp = () => {
+                                            window.removeEventListener('pointermove', handleMove);
+                                            window.removeEventListener('pointerup', handleUp);
+                                          };
+                                          window.addEventListener('pointermove', handleMove);
+                                          window.addEventListener('pointerup', handleUp);
+                                        }}
+                                        onDoubleClick={(e) => {
+                                          e.stopPropagation();
+                                          onDeleteKeyframe?.(layer.id, kf.id);
+                                        }}
                                         style={{ left: `${leftPct}%` }}
-                                        className="absolute -translate-x-1/2 w-2 h-2 rounded-full bg-white border border-black z-10"
+                                        className="absolute -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-white border border-black z-10 cursor-ew-resize hover:scale-125 transition-transform"
+                                        title={`Keyframe at ${kf.time.toFixed(2)}s (Drag to move, double click to delete)`}
                                       />
                                     );
                                   })}
@@ -812,44 +892,101 @@ export default function TimelinePanel({
                     {PROPERTY_LABELS[activeProp]} · %
                   </div>
 
-                  {/* Y-Axis Ticks & Horizontal Grid Lines */}
-                  <div className="flex-1 flex items-center relative my-1">
-                    <div className="w-10 h-full flex flex-col justify-between text-[10px] font-mono text-neutral-500 pr-2 text-right border-r border-neutral-700/80 shrink-0">
-                      <span>17</span>
-                      <span>16.5</span>
-                      <span>16</span>
-                      <span>15.5</span>
-                      <span>15</span>
-                    </div>
+                  {/* Y-Axis Ticks & Dynamic Value Curve */}
+                  {(() => {
+                    const samples = 48;
+                    const points = [];
+                    let minVal = Infinity;
+                    let maxVal = -Infinity;
 
-                    <div className="flex-1 h-full relative">
-                      {[0, 25, 50, 75, 100].map((pct) => (
-                        <div
-                          key={pct}
-                          style={{ top: `${pct}%` }}
-                          className="absolute left-0 right-0 h-px bg-neutral-800/80"
-                        />
-                      ))}
+                    for (let i = 0; i <= samples; i++) {
+                      const t = (i / samples) * duration;
+                      const evalState = evaluateLayerKeyframes(selectedLayer || {}, t);
+                      let v = 0;
+                      if (activeProp === 'scale') v = evalState.scale ?? 1;
+                      else if (activeProp === 'opacity') v = evalState.opacity ?? 1;
+                      else if (activeProp === 'rotation') v = evalState.rotation || 0;
+                      else if (activeProp === 'posY') v = evalState.posY || 675;
+                      else v = evalState.posX || 540;
 
-                      {/* Clover Green Value Line across Time */}
-                      <svg className="w-full h-full overflow-visible" preserveAspectRatio="none">
-                        <line
-                          x1="0%"
-                          y1="50%"
-                          x2="100%"
-                          y2="50%"
-                          stroke="#22c55e"
-                          strokeWidth="2"
-                        />
-                      </svg>
+                      if (v < minVal) minVal = v;
+                      if (v > maxVal) maxVal = v;
+                      points.push({ t, v });
+                    }
 
-                      {/* Vertical Playhead Line */}
-                      <div
-                        style={{ left: `${playheadPercent}%` }}
-                        className="absolute top-0 bottom-0 w-0.5 bg-white pointer-events-none"
-                      />
-                    </div>
-                  </div>
+                    if (minVal === maxVal) {
+                      minVal -= 1;
+                      maxVal += 1;
+                    }
+                    const valRange = maxVal - minVal;
+
+                    const pathD = points
+                      .map((pt, idx) => {
+                        const xPct = (pt.t / duration) * 100;
+                        const yPct = 100 - ((pt.v - minVal) / valRange) * 80 - 10;
+                        return `${idx === 0 ? 'M' : 'L'} ${xPct.toFixed(1)} ${yPct.toFixed(1)}`;
+                      })
+                      .join(' ');
+
+                    return (
+                      <div className="flex-1 flex items-center relative my-1">
+                        <div className="w-12 h-full flex flex-col justify-between text-[10px] font-mono text-neutral-400 pr-2 text-right border-r border-neutral-700/80 shrink-0">
+                          <span>{maxVal >= 10 ? Math.round(maxVal) : maxVal.toFixed(1)}</span>
+                          <span>{((maxVal + minVal) / 2).toFixed(1)}</span>
+                          <span>{minVal >= 10 ? Math.round(minVal) : minVal.toFixed(1)}</span>
+                        </div>
+
+                        <div className="flex-1 h-full relative">
+                          {[0, 25, 50, 75, 100].map((pct) => (
+                            <div
+                              key={pct}
+                              style={{ top: `${pct}%` }}
+                              className="absolute left-0 right-0 h-px bg-neutral-800/80"
+                            />
+                          ))}
+
+                          {/* Dynamic SVG Value Curve across Time */}
+                          <svg
+                            className="w-full h-full overflow-visible"
+                            viewBox="0 0 100 100"
+                            preserveAspectRatio="none"
+                          >
+                            <path
+                              d={pathD}
+                              fill="none"
+                              stroke="#22c55e"
+                              strokeWidth="2.5"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                            {/* Keyframe Nodes on Curve */}
+                            {(selectedLayer?.keyframes || [])
+                              .filter((k) => k.prop === activeProp)
+                              .map((k) => {
+                                const kx = (k.time / duration) * 100;
+                                const ky = 100 - ((k.value - minVal) / valRange) * 80 - 10;
+                                return (
+                                  <circle
+                                    key={k.id}
+                                    cx={`${kx}%`}
+                                    cy={`${ky}%`}
+                                    r="4"
+                                    fill="#ffffff"
+                                    stroke="#159947"
+                                    strokeWidth="2"
+                                  />
+                                );
+                              })}
+                          </svg>
+
+                          {/* Vertical Playhead Line */}
+                          <div
+                            style={{ left: `${playheadPercent}%` }}
+                            className="absolute top-0 bottom-0 w-0.5 bg-white pointer-events-none z-10"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <div className="text-[10px] font-mono text-neutral-500 pl-12">
                     Drag keys to edit time and value. Shift-click or drag an area to select several.

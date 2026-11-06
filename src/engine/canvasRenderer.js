@@ -572,6 +572,137 @@ function drawTemplateDecor(ctx, width, height, scene, t, audio) {
       break;
     }
 
+    case 'modular':
+    case 'swissGrid':
+    case 'bauhausBlocks': {
+      const cols = 4;
+      const rows = 5;
+      const mx = width * 0.08;
+      const my = height * 0.14;
+      const cw = (width * 0.84) / cols;
+      const ch = (height * 0.72) / rows;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const x = mx + c * cw;
+          const y = my + r * ch;
+          ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(x + 4, y + 4, cw - 8, ch - 8);
+          if ((r + c) % 3 === 0) {
+            const pulse = 0.55 + Math.sin(t * 2.4 + r + c) * 0.25 + bass * 0.2;
+            ctx.fillStyle = pal[2 + ((r + c) % 3)] || '#22c55e';
+            ctx.globalAlpha = 0.35;
+            ctx.fillRect(x + 8, y + 8, (cw - 16) * pulse, ch - 16);
+            ctx.globalAlpha = 1;
+          }
+        }
+      }
+      break;
+    }
+
+    case 'gradient': {
+      const grad = ctx.createRadialGradient(
+        cx + Math.cos(t * 0.8) * width * 0.18,
+        cy + Math.sin(t * 0.6) * height * 0.18,
+        width * 0.05,
+        cx,
+        cy,
+        width * 0.65
+      );
+      grad.addColorStop(0, pal[2] || '#22c55e');
+      grad.addColorStop(0.5, pal[3] || '#38bdf8');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.save();
+      ctx.globalAlpha = 0.52 + bass * 0.2;
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+      ctx.restore();
+      break;
+    }
+
+    case 'kinetic':
+    case 'kineticBars': {
+      const count = 9;
+      const barH = (height * 0.64) / count;
+      for (let i = 0; i < count; i++) {
+        const y = height * 0.18 + i * barH;
+        const w = width * (0.28 + 0.45 * Math.abs(Math.sin(t * 1.8 + i * 0.55)) + bass * 0.18);
+        ctx.fillStyle = i % 2 === 0 ? pal[2] || '#22c55e' : pal[3] || '#38bdf8';
+        ctx.globalAlpha = 0.28;
+        ctx.fillRect(i % 2 === 0 ? width * 0.08 : width * 0.92 - w, y + 4, w, barH * 0.52);
+      }
+      ctx.globalAlpha = 1;
+      break;
+    }
+
+    case 'scanner':
+    case 'audioWaveformRing': {
+      const rings = 36;
+      const baseR = Math.min(width, height) * 0.27;
+      ctx.save();
+      ctx.translate(cx, cy);
+      for (let i = 0; i < rings; i++) {
+        const ang = (i / rings) * Math.PI * 2 + t * 0.35;
+        const len = 18 + Math.abs(Math.sin(t * 4 + i * 0.4)) * 46 + bass * 55;
+        ctx.strokeStyle = i % 2 === 0 ? pal[2] || '#38bdf8' : pal[3] || '#22c55e';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(ang) * baseR, Math.sin(ang) * baseR);
+        ctx.lineTo(Math.cos(ang) * (baseR + len), Math.sin(ang) * (baseR + len));
+        ctx.stroke();
+      }
+      ctx.restore();
+      break;
+    }
+
+    case 'sculpture':
+    case 'radialBurst': {
+      ctx.save();
+      ctx.translate(cx, cy);
+      const planes = 8;
+      for (let i = 0; i < planes; i++) {
+        ctx.save();
+        ctx.rotate((i * Math.PI) / planes + t * 0.25);
+        ctx.strokeStyle = i % 2 === 0 ? pal[2] || '#22c55e' : pal[1] || '#ffffff';
+        ctx.lineWidth = 2.5;
+        const rx = width * (0.14 + (i % 3) * 0.06);
+        const ry = height * 0.28;
+        ctx.strokeRect(-rx / 2, -ry / 2, rx, ry);
+        ctx.restore();
+      }
+      ctx.restore();
+      break;
+    }
+
+    case 'halftoneGrid':
+    case 'checkerboard': {
+      const cols = 10;
+      const rows = 12;
+      const cellW = (width * 0.8) / cols;
+      const cellH = (height * 0.72) / rows;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const x = width * 0.1 + c * cellW;
+          const y = height * 0.14 + r * cellH;
+          if (style === 'checkerboard') {
+            if ((r + c) % 2 === 0) {
+              ctx.fillStyle = 'rgba(255,255,255,0.08)';
+              ctx.fillRect(x, y, cellW, cellH);
+            }
+          } else {
+            const rad = (Math.sin(t * 2.5 + r * 0.4 + c * 0.4) * 0.35 + 0.55) * (cellW * 0.32);
+            ctx.fillStyle = pal[2] || '#22c55e';
+            ctx.globalAlpha = 0.35;
+            ctx.beginPath();
+            ctx.arc(x + cellW / 2, y + cellH / 2, Math.max(2, rad), 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+        }
+      }
+      break;
+    }
+
     default:
       break;
   }
@@ -801,6 +932,271 @@ function renderGraphicLayer(ctx, layer, state, t, audio, palette, canvasWidth = 
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+      ctx.stroke();
+      break;
+    }
+
+    case 'halftoneMatrix': {
+      const dots = 7;
+      const step = (r * 2) / dots;
+      for (let y = 0; y < dots; y++) {
+        for (let x = 0; x < dots; x++) {
+          const px = -r + (x + 0.5) * step;
+          const py = -r + (y + 0.5) * step;
+          const dist = Math.hypot(px, py) / r;
+          const dotR = Math.max(1.5, (1 - dist * 0.7) * (step * 0.38) * (1 + (audio?.bass || 0) * 0.4));
+          ctx.beginPath();
+          ctx.arc(px, py, dotR, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      break;
+    }
+
+    case 'checkerBlock': {
+      const grid = 6;
+      const sz = (r * 2) / grid;
+      for (let y = 0; y < grid; y++) {
+        for (let x = 0; x < grid; x++) {
+          if ((x + y) % 2 === 0) {
+            ctx.fillStyle = color;
+            ctx.fillRect(-r + x * sz, -r + y * sz, sz, sz);
+          } else {
+            ctx.fillStyle = sec;
+            ctx.fillRect(-r + x * sz + 2, -r + y * sz + 2, sz - 4, sz - 4);
+          }
+        }
+      }
+      break;
+    }
+
+    case 'diagonalHazard': {
+      const stripes = 8;
+      const sw = (r * 2) / stripes;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.clip();
+      for (let i = -stripes; i < stripes * 2; i++) {
+        ctx.fillStyle = i % 2 === 0 ? color : sec;
+        ctx.beginPath();
+        ctx.moveTo(i * sw - r, -r);
+        ctx.lineTo(i * sw + sw - r, -r);
+        ctx.lineTo(i * sw + sw - r - r * 1.5, r);
+        ctx.lineTo(i * sw - r - r * 1.5, r);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+      break;
+    }
+
+    case 'prismRays': {
+      const rays = 24;
+      for (let i = 0; i < rays; i++) {
+        const ang = (i / rays) * Math.PI * 2 + t * 0.4;
+        const len = r * (0.4 + 0.6 * Math.sin(t * 3 + i * 0.8) * 0.5 + 0.5);
+        ctx.strokeStyle = i % 2 === 0 ? color : sec;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(ang) * len, Math.sin(ang) * len);
+        ctx.stroke();
+      }
+      break;
+    }
+
+    case 'barcodeBlock': {
+      const bars = 22;
+      const totalW = r * 2;
+      let curX = -r;
+      for (let i = 0; i < bars; i++) {
+        const bw = Math.max(2, (((i * 7 + 3) % 9) / 9) * (totalW / bars) * 1.5);
+        ctx.fillStyle = i % 2 === 0 ? color : sec;
+        ctx.fillRect(curX, -r * 0.6, bw, r * 1.2);
+        curX += bw + 3;
+        if (curX > r) break;
+      }
+      break;
+    }
+
+    case 'shutterPillars': {
+      const cols = 5;
+      const cw = (r * 2) / cols;
+      for (let i = 0; i < cols; i++) {
+        const x = -r + (i + 0.5) * cw;
+        const h = r * 1.8 * (0.6 + 0.4 * Math.sin(t * 2 + i * 0.9));
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(x, -h / 2);
+        ctx.lineTo(x, h / 2);
+        ctx.stroke();
+      }
+      break;
+    }
+
+    case 'paperCards': {
+      const cards = 3;
+      for (let i = 0; i < cards; i++) {
+        ctx.save();
+        ctx.rotate((i - 1) * 0.12 + Math.sin(t * 1.5 + i) * 0.05);
+        ctx.fillStyle = i === 1 ? color : sec;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.fillRect(-r * 0.8, -r * 0.8, r * 1.6, r * 1.6);
+        ctx.strokeRect(-r * 0.8, -r * 0.8, r * 1.6, r * 1.6);
+        ctx.restore();
+      }
+      break;
+    }
+
+    case 'RegistrationMark': {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-r, 0);
+      ctx.lineTo(r, 0);
+      ctx.moveTo(0, -r);
+      ctx.lineTo(0, r);
+      ctx.stroke();
+      break;
+    }
+
+    case 'cornerBrackets': {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      const bLen = r * 0.35;
+      // Top-left
+      ctx.beginPath();
+      ctx.moveTo(-r, -r + bLen);
+      ctx.lineTo(-r, -r);
+      ctx.lineTo(-r + bLen, -r);
+      ctx.stroke();
+      // Top-right
+      ctx.beginPath();
+      ctx.moveTo(r - bLen, -r);
+      ctx.lineTo(r, -r);
+      ctx.lineTo(r, -r + bLen);
+      ctx.stroke();
+      // Bottom-right
+      ctx.beginPath();
+      ctx.moveTo(r, r - bLen);
+      ctx.lineTo(r, r);
+      ctx.lineTo(r - bLen, r);
+      ctx.stroke();
+      // Bottom-left
+      ctx.beginPath();
+      ctx.moveTo(-r + bLen, r);
+      ctx.lineTo(-r, r);
+      ctx.lineTo(-r, r - bLen);
+      ctx.stroke();
+      break;
+    }
+
+    case 'sineWaveGrid': {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      const waves = 5;
+      for (let w = 0; w < waves; w++) {
+        const offY = -r * 0.7 + (w / (waves - 1)) * (r * 1.4);
+        ctx.beginPath();
+        for (let x = -r; x <= r; x += 6) {
+          const y = offY + Math.sin(x * 0.04 + t * 4 + w * 0.8) * (14 + (audio?.mid || 0) * 16);
+          if (x === -r) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      break;
+    }
+
+    case 'mg_pendulum': {
+      const count = 9;
+      for (let i = 0; i < count; i++) {
+        const ang = Math.sin(t * 3 + i * 0.35) * 0.8;
+        const len = r * 1.6;
+        const bx = Math.sin(ang) * len * 0.5;
+        const by = -r * 0.8 + Math.cos(ang) * len * 0.5;
+        ctx.strokeStyle = sec;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0, -r * 0.8);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(bx, by, 7 + (audio?.bass || 0) * 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+
+    case 'mg_tickerRing': {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.85, 0, Math.PI * 2);
+      ctx.stroke();
+      const ticks = 32;
+      for (let i = 0; i < ticks; i++) {
+        const ang = (i / ticks) * Math.PI * 2 + t * 0.5;
+        const isMajor = i % 4 === 0;
+        const inner = r * (isMajor ? 0.7 : 0.78);
+        const outer = r * 0.85;
+        ctx.lineWidth = isMajor ? 2.5 : 1.5;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(ang) * inner, Math.sin(ang) * inner);
+        ctx.lineTo(Math.cos(ang) * outer, Math.sin(ang) * outer);
+        ctx.stroke();
+      }
+      break;
+    }
+
+    case 'mg_pulseMatrix': {
+      const sz = 5;
+      const step = (r * 2) / sz;
+      for (let y = 0; y < sz; y++) {
+        for (let x = 0; x < sz; x++) {
+          const val = Math.sin(t * 5 + x * 0.8 + y * 0.8) * 0.5 + 0.5 + (audio?.bass || 0) * 0.5;
+          ctx.fillStyle = val > 0.65 ? color : sec;
+          const boxSize = step * 0.65 * Math.min(1.2, val);
+          ctx.fillRect(-r + (x + 0.5) * step - boxSize / 2, -r + (y + 0.5) * step - boxSize / 2, boxSize, boxSize);
+        }
+      }
+      break;
+    }
+
+    case 'mg_scanline': {
+      ctx.fillStyle = color;
+      const count = 18;
+      const h = (r * 2) / count;
+      for (let i = 0; i < count; i++) {
+        if (i % 2 === 0) {
+          ctx.globalAlpha = 0.6 + Math.sin(t * 8 + i) * 0.3;
+          ctx.fillRect(-r, -r + i * h, r * 2, h * 0.7);
+        }
+      }
+      ctx.globalAlpha = 1;
+      const scanY = -r + (((t * 1.5) % 1) * (r * 2));
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(-r, scanY, r * 2, 3);
+      break;
+    }
+
+    case 'mg_lissajous': {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let a = 0; a <= Math.PI * 2; a += 0.05) {
+        const lx = Math.sin(a * 3 + t * 2) * r * 0.85;
+        const ly = Math.sin(a * 2 + t * 1.4) * r * 0.85;
+        if (a === 0) ctx.moveTo(lx, ly);
+        else ctx.lineTo(lx, ly);
+      }
       ctx.stroke();
       break;
     }

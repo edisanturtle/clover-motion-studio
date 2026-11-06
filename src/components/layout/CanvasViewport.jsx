@@ -117,7 +117,7 @@ export default function CanvasViewport({
     project,
   ]);
 
-  // Pointer Hit Testing & Dragging on Canvas
+  // Pointer Hit Testing & Interactive Dragging on Canvas (Move, Resize, Rotate)
   const getCanvasCoords = (e) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -130,17 +130,112 @@ export default function CanvasViewport({
     };
   };
 
+  // Keyboard shortcut listener for Zoom (+/-/0), Nudge (Arrows), and Delete
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Don't intercept if user is typing in an input/textarea
+      const tag = e.target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+      if (e.key === '=' || e.key === '+') {
+        e.preventDefault();
+        stepZoom(0.1);
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        stepZoom(-0.1);
+      } else if (e.key === '0') {
+        e.preventDefault();
+        resetZoomFit();
+      } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        if (!selectedLayerId || !activeScene) return;
+        e.preventDefault();
+        const dist = e.shiftKey ? 10 : 2;
+        const target = (activeScene.layers || []).find((l) => l.id === selectedLayerId);
+        if (!target) return;
+        let dx = 0;
+        let dy = 0;
+        if (e.key === 'ArrowUp') dy = -dist;
+        if (e.key === 'ArrowDown') dy = dist;
+        if (e.key === 'ArrowLeft') dx = -dist;
+        if (e.key === 'ArrowRight') dx = dist;
+        onUpdateLayer(selectedLayerId, {
+          x: Math.round(target.x + dx),
+          y: Math.round(target.y + dy),
+        });
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedLayerId && onUpdateLayer) {
+          // If Backspace/Delete pressed and a layer is selected, remove it from scene
+          const target = (activeScene?.layers || []).find((l) => l.id === selectedLayerId);
+          if (target && target.role !== 'title') {
+            // keep primary title layer safe from accidental deletion, allow deleting others
+            onUpdateLayer(selectedLayerId, { visible: false });
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedLayerId, activeScene, onUpdateLayer]);
+
   const handlePointerDown = (e) => {
     if (!activeScene) return;
     const pt = getCanvasCoords(e);
+
+    // 1. Check if clicking on the selected layer's rotation or resize handles
+    if (selectedLayerId) {
+      const curLayer = (activeScene.layers || []).find((l) => l.id === selectedLayerId);
+      if (curLayer && !curLayer.locked) {
+        const box = getLayerBoundingBox(curLayer);
+        const halfW = (box.width * (curLayer.scale ?? 1)) / 2;
+        const halfH = (box.height * (curLayer.scale ?? 1)) / 2;
+
+        // Top rotation handle position
+        const rotHandleX = curLayer.x;
+        const rotHandleY = curLayer.y - halfH - 48;
+        if (Math.hypot(pt.x - rotHandleX, pt.y - rotHandleY) <= 24) {
+          setDragState({
+            mode: 'rotate',
+            layerId: curLayer.id,
+            centerX: curLayer.x,
+            centerY: curLayer.y,
+            origRotation: curLayer.rotation || 0,
+            startAngle: Math.atan2(pt.y - curLayer.y, pt.x - curLayer.x),
+          });
+          return;
+        }
+
+        // Corner resize handles
+        const corners = [
+          { name: 'tl', x: curLayer.x - halfW, y: curLayer.y - halfH },
+          { name: 'tr', x: curLayer.x + halfW, y: curLayer.y - halfH },
+          { name: 'br', x: curLayer.x + halfW, y: curLayer.y + halfH },
+          { name: 'bl', x: curLayer.x - halfW, y: curLayer.y + halfH },
+        ];
+        for (const c of corners) {
+          if (Math.hypot(pt.x - c.x, pt.y - c.y) <= 20) {
+            setDragState({
+              mode: 'resize',
+              layerId: curLayer.id,
+              centerX: curLayer.x,
+              centerY: curLayer.y,
+              origScale: curLayer.scale ?? 1,
+              startDist: Math.hypot(pt.x - curLayer.x, pt.y - curLayer.y),
+            });
+            return;
+          }
+        }
+      }
+    }
+
+    // 2. Otherwise hit test layers top-to-bottom
     const layers = [...(activeScene.layers || [])].reverse();
     let hitLayer = null;
 
     for (const layer of layers) {
       if (layer.visible === false || layer.locked) continue;
       const box = getLayerBoundingBox(layer);
-      const halfW = box.width / 2 + 24;
-      const halfH = box.height / 2 + 24;
+      const halfW = (box.width * (layer.scale ?? 1)) / 2 + 20;
+      const halfH = (box.height * (layer.scale ?? 1)) / 2 + 20;
       if (
         pt.x >= layer.x - halfW &&
         pt.x <= layer.x + halfW &&
@@ -155,6 +250,7 @@ export default function CanvasViewport({
     if (hitLayer) {
       setSelectedLayerId(hitLayer.id);
       setDragState({
+        mode: 'move',
         layerId: hitLayer.id,
         startX: pt.x,
         startY: pt.y,
@@ -169,12 +265,25 @@ export default function CanvasViewport({
   const handlePointerMove = (e) => {
     if (!dragState) return;
     const pt = getCanvasCoords(e);
-    const dx = pt.x - dragState.startX;
-    const dy = pt.y - dragState.startY;
-    onUpdateLayer(dragState.layerId, {
-      x: Math.round(dragState.origX + dx),
-      y: Math.round(dragState.origY + dy),
-    });
+
+    if (dragState.mode === 'rotate') {
+      const curAngle = Math.atan2(pt.y - dragState.centerY, pt.x - dragState.centerX);
+      const diffDeg = ((curAngle - dragState.startAngle) * 180) / Math.PI;
+      const nextRot = Math.round((dragState.origRotation + diffDeg) % 360);
+      onUpdateLayer(dragState.layerId, { rotation: nextRot });
+    } else if (dragState.mode === 'resize') {
+      const curDist = Math.hypot(pt.x - dragState.centerX, pt.y - dragState.centerY);
+      const ratio = curDist / (dragState.startDist || 1);
+      const nextScale = Math.max(0.1, Math.min(5.0, Math.round(dragState.origScale * ratio * 100) / 100));
+      onUpdateLayer(dragState.layerId, { scale: nextScale });
+    } else {
+      const dx = pt.x - dragState.startX;
+      const dy = pt.y - dragState.startY;
+      onUpdateLayer(dragState.layerId, {
+        x: Math.round(dragState.origX + dx),
+        y: Math.round(dragState.origY + dy),
+      });
+    }
   };
 
   const handlePointerUp = () => {

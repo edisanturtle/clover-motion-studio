@@ -176,6 +176,13 @@ export default function CloverMotionStudio() {
       setLocalTime((prev) => {
         const next = prev + dt;
         if (next >= sceneDur) {
+          const totalScenes = project.scenes?.length || 1;
+          if (totalScenes > 1 && !loopPlayback) {
+            // Sequential multi-scene progression
+            const nextIdx = (activeSceneIndex + 1) % totalScenes;
+            setActiveSceneIndex(nextIdx);
+            return 0;
+          }
           return loopPlayback ? 0 : sceneDur;
         }
         return next;
@@ -186,7 +193,7 @@ export default function CloverMotionStudio() {
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [isPlaying, activeScene?.duration, loopPlayback]);
+  }, [isPlaying, activeScene?.duration, loopPlayback, project.scenes?.length, activeSceneIndex]);
 
   // Playback Controls
   const handleTogglePlay = useCallback(() => {
@@ -526,19 +533,40 @@ export default function CloverMotionStudio() {
 
   // Layer & Scene Mutators
   const handleUpdateLayer = (layerId, patch) => {
-    updateProjectWithHistory((prev) => ({
-      ...prev,
-      scenes: prev.scenes.map((sc, idx) =>
-        idx !== activeSceneIndex
-          ? sc
-          : {
-              ...sc,
-              layers: sc.layers.map((l) =>
-                l.id === layerId ? { ...l, ...patch } : l
-              ),
+    updateProjectWithHistory((prev) => {
+      // Find current layer
+      const activeSc = prev.scenes[activeSceneIndex];
+      const curLayer = activeSc?.layers?.find((l) => l.id === layerId);
+      const isRoleText = curLayer?.type === 'text' && curLayer?.role && patch.text !== undefined;
+      const shouldSyncAllScenes = isRoleText && (prev.quickEditLinked !== false);
+
+      return {
+        ...prev,
+        quickCopy: isRoleText
+          ? {
+              ...prev.quickCopy,
+              [curLayer.role]: patch.text,
             }
-      ),
-    }));
+          : prev.quickCopy,
+        scenes: prev.scenes.map((sc, idx) => {
+          if (!shouldSyncAllScenes && idx !== activeSceneIndex) {
+            return sc;
+          }
+          return {
+            ...sc,
+            layers: sc.layers.map((l) => {
+              if (idx === activeSceneIndex && l.id === layerId) {
+                return { ...l, ...patch };
+              }
+              if (shouldSyncAllScenes && l.type === 'text' && l.role === curLayer.role) {
+                return { ...l, text: patch.text };
+              }
+              return l;
+            }),
+          };
+        }),
+      };
+    });
   };
 
   const handleSelectSceneMotionPreset = (presetId) => {
@@ -758,6 +786,28 @@ export default function CloverMotionStudio() {
 
     handleUpdateLayer(selectedLayer.id, {
       keyframes: [...(selectedLayer.keyframes || []), newKf],
+    });
+  };
+
+  const handleUpdateKeyframe = (layerId, kfId, patch) => {
+    const layer = activeScene?.layers?.find((l) => l.id === layerId);
+    if (!layer) return;
+    handleUpdateLayer(layerId, {
+      keyframes: (layer.keyframes || []).map((k) => (k.id === kfId ? { ...k, ...patch } : k)),
+    });
+  };
+
+  const handlePasteKeyframes = (layerId, keyframesToPaste, timeOffset = localTime) => {
+    const layer = activeScene?.layers?.find((l) => l.id === layerId);
+    if (!layer || !keyframesToPaste?.length) return;
+    const minOrigTime = Math.min(...keyframesToPaste.map((k) => k.time));
+    const shifted = keyframesToPaste.map((k) => ({
+      ...k,
+      id: `kf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      time: Math.max(0, Number((timeOffset + (k.time - minOrigTime)).toFixed(2))),
+    }));
+    handleUpdateLayer(layerId, {
+      keyframes: [...(layer.keyframes || []), ...shifted],
     });
   };
 
@@ -1011,13 +1061,48 @@ export default function CloverMotionStudio() {
   };
 
   // Export & Project Persistence
-  const handleExportPNG = () => {
+  const handleExportPNG = (options = {}) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const url = canvas.toDataURL('image/png');
+    const ratioToUse = options.ratioOverride || project.ratio;
+    const scaleFactor = options.resolutionScale === 'double' ? 2 : options.resolutionScale === 'half' ? 0.5 : 1;
+
+    if (scaleFactor === 1 && !options.ratioOverride) {
+      const url = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}-${ratioToUse.replace(':', 'x')}.png`;
+      a.click();
+      return;
+    }
+
+    // Render scaled or ratio-overridden export canvas
+    const targetDim = ASPECT_RATIOS[ratioToUse] || ASPECT_RATIOS['4:5'];
+    const outW = Math.round(targetDim.width * scaleFactor);
+    const outH = Math.round(targetDim.height * scaleFactor);
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = outW;
+    exportCanvas.height = outH;
+    const exportCtx = exportCanvas.getContext('2d');
+    exportCtx.scale(scaleFactor, scaleFactor);
+
+    renderSceneToCanvas({
+      ctx: exportCtx,
+      width: targetDim.width,
+      height: targetDim.height,
+      scene: activeScene,
+      localTime,
+      audioSignals,
+      selectedLayerId: null,
+      showGrid: false,
+      showSafeGuides: false,
+      project,
+    });
+
+    const url = exportCanvas.toDataURL('image/png');
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}-${project.ratio.replace(':', 'x')}.png`;
+    a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}-${ratioToUse.replace(':', 'x')}${scaleFactor !== 1 ? `@${scaleFactor}x` : ''}.png`;
     a.click();
   };
 
@@ -1045,15 +1130,30 @@ export default function CloverMotionStudio() {
     }
   };
 
-  const handleExportVideo = () => {
+  const handleExportVideo = (exportOptions = {}) => {
     const canvas = canvasRef.current;
     if (!canvas || isRecording) return;
     try {
-      const stream = canvas.captureStream(30);
+      const fps = project.fps || 30;
+      const canvasStream = canvas.captureStream(fps);
+      let combinedStream = canvasStream;
+
+      // Merge Web Audio synthesizer stream if includeAudio is true
+      if (exportOptions.includeAudio !== false && audioEngineRef.current) {
+        const audioStream = audioEngineRef.current.getAudioStream();
+        if (audioStream && audioStream.getAudioTracks().length > 0) {
+          const audioTrack = audioStream.getAudioTracks()[0];
+          combinedStream = new MediaStream([
+            ...canvasStream.getVideoTracks(),
+            audioTrack,
+          ]);
+        }
+      }
+
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
         ? 'video/webm;codecs=vp9'
         : 'video/webm';
-      const recorder = new MediaRecorder(stream, { mimeType });
+      const recorder = new MediaRecorder(combinedStream, { mimeType });
       const chunks = [];
 
       recorder.ondataavailable = (e) => {
@@ -1065,7 +1165,8 @@ export default function CloverMotionStudio() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}.webm`;
+        const ext = exportOptions.format === 'mp4' ? 'mp4' : 'webm';
+        a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}.${ext}`;
         a.click();
         URL.revokeObjectURL(url);
         setIsRecording(false);
@@ -1251,6 +1352,7 @@ export default function CloverMotionStudio() {
                 onUploadCustomImage={handleUploadCustomImage}
                 onOpenMotionTemplates={() => setMotionTemplatesOpen(true)}
                 customFonts={customFonts}
+                advancedSubMode={advancedSubMode}
               />
             )}
           </div>
@@ -1275,6 +1377,8 @@ export default function CloverMotionStudio() {
               onRestart={handleRestart}
               onSeekLocalTime={setLocalTime}
               onAddKeyframe={handleAddKeyframe}
+              onUpdateKeyframe={handleUpdateKeyframe}
+              onPasteKeyframes={handlePasteKeyframes}
               onDeleteKeyframe={handleDeleteKeyframe}
               onClearLayerKeyframes={handleClearLayerKeyframes}
               onUpdateSceneDuration={(dur) => handleUpdateSceneProp('duration', dur)}

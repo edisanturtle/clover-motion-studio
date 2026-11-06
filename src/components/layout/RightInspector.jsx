@@ -30,8 +30,16 @@ export default function RightInspector({
   onUploadCustomImage,
   onOpenMotionTemplates,
   customFonts = [],
+  advancedSubMode = 'design',
 }) {
-  const [activeTab, setActiveTab] = useState('design'); // 'design' | 'motion' | 'audio'
+  const [activeTab, setActiveTab] = useState(advancedSubMode || 'design'); // 'design' | 'motion' | 'audio'
+
+  // Keep activeTab in sync when user toggles Design / Motion in top header
+  React.useEffect(() => {
+    if (advancedSubMode && (advancedSubMode === 'design' || advancedSubMode === 'motion')) {
+      setActiveTab(advancedSubMode);
+    }
+  }, [advancedSubMode]);
   const [wordsOpen, setWordsOpen] = useState(true);
   const [textAnimOpen, setTextAnimOpen] = useState(false); // Collapsed by default per Screenshot 20
   const [graphicMappingsCount, setGraphicMappingsCount] = useState(0);
@@ -250,6 +258,49 @@ export default function RightInspector({
                         </div>
                       </div>
 
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] text-neutral-400 mb-1">
+                            Weight ({selectedLayer.fontWeight || 700})
+                          </label>
+                          <select
+                            value={selectedLayer.fontWeight || 700}
+                            onChange={(e) =>
+                              onUpdateLayer(selectedLayer.id, {
+                                fontWeight: Number(e.target.value),
+                              })
+                            }
+                            className="w-full px-2 py-1.5 rounded-lg bg-[#202020] border border-neutral-700/80 text-xs font-mono text-white"
+                          >
+                            <option value={300}>300 - Light</option>
+                            <option value={400}>400 - Regular</option>
+                            <option value={500}>500 - Medium</option>
+                            <option value={600}>600 - SemiBold</option>
+                            <option value={700}>700 - Bold</option>
+                            <option value={800}>800 - ExtraBold</option>
+                            <option value={900}>900 - Black</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-neutral-400 mb-1">
+                            Tracking ({(selectedLayer.letterSpacing || 0)}px)
+                          </label>
+                          <input
+                            type="range"
+                            min={-6}
+                            max={32}
+                            step={1}
+                            value={selectedLayer.letterSpacing || 0}
+                            onChange={(e) =>
+                              onUpdateLayer(selectedLayer.id, {
+                                letterSpacing: Number(e.target.value),
+                              })
+                            }
+                            className="w-full accent-white"
+                          />
+                        </div>
+                      </div>
+
                       <div className="flex items-center justify-between pt-1">
                         <div className="flex items-center gap-1 bg-[#202020] p-0.5 rounded-lg border border-neutral-800">
                           {[
@@ -370,7 +421,7 @@ export default function RightInspector({
                   </div>
                 )}
 
-                {/* Transform Controls */}
+                {/* Transform Controls (Position, Scale, Rotation, Opacity) */}
                 <div className="pt-3 border-t border-neutral-800/80 space-y-2.5">
                   <div className="text-xs font-semibold text-white">Transform</div>
                   <div className="grid grid-cols-2 gap-2">
@@ -394,6 +445,57 @@ export default function RightInspector({
                           onUpdateLayer(selectedLayer.id, { y: Number(e.target.value) })
                         }
                         className="w-full px-2.5 py-1.5 rounded-lg bg-[#202020] border border-neutral-800 text-xs font-mono text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 pt-1">
+                    <div>
+                      <label className="block text-[10px] text-neutral-400 mb-1">
+                        Scale ({Math.round((selectedLayer.scale ?? 1) * 100)}%)
+                      </label>
+                      <input
+                        type="range"
+                        min={0.1}
+                        max={3.0}
+                        step={0.05}
+                        value={selectedLayer.scale ?? 1}
+                        onChange={(e) =>
+                          onUpdateLayer(selectedLayer.id, { scale: Number(e.target.value) })
+                        }
+                        className="w-full accent-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-neutral-400 mb-1">
+                        Rot ({Math.round(selectedLayer.rotation || 0)}°)
+                      </label>
+                      <input
+                        type="range"
+                        min={-180}
+                        max={180}
+                        step={1}
+                        value={selectedLayer.rotation || 0}
+                        onChange={(e) =>
+                          onUpdateLayer(selectedLayer.id, { rotation: Number(e.target.value) })
+                        }
+                        className="w-full accent-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-neutral-400 mb-1">
+                        Alpha ({Math.round((selectedLayer.opacity ?? 1) * 100)}%)
+                      </label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        value={selectedLayer.opacity ?? 1}
+                        onChange={(e) =>
+                          onUpdateLayer(selectedLayer.id, { opacity: Number(e.target.value) })
+                        }
+                        className="w-full accent-white"
                       />
                     </div>
                   </div>
@@ -510,6 +612,28 @@ export default function RightInspector({
                           className="w-full accent-white"
                         />
                       </div>
+
+                      <div>
+                        <div className="flex justify-between text-[11px] text-neutral-400 mb-1">
+                          <span>Letter Stagger</span>
+                          <span className="font-mono">
+                            {Math.round((selectedLayer.stagger ?? 0.04) * 1000)} ms
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={0.15}
+                          step={0.005}
+                          value={selectedLayer.stagger ?? 0.04}
+                          onChange={(e) =>
+                            onUpdateLayer(selectedLayer.id, {
+                              stagger: Number(e.target.value),
+                            })
+                          }
+                          className="w-full accent-white"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -570,12 +694,25 @@ export default function RightInspector({
                         </button>
                       </div>
 
-                      {graphicMappingsCount === 0 ? (
+                      {(!selectedLayer.audioReactive && graphicMappingsCount === 0) ? (
                         <p className="text-xs text-neutral-400 leading-relaxed">
                           Add a mapping, then choose a signal and the property it changes.
                         </p>
                       ) : (
                         <div className="p-3 rounded-xl bg-[#202020] border border-neutral-800 space-y-2.5">
+                          <div className="flex items-center justify-between pb-1 border-b border-neutral-800">
+                            <span className="text-[11px] font-semibold text-neutral-200">Reactivity active</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onUpdateLayer(selectedLayer.id, { audioReactive: false });
+                                setGraphicMappingsCount(0);
+                              }}
+                              className="text-[10px] text-red-400 hover:text-red-300"
+                            >
+                              Remove
+                            </button>
+                          </div>
                           <div>
                             <label className="block text-[10px] text-neutral-400 mb-1">
                               Signal
@@ -585,6 +722,7 @@ export default function RightInspector({
                               onChange={(e) =>
                                 onUpdateLayer(selectedLayer.id, {
                                   audioSignal: e.target.value,
+                                  audioReactive: true,
                                 })
                               }
                               className="w-full px-2.5 py-1.5 rounded-lg bg-[#161616] border border-neutral-700 text-xs text-white"
@@ -605,6 +743,7 @@ export default function RightInspector({
                               onChange={(e) =>
                                 onUpdateLayer(selectedLayer.id, {
                                   audioTarget: e.target.value,
+                                  audioReactive: true,
                                 })
                               }
                               className="w-full px-2.5 py-1.5 rounded-lg bg-[#161616] border border-neutral-700 text-xs text-white"
@@ -632,6 +771,7 @@ export default function RightInspector({
                               onChange={(e) =>
                                 onUpdateLayer(selectedLayer.id, {
                                   audioIntensity: Number(e.target.value),
+                                  audioReactive: true,
                                 })
                               }
                               className="w-full accent-white"
@@ -683,11 +823,36 @@ export default function RightInspector({
                       <label className="block text-xs font-semibold text-white">Response</label>
                       <select
                         value={selectedLayer.audioResponseMode || 'custom'}
-                        onChange={(e) =>
-                          onUpdateLayer(selectedLayer.id, {
-                            audioResponseMode: e.target.value,
-                          })
-                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'pulse') {
+                            onUpdateLayer(selectedLayer.id, {
+                              audioResponseMode: 'pulse',
+                              audioReactive: true,
+                              audioSignal: 'bass',
+                              audioTarget: 'scale',
+                              audioIntensity: 55,
+                            });
+                          } else if (val === 'bounce') {
+                            onUpdateLayer(selectedLayer.id, {
+                              audioResponseMode: 'bounce',
+                              audioReactive: true,
+                              audioSignal: 'bass',
+                              audioTarget: 'posY',
+                              audioIntensity: 60,
+                            });
+                          } else if (val === 'shimmer') {
+                            onUpdateLayer(selectedLayer.id, {
+                              audioResponseMode: 'shimmer',
+                              audioReactive: true,
+                              audioSignal: 'treble',
+                              audioTarget: 'opacity',
+                              audioIntensity: 50,
+                            });
+                          } else {
+                            onUpdateLayer(selectedLayer.id, { audioResponseMode: 'custom' });
+                          }
+                        }}
                         className="w-full px-3 py-2 rounded-lg bg-[#202020] border border-neutral-700/80 text-xs text-white focus:outline-none"
                       >
                         <option value="custom">Custom mappings</option>

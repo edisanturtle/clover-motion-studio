@@ -1294,6 +1294,15 @@ export default function LeftSidebar({
                         onClick={() => {
                           if (selectedLayer?.type === 'text') {
                             onUpdateLayer(selectedLayer.id, { fontFamily: font.family });
+                          } else {
+                            // Find the active scene's headline / title layer or first text layer
+                            const titleLayer =
+                              (activeScene?.layers || []).find((l) => l.type === 'text' && l.role === 'title') ||
+                              (activeScene?.layers || []).find((l) => l.type === 'text');
+                            if (titleLayer) {
+                              setSelectedLayerId(titleLayer.id);
+                              onUpdateLayer(titleLayer.id, { fontFamily: font.family });
+                            }
                           }
                         }}
                         className="w-full px-3 py-2 rounded-lg bg-[#1c1c1c] hover:bg-neutral-800 border border-neutral-800/80 flex items-center justify-between text-left"

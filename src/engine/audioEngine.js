@@ -76,11 +76,20 @@ export class ProceduralAudioEngine {
 
       this.analyser.connect(this.ctx.destination);
       this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+
+      // Create MediaStreamDestination for video export recorder
+      this.streamDestination = this.ctx.createMediaStreamDestination();
+      this.analyser.connect(this.streamDestination);
     }
     if (this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
     return this.ctx;
+  }
+
+  getAudioStream() {
+    this.ensureContext();
+    return this.streamDestination ? this.streamDestination.stream : null;
   }
 
   setDspParams(params = {}) {

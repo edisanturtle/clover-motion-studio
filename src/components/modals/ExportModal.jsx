@@ -71,10 +71,17 @@ export default function ExportModal({
   }, [open, activeScene, project, dim.width, dim.height]);
 
   const handlePrimaryExport = () => {
-    if (selectedFormat === 'png' || selectedFormat === 'zip') {
-      onExportPNG();
+    if (selectedFormat === 'png') {
+      onExportPNG({ resolutionScale });
+    } else if (selectedFormat === 'zip') {
+      // Sequence export: download frames
+      onExportPNG({ resolutionScale, format: 'zip' });
     } else {
-      onExportVideo();
+      onExportVideo({
+        format: selectedFormat,
+        resolutionScale,
+        includeAudio,
+      });
     }
   };
 
@@ -419,8 +426,22 @@ export default function ExportModal({
                 )}
               </button>
               {batchQueueOpen && (
-                <div className="px-4 pb-3.5 pt-1 border-t border-neutral-800/80 text-xs text-neutral-400">
-                  Queue Feed (4:5), Square (1:1), and Story (9:16) renders sequentially in one click.
+                <div className="px-4 pb-3.5 pt-1 border-t border-neutral-800/80 text-xs text-neutral-400 space-y-2.5">
+                  <p>Queue Feed (4:5), Square (1:1), and Story (9:16) renders sequentially in one click.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      ['4:5', '1:1', '9:16'].forEach((r, idx) => {
+                        setTimeout(() => {
+                          onExportPNG({ ratioOverride: r, resolutionScale });
+                        }, idx * 600);
+                      });
+                    }}
+                    className="w-full py-2 px-3 rounded-lg bg-[#222222] hover:bg-neutral-800 border border-neutral-700 text-white font-semibold flex items-center justify-center gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Batch Export (4:5 + 1:1 + 9:16 PNGs)</span>
+                  </button>
                 </div>
               )}
             </div>
