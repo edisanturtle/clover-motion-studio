@@ -58,6 +58,7 @@ export default function BottomAudioBar({
   const scrubberRef = useRef(null);
   const [storageOpen, setStorageOpen] = useState(false);
   const [dspOpen, setDspOpen] = useState(false);
+  const [dspTab, setDspTab] = useState('eq');
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
   const [rememberAudio, setRememberAudio] = useState(false);
 
@@ -367,14 +368,14 @@ export default function BottomAudioBar({
             </button>
 
             {dspOpen && (
-              <div className="absolute left-0 bottom-14 w-80 rounded-2xl bg-[#1c1c1c] border border-neutral-700/90 shadow-2xl p-4 z-50 space-y-3.5">
+              <div className="absolute left-0 bottom-14 w-96 rounded-2xl bg-[#1c1c1c] border border-neutral-700/90 shadow-2xl p-4 z-50 space-y-3.5">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-[10px] font-mono uppercase tracking-widest text-[#4ade80]">
-                      WEB AUDIO DSP & SAMPLER
+                      SOUNDCRAFT MASTER DSP & SAMPLER
                     </div>
                     <div className="text-xs font-bold text-white mt-0.5">
-                      Master Sound & Event SFX
+                      Studio Audio & Dynamics Rack
                     </div>
                   </div>
                   <button
@@ -383,106 +384,329 @@ export default function BottomAudioBar({
                       onUpdateAudioDsp?.({
                         lowpassFreq: 20000,
                         bassGain: 0,
+                        midGain: 0,
+                        trebleGain: 0,
+                        drive: 0,
                         delayMix: 0,
+                        reverbMix: 0,
+                        reverbDecay: 1.8,
+                        pan: 0,
+                        swing: 0.15,
+                        tempoMultiplier: 1.0,
                       })
                     }
                     className="text-[10px] text-neutral-400 hover:text-white underline"
                   >
-                    Reset DSP
+                    Reset Rack
                   </button>
                 </div>
 
-                {/* DSP Sliders */}
-                <div className="space-y-2.5">
-                  <div>
-                    <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
-                      <span>Lowpass Filter Cutoff</span>
-                      <span className="font-mono text-neutral-400">
-                        {project.audioDsp?.lowpassFreq ?? 20000} Hz
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={200}
-                      max={20000}
-                      step={100}
-                      value={project.audioDsp?.lowpassFreq ?? 20000}
-                      onChange={(e) =>
-                        onUpdateAudioDsp?.({ lowpassFreq: Number(e.target.value) })
-                      }
-                      className="w-full accent-[#16a34a]"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
-                      <span>Sub-Bass Boost (110 Hz)</span>
-                      <span className="font-mono text-neutral-400">
-                        +{project.audioDsp?.bassGain ?? 0} dB
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={15}
-                      step={1}
-                      value={project.audioDsp?.bassGain ?? 0}
-                      onChange={(e) =>
-                        onUpdateAudioDsp?.({ bassGain: Number(e.target.value) })
-                      }
-                      className="w-full accent-[#16a34a]"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
-                      <span>Dub Echo Delay Mix</span>
-                      <span className="font-mono text-neutral-400">
-                        {Math.round((project.audioDsp?.delayMix ?? 0) * 100)}%
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={0.75}
-                      step={0.05}
-                      value={project.audioDsp?.delayMix ?? 0}
-                      onChange={(e) =>
-                        onUpdateAudioDsp?.({ delayMix: Number(e.target.value) })
-                      }
-                      className="w-full accent-[#16a34a]"
-                    />
-                  </div>
+                {/* Sub-tabs: EQ & Filter | Space & Reverb | Tape & Groove | Live SFX */}
+                <div className="grid grid-cols-4 gap-1 p-0.5 bg-[#141414] rounded-lg border border-neutral-800 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setDspTab('eq')}
+                    className={`py-1 rounded font-medium transition-colors ${
+                      dspTab === 'eq' ? 'bg-[#222222] text-white' : 'text-neutral-400 hover:text-neutral-200'
+                    }`}
+                  >
+                    3-Band EQ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDspTab('space')}
+                    className={`py-1 rounded font-medium transition-colors ${
+                      dspTab === 'space' ? 'bg-[#222222] text-white' : 'text-neutral-400 hover:text-neutral-200'
+                    }`}
+                  >
+                    Acoustics
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDspTab('groove')}
+                    className={`py-1 rounded font-medium transition-colors ${
+                      dspTab === 'groove' ? 'bg-[#222222] text-white' : 'text-neutral-400 hover:text-neutral-200'
+                    }`}
+                  >
+                    Groove & Tape
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDspTab('sfx')}
+                    className={`py-1 rounded font-medium transition-colors ${
+                      dspTab === 'sfx' ? 'bg-[#222222] text-white' : 'text-neutral-400 hover:text-neutral-200'
+                    }`}
+                  >
+                    SFX Pads
+                  </button>
                 </div>
 
-                {/* 8 Live Event One-Shot SFX Trigger Pads */}
-                <div className="pt-2 border-t border-neutral-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-white flex items-center gap-1">
-                      <Zap className="w-3 h-3 text-[#4ade80]" />
-                      Live Event & Social SFX Pads
-                    </span>
-                    <span className="text-[10px] font-mono text-neutral-500">Click to trigger</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {EVENT_SFX_PADS.map((sfx) => (
-                      <button
-                        key={sfx.id}
-                        type="button"
-                        onClick={() => onTriggerSfx?.(sfx.id)}
-                        className="px-2.5 py-2 rounded-xl bg-[#242424] hover:bg-[#159947]/25 active:scale-95 border border-neutral-700/80 hover:border-[#22c55e] text-left transition-all flex items-center justify-between"
-                      >
-                        <span className="text-[11px] font-semibold text-white truncate">
-                          {sfx.name}
+                {/* TAB 1: 3-Band Parametric EQ & Filter */}
+                {dspTab === 'eq' && (
+                  <div className="space-y-2.5 pt-1">
+                    <div>
+                      <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
+                        <span>Low-Shelf Bass (110 Hz)</span>
+                        <span className="font-mono text-neutral-400">
+                          {project.audioDsp?.bassGain ? `${project.audioDsp.bassGain > 0 ? '+' : ''}${project.audioDsp.bassGain} dB` : '0 dB'}
                         </span>
-                        <span
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: sfx.color }}
-                        />
-                      </button>
-                    ))}
+                      </div>
+                      <input
+                        type="range"
+                        min={-12}
+                        max={18}
+                        step={1}
+                        value={project.audioDsp?.bassGain ?? 0}
+                        onChange={(e) =>
+                          onUpdateAudioDsp?.({ bassGain: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
+                        <span>Peaking Mid Body (1400 Hz)</span>
+                        <span className="font-mono text-neutral-400">
+                          {project.audioDsp?.midGain ? `${project.audioDsp.midGain > 0 ? '+' : ''}${project.audioDsp.midGain} dB` : '0 dB'}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-12}
+                        max={12}
+                        step={1}
+                        value={project.audioDsp?.midGain ?? 0}
+                        onChange={(e) =>
+                          onUpdateAudioDsp?.({ midGain: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
+                        <span>High-Shelf Air (7500 Hz)</span>
+                        <span className="font-mono text-neutral-400">
+                          {project.audioDsp?.trebleGain ? `${project.audioDsp.trebleGain > 0 ? '+' : ''}${project.audioDsp.trebleGain} dB` : '0 dB'}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-12}
+                        max={15}
+                        step={1}
+                        value={project.audioDsp?.trebleGain ?? 0}
+                        onChange={(e) =>
+                          onUpdateAudioDsp?.({ trebleGain: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
+                        <span>Lowpass Filter Cutoff</span>
+                        <span className="font-mono text-neutral-400">
+                          {project.audioDsp?.lowpassFreq ?? 20000} Hz
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={200}
+                        max={20000}
+                        step={100}
+                        value={project.audioDsp?.lowpassFreq ?? 20000}
+                        onChange={(e) =>
+                          onUpdateAudioDsp?.({ lowpassFreq: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* TAB 2: Acoustics & Space */}
+                {dspTab === 'space' && (
+                  <div className="space-y-2.5 pt-1">
+                    <div>
+                      <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
+                        <span>Algorithmic Reverb Wet Mix</span>
+                        <span className="font-mono text-neutral-400">
+                          {Math.round((project.audioDsp?.reverbMix ?? 0) * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={0.8}
+                        step={0.05}
+                        value={project.audioDsp?.reverbMix ?? 0}
+                        onChange={(e) =>
+                          onUpdateAudioDsp?.({ reverbMix: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
+                        <span>Reverb Chamber Decay</span>
+                        <span className="font-mono text-neutral-400">
+                          {(project.audioDsp?.reverbDecay ?? 1.8).toFixed(1)} s
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0.4}
+                        max={4.5}
+                        step={0.2}
+                        value={project.audioDsp?.reverbDecay ?? 1.8}
+                        onChange={(e) =>
+                          onUpdateAudioDsp?.({ reverbDecay: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
+                        <span>Dub Echo Delay Mix</span>
+                        <span className="font-mono text-neutral-400">
+                          {Math.round((project.audioDsp?.delayMix ?? 0) * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={0.75}
+                        step={0.05}
+                        value={project.audioDsp?.delayMix ?? 0}
+                        onChange={(e) =>
+                          onUpdateAudioDsp?.({ delayMix: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
+                        <span>Stereo Pan</span>
+                        <span className="font-mono text-neutral-400">
+                          {(project.audioDsp?.pan ?? 0) === 0
+                            ? 'Center'
+                            : (project.audioDsp?.pan ?? 0) < 0
+                            ? `${Math.round(Math.abs(project.audioDsp?.pan ?? 0) * 100)}% Left`
+                            : `${Math.round((project.audioDsp?.pan ?? 0) * 100)}% Right`}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-1}
+                        max={1}
+                        step={0.05}
+                        value={project.audioDsp?.pan ?? 0}
+                        onChange={(e) =>
+                          onUpdateAudioDsp?.({ pan: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 3: Groove & Tape */}
+                {dspTab === 'groove' && (
+                  <div className="space-y-2.5 pt-1">
+                    <div>
+                      <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
+                        <span>Analog Tape Saturation Drive</span>
+                        <span className="font-mono text-neutral-400">
+                          {Math.round((project.audioDsp?.drive ?? 0) * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        value={project.audioDsp?.drive ?? 0}
+                        onChange={(e) =>
+                          onUpdateAudioDsp?.({ drive: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
+                        <span>Swing Groove Shuffle</span>
+                        <span className="font-mono text-neutral-400">
+                          {Math.round((project.audioDsp?.swing ?? 0.15) * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={0.5}
+                        step={0.02}
+                        value={project.audioDsp?.swing ?? 0.15}
+                        onChange={(e) =>
+                          onUpdateAudioDsp?.({ swing: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
+                        <span>Tempo Multiplier</span>
+                        <span className="font-mono text-neutral-400">
+                          {(project.audioDsp?.tempoMultiplier ?? 1.0).toFixed(2)}×
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0.7}
+                        max={1.4}
+                        step={0.05}
+                        value={project.audioDsp?.tempoMultiplier ?? 1.0}
+                        onChange={(e) =>
+                          onUpdateAudioDsp?.({ tempoMultiplier: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 4: Live Event & Social SFX Pads */}
+                {dspTab === 'sfx' && (
+                  <div className="pt-1 space-y-2">
+                    <div className="flex items-center justify-between text-[10px] text-neutral-400">
+                      <span>Click to trigger instant sound effect</span>
+                      <span className="font-mono text-[#4ade80]">8 One-Shots</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {EVENT_SFX_PADS.map((sfx) => (
+                        <button
+                          key={sfx.id}
+                          type="button"
+                          onClick={() => onTriggerSfx?.(sfx.id)}
+                          className="px-2.5 py-2 rounded-xl bg-[#242424] hover:bg-[#159947]/25 active:scale-95 border border-neutral-700/80 hover:border-[#22c55e] text-left transition-all flex items-center justify-between"
+                        >
+                          <span className="text-[11px] font-semibold text-white truncate">
+                            {sfx.name}
+                          </span>
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: sfx.color }}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

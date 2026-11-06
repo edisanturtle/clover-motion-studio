@@ -17,8 +17,40 @@ import {
   Activity,
 } from 'lucide-react';
 import { FONT_OPTIONS } from '../../constants/fonts';
-import { MOTION_PRESETS } from '../../constants/motionPresets';
+import {
+  MOTION_PRESETS,
+  MOTION_EASING_OPTIONS,
+  MOTION_DIRECTIONS,
+  MOTION_TARGETS,
+} from '../../constants/motionPresets';
 import { GRAPHIC_SHAPES, MOTION_GRAPHICS_ASSETS } from '../../constants/graphicAssets';
+import { solveSpring } from '../../utils/timecode';
+
+function SpringCurvePreview({ stiffness = 200, damping = 13, overshoot = 1.2 }) {
+  const points = [];
+  const w = 240;
+  const h = 54;
+  for (let i = 0; i <= 60; i++) {
+    const t = (i / 60) * 1.5;
+    const yVal = solveSpring(t, { stiffness, damping, mass: 1 });
+    const px = (i / 60) * (w - 16) + 8;
+    const py = (h - 12) - Math.min(1.4, Math.max(-0.4, yVal)) * (h - 26);
+    points.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+  }
+  return (
+    <div className="rounded-lg bg-[#141414] border border-neutral-800 p-2.5 space-y-1">
+      <div className="flex items-center justify-between text-[10px] text-neutral-400">
+        <span className="font-mono text-[#4ade80]">Spring Response Curve</span>
+        <span className="font-mono text-[9px] text-neutral-500">t: 0..1.5s</span>
+      </div>
+      <svg className="w-full h-12 overflow-visible" viewBox={`0 0 ${w} ${h}`}>
+        <line x1="8" y1={h - 12} x2={w - 8} y2={h - 12} stroke="#333" strokeDasharray="2,2" strokeWidth="1" />
+        <line x1="8" y1={14} x2={w - 8} y2={14} stroke="#22c55e" strokeDasharray="3,3" strokeWidth="1" opacity="0.4" />
+        <polyline fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={points.join(' ')} />
+      </svg>
+    </div>
+  );
+}
 
 export default function RightInspector({
   selectedLayer,
@@ -504,7 +536,7 @@ export default function RightInspector({
             )}
 
             {/* =========================================================
-                TAB 2: MOTION (Screenshot 20)
+                TAB 2: MOTION (Behance & Swiss Physics Dynamics)
                ========================================================= */}
             {activeTab === 'motion' && (
               <div className="space-y-4">
@@ -513,129 +545,246 @@ export default function RightInspector({
                   onClick={() => onOpenMotionTemplates?.()}
                   className="w-full py-2.5 px-3 rounded-xl bg-[#222222] hover:bg-neutral-800 border border-neutral-700/80 flex items-center justify-center gap-2 text-xs font-semibold text-white transition-colors"
                 >
-                  <Film className="w-3.5 h-3.5 text-neutral-300" />
-                  <span>Motion templates</span>
+                  <Film className="w-3.5 h-3.5 text-[#4ade80]" />
+                  <span>Browse Motion Templates</span>
                 </button>
 
-                {/* Accordion 1: Words & letters (Expanded by default in Screenshot 20) */}
-                <div className="space-y-3 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setWordsOpen((v) => !v)}
-                    className="w-full flex items-center justify-between text-xs font-semibold text-white"
+                {/* Motion Preset Selector */}
+                <div className="space-y-2 pt-1">
+                  <label className="block text-xs font-semibold text-white">
+                    Motion Preset
+                  </label>
+                  <select
+                    value={selectedLayer.motionPreset || 'none'}
+                    onChange={(e) => {
+                      const found = MOTION_PRESETS.find((p) => p.id === e.target.value);
+                      const patch = { motionPreset: e.target.value };
+                      if (found?.defaultParams) {
+                        patch.motionStiffness = found.defaultParams.stiffness;
+                        patch.motionDamping = found.defaultParams.damping;
+                        patch.motionOvershoot = found.defaultParams.overshoot;
+                        patch.motionWaveform = found.defaultParams.waveform;
+                      }
+                      onUpdateLayer(selectedLayer.id, patch);
+                    }}
+                    className="w-full px-2.5 py-2 rounded-lg bg-[#202020] border border-neutral-700/80 text-xs text-white focus:outline-none"
                   >
-                    <span>Words & letters</span>
-                    {wordsOpen ? (
-                      <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />
-                    ) : (
-                      <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
-                    )}
-                  </button>
-
-                  {wordsOpen && (
-                    <div className="flex items-center justify-between py-1">
-                      <span className="text-xs text-neutral-300">Animate words or letters</span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={!!selectedLayer.charAnimate}
-                        onClick={() =>
-                          onUpdateLayer(selectedLayer.id, {
-                            charAnimate: !selectedLayer.charAnimate,
-                          })
-                        }
-                        className={`w-9 h-5 rounded-full transition-colors p-0.5 ${
-                          selectedLayer.charAnimate ? 'bg-white' : 'bg-neutral-700'
-                        }`}
-                      >
-                        <div
-                          className={`w-4 h-4 rounded-full transition-transform ${
-                            selectedLayer.charAnimate
-                              ? 'translate-x-4 bg-black'
-                              : 'translate-x-0 bg-neutral-300'
-                          }`}
-                        />
-                      </button>
-                    </div>
+                    {MOTION_PRESETS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.category})
+                      </option>
+                    ))}
+                  </select>
+                  {selectedLayer.motionPreset && selectedLayer.motionPreset !== 'none' && (
+                    <p className="text-[11px] text-neutral-400 italic">
+                      {MOTION_PRESETS.find((p) => p.id === selectedLayer.motionPreset)?.desc}
+                    </p>
                   )}
                 </div>
 
-                {/* Accordion 2: Text animation (Collapsed by default in Screenshot 20) */}
-                <div className="space-y-3 pt-3 border-t border-neutral-800/80">
-                  <button
-                    type="button"
-                    onClick={() => setTextAnimOpen((v) => !v)}
-                    className="w-full flex items-center justify-between text-xs font-semibold text-white"
-                  >
-                    <span>Text animation</span>
-                    {textAnimOpen ? (
-                      <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />
-                    ) : (
-                      <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
-                    )}
-                  </button>
+                {/* Live Spring Curve Visualizer */}
+                {selectedLayer.motionPreset && selectedLayer.motionPreset !== 'none' && (
+                  <SpringCurvePreview
+                    stiffness={selectedLayer.motionStiffness ?? 200}
+                    damping={selectedLayer.motionDamping ?? 13}
+                    overshoot={selectedLayer.motionOvershoot ?? 1.2}
+                  />
+                )}
 
-                  {textAnimOpen && (
-                    <div className="space-y-3 pt-1">
-                      <select
-                        value={selectedLayer.motionPreset || 'none'}
-                        onChange={(e) =>
-                          onUpdateLayer(selectedLayer.id, { motionPreset: e.target.value })
-                        }
-                        className="w-full px-2.5 py-2 rounded-lg bg-[#202020] border border-neutral-700/80 text-xs text-white focus:outline-none"
-                      >
-                        {MOTION_PRESETS.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-
-                      <div>
-                        <div className="flex justify-between text-[11px] text-neutral-400 mb-1">
-                          <span>Speed</span>
-                          <span className="font-mono">
-                            {(selectedLayer.motionSpeed ?? 1).toFixed(1)}×
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min={0.2}
-                          max={3}
-                          step={0.1}
-                          value={selectedLayer.motionSpeed ?? 1}
-                          onChange={(e) =>
-                            onUpdateLayer(selectedLayer.id, {
-                              motionSpeed: Number(e.target.value),
-                            })
-                          }
-                          className="w-full accent-white"
-                        />
-                      </div>
-
-                      <div>
-                        <div className="flex justify-between text-[11px] text-neutral-400 mb-1">
-                          <span>Letter Stagger</span>
-                          <span className="font-mono">
-                            {Math.round((selectedLayer.stagger ?? 0.04) * 1000)} ms
-                          </span>
-                        </div>
-                        <input
-                          type="range"
-                          min={0}
-                          max={0.15}
-                          step={0.005}
-                          value={selectedLayer.stagger ?? 0.04}
-                          onChange={(e) =>
-                            onUpdateLayer(selectedLayer.id, {
-                              stagger: Number(e.target.value),
-                            })
-                          }
-                          className="w-full accent-white"
-                        />
-                      </div>
+                {/* Targeting Scope (Text vs Graphic) */}
+                {!isGraphic && (
+                  <div className="space-y-2 pt-2 border-t border-neutral-800/80">
+                    <label className="block text-xs font-semibold text-white">
+                      Animation Targeting
+                    </label>
+                    <div className="grid grid-cols-3 gap-1 p-0.5 bg-[#181818] rounded-lg border border-neutral-800 text-xs">
+                      {MOTION_TARGETS.map((tgt) => {
+                        const active = (selectedLayer.motionTarget || (selectedLayer.charAnimate ? 'char' : 'line')) === tgt.id;
+                        return (
+                          <button
+                            key={tgt.id}
+                            type="button"
+                            onClick={() =>
+                              onUpdateLayer(selectedLayer.id, {
+                                motionTarget: tgt.id,
+                                charAnimate: tgt.id !== 'line',
+                              })
+                            }
+                            className={`py-1.5 rounded-md text-[11px] font-medium transition-colors ${
+                              active
+                                ? 'bg-[#282828] text-white shadow-sm'
+                                : 'text-neutral-400 hover:text-neutral-200'
+                            }`}
+                          >
+                            {tgt.label}
+                          </button>
+                        );
+                      })}
                     </div>
-                  )}
+                  </div>
+                )}
+
+                {/* Physics Engine Controls */}
+                <div className="space-y-3 pt-2 border-t border-neutral-800/80">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white">Physics Dynamics</span>
+                    <span className="text-[10px] font-mono text-[#4ade80]">Framer / Swiss Engine</span>
+                  </div>
+
+                  {/* Waveform Selector */}
+                  <div>
+                    <label className="block text-[11px] text-neutral-400 mb-1">
+                      Dynamics Curve
+                    </label>
+                    <select
+                      value={selectedLayer.motionWaveform || 'spring'}
+                      onChange={(e) =>
+                        onUpdateLayer(selectedLayer.id, { motionWaveform: e.target.value })
+                      }
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#202020] border border-neutral-700/80 text-xs text-white focus:outline-none"
+                    >
+                      <option value="spring">Physics Spring (Damped Harmonic)</option>
+                      <option value="elastic">Elastic Rubber (Squash & Stretch)</option>
+                      <option value="anticipate">Anticipate (Wind Up & Fire)</option>
+                      <option value="bounce">Gravitational Impact Bounce</option>
+                      <option value="sine">Smooth Harmonic Sine</option>
+                    </select>
+                  </div>
+
+                  {/* Direction Selector */}
+                  <div>
+                    <label className="block text-[11px] text-neutral-400 mb-1">
+                      Kinetic Direction
+                    </label>
+                    <select
+                      value={selectedLayer.motionDirection || 'vertical'}
+                      onChange={(e) =>
+                        onUpdateLayer(selectedLayer.id, { motionDirection: e.target.value })
+                      }
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#202020] border border-neutral-700/80 text-xs text-white focus:outline-none"
+                    >
+                      {MOTION_DIRECTIONS.map((dir) => (
+                        <option key={dir.id} value={dir.id}>
+                          {dir.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Spring Stiffness Slider */}
+                  <div>
+                    <div className="flex justify-between text-[11px] text-neutral-400 mb-1">
+                      <span>Stiffness (k)</span>
+                      <span className="font-mono text-neutral-300">
+                        {selectedLayer.motionStiffness ?? 200}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={60}
+                      max={450}
+                      step={10}
+                      value={selectedLayer.motionStiffness ?? 200}
+                      onChange={(e) =>
+                        onUpdateLayer(selectedLayer.id, {
+                          motionStiffness: Number(e.target.value),
+                        })
+                      }
+                      className="w-full accent-[#22c55e]"
+                    />
+                  </div>
+
+                  {/* Spring Damping Slider */}
+                  <div>
+                    <div className="flex justify-between text-[11px] text-neutral-400 mb-1">
+                      <span>Damping (ζ)</span>
+                      <span className="font-mono text-neutral-300">
+                        {selectedLayer.motionDamping ?? 13}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={5}
+                      max={35}
+                      step={1}
+                      value={selectedLayer.motionDamping ?? 13}
+                      onChange={(e) =>
+                        onUpdateLayer(selectedLayer.id, {
+                          motionDamping: Number(e.target.value),
+                        })
+                      }
+                      className="w-full accent-[#22c55e]"
+                    />
+                  </div>
+
+                  {/* Overshoot & Bounce Slider */}
+                  <div>
+                    <div className="flex justify-between text-[11px] text-neutral-400 mb-1">
+                      <span>Overshoot & Bounce</span>
+                      <span className="font-mono text-neutral-300">
+                        {Math.round((selectedLayer.motionOvershoot ?? 1.2) * 100)}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={2.5}
+                      step={0.1}
+                      value={selectedLayer.motionOvershoot ?? 1.2}
+                      onChange={(e) =>
+                        onUpdateLayer(selectedLayer.id, {
+                          motionOvershoot: Number(e.target.value),
+                        })
+                      }
+                      className="w-full accent-[#22c55e]"
+                    />
+                  </div>
+
+                  {/* Speed Multiplier Slider */}
+                  <div>
+                    <div className="flex justify-between text-[11px] text-neutral-400 mb-1">
+                      <span>Speed</span>
+                      <span className="font-mono text-neutral-300">
+                        {(selectedLayer.motionSpeed ?? 1).toFixed(1)}×
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0.2}
+                      max={3.5}
+                      step={0.1}
+                      value={selectedLayer.motionSpeed ?? 1}
+                      onChange={(e) =>
+                        onUpdateLayer(selectedLayer.id, {
+                          motionSpeed: Number(e.target.value),
+                        })
+                      }
+                      className="w-full accent-white"
+                    />
+                  </div>
+
+                  {/* Stagger Delay Slider */}
+                  <div>
+                    <div className="flex justify-between text-[11px] text-neutral-400 mb-1">
+                      <span>Stagger Delay</span>
+                      <span className="font-mono text-neutral-300">
+                        {Math.round((selectedLayer.stagger ?? 0.04) * 1000)} ms
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={0.15}
+                      step={0.005}
+                      value={selectedLayer.stagger ?? 0.04}
+                      onChange={(e) =>
+                        onUpdateLayer(selectedLayer.id, {
+                          stagger: Number(e.target.value),
+                        })
+                      }
+                      className="w-full accent-white"
+                    />
+                  </div>
                 </div>
               </div>
             )}

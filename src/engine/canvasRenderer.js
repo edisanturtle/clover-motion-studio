@@ -1,4 +1,4 @@
-import { evaluateEasing } from '../utils/timecode';
+import { evaluateEasing, evaluatePeriodicSpring, solveSpring } from '../utils/timecode';
 import { renderAnimosShowcase } from './animosRenderer';
 import { renderEffectCraftShaderBg, applyEffectCraftRack } from './effectCraftRenderer';
 
@@ -788,11 +788,65 @@ function renderGraphicLayer(ctx, layer, state, t, audio, palette, canvasWidth = 
     return;
   }
 
+  // Physics spring & kinetic motion calculation for graphic layers
+  let gx = 0;
+  let gy = 0;
+  let gScale = 1;
+  let gRot = 0;
+  if (layer.motionPreset && layer.motionPreset !== 'none') {
+    const gSpeed = layer.motionSpeed ?? 1;
+    const gStiff = layer.motionStiffness ?? 180;
+    const gDamp = layer.motionDamping ?? 14;
+    const gOvershoot = layer.motionOvershoot ?? 1.2;
+    const gPhase = t * 3.2 * gSpeed;
+    const gSpring = evaluatePeriodicSpring(gPhase, {
+      stiffness: gStiff,
+      damping: gDamp,
+      overshoot: gOvershoot,
+      waveform: layer.motionWaveform || 'spring',
+    });
+
+    switch (layer.motionPreset) {
+      case 'kineticSpringHop':
+        gy = -Math.abs(gSpring) * 26;
+        gScale = 1 + gSpring * 0.14;
+        break;
+      case 'magneticSnap':
+        gy = gSpring * 18;
+        gScale = 1 + Math.max(0, gSpring) * 0.16;
+        break;
+      case 'pendulumSwing':
+        gRot = gSpring * 0.22;
+        break;
+      case 'stompPop':
+        gScale = 1 + Math.max(0, gSpring) * 0.22;
+        break;
+      case 'liquidWave':
+        gx = Math.cos(gPhase * 0.7) * 14;
+        gy = gSpring * 14;
+        gRot = Math.sin(gPhase * 0.5) * 0.08;
+        break;
+      case 'kineticVortex':
+        gRot = (t * 1.5 * gSpeed) % (Math.PI * 2);
+        gScale = 0.92 + 0.12 * gSpring;
+        break;
+      case 'audioShockwave':
+        gScale = 1 + (audio?.bass || 0) * 0.38 + gSpring * 0.08;
+        break;
+      case 'variableStretch':
+        gScale = 1 + gSpring * 0.16;
+        break;
+      default:
+        gy = gSpring * 12;
+        break;
+    }
+  }
+
   ctx.save();
   ctx.globalAlpha = state.opacity;
-  ctx.translate(state.x, state.y);
-  ctx.rotate((state.rotation * Math.PI) / 180);
-  ctx.scale(state.scale, state.scale);
+  ctx.translate(state.x + gx, state.y + gy);
+  ctx.rotate(((state.rotation + (gRot * 180) / Math.PI) * Math.PI) / 180);
+  ctx.scale(state.scale * gScale, state.scale * gScale);
 
   const r = (layer.size || 300) / 2;
   const color = layer.color || palette?.[2] || '#5983ff';
@@ -1341,6 +1395,12 @@ function renderTextLayer(ctx, layer, state, t, audio, palette) {
   const preset = layer.motionPreset || 'none';
   const speed = layer.motionSpeed ?? 1;
   const stagger = layer.stagger ?? 0.04;
+  const stiffness = layer.motionStiffness ?? 200;
+  const damping = layer.motionDamping ?? 13;
+  const overshoot = layer.motionOvershoot ?? 1.2;
+  const waveform = layer.motionWaveform || 'spring';
+  const direction = layer.motionDirection || 'vertical';
+  const target = layer.motionTarget || (layer.charAnimate ? 'char' : 'line');
 
   // Optional left editorial accent rule (Hangul Modules left column)
   if (layer.leftAccentColor) {
@@ -1376,21 +1436,178 @@ function renderTextLayer(ctx, layer, state, t, audio, palette) {
 
   let globalCharCounter = 0;
 
+  // Helper to compute spring-driven transformation for a segment (character, word, or whole line)
+  const computeSpringTransform = (phase, segmentIdx, totalSegments) => {
+    const springVal = evaluatePeriodicSpring(phase, {
+      stiffness,
+      damping,
+      overshoot,
+      waveform,
+    });
+
+    let cx = 0;
+    let cy = 0;
+    let cScaleX = 1;
+    let cScaleY = 1;
+    let cRot = 0;
+    let cAlpha = state.opacity;
+
+    switch (preset) {
+      case 'kineticSpringHop': {
+        // Squash & stretch physics jump
+        cy = -Math.abs(springVal) * (fontSize * 0.22) * overshoot;
+        if (springVal >= 0) {
+          cScaleY = 1 + springVal * 0.18;
+          cScaleX = 1 - springVal * 0.08;
+        } else {
+          cScaleY = 1 - Math.abs(springVal) * 0.14;
+          cScaleX = 1 + Math.abs(springVal) * 0.12;
+        }
+        break;
+      }
+
+      case 'magneticSnap': {
+        if (direction === 'horizontal') {
+          cx = springVal * (fontSize * 0.22) * overshoot;
+        } else {
+          cy = springVal * (fontSize * 0.22) * overshoot;
+        }
+        cScaleX = 1 + Math.max(0, springVal) * 0.16;
+        cScaleY = cScaleX;
+        break;
+      }
+
+      case 'staggerCascade': {
+        cy = springVal * (fontSize * 0.24) * overshoot;
+        cRot = springVal * 0.06;
+        break;
+      }
+
+      case 'editorialRise': {
+        cy = springVal * (fontSize * 0.14);
+        cAlpha = state.opacity * Math.min(1, Math.max(0.2, 0.7 + 0.3 * springVal));
+        break;
+      }
+
+      case 'splitReveal': {
+        cy = springVal * (fontSize * 0.18);
+        cRot = springVal * 0.10;
+        break;
+      }
+
+      case 'kineticVortex': {
+        cx = Math.sin(phase) * 12 * overshoot;
+        cy = Math.cos(phase) * 12 * overshoot;
+        cRot = phase * 0.15;
+        cScaleX = 0.88 + 0.15 * springVal;
+        cScaleY = cScaleX;
+        break;
+      }
+
+      case 'liquidWave':
+      case 'kineticWave': {
+        cy = springVal * (fontSize * 0.13);
+        cx = Math.cos(phase * 0.7) * 8;
+        cRot = Math.sin(phase * 0.5) * 0.04;
+        break;
+      }
+
+      case 'variableStretch':
+      case 'elasticStretch': {
+        cScaleX = 1 + springVal * 0.20;
+        cScaleY = 1 - springVal * 0.12;
+        break;
+      }
+
+      case 'pendulumSwing': {
+        cRot = springVal * 0.22 * overshoot;
+        cx = Math.sin(cRot) * (fontSize * 0.2);
+        break;
+      }
+
+      case 'audioShockwave': {
+        const bass = audio?.bass || 0;
+        cy = -bass * 28 * overshoot + springVal * 5;
+        cScaleX = 1 + bass * 0.32 + Math.max(0, springVal) * 0.12;
+        cScaleY = cScaleX;
+        cRot = ((segmentIdx % 2 === 0 ? 1 : -1) * bass * 0.1);
+        break;
+      }
+
+      case 'stompPop': {
+        cScaleX = 1 + Math.max(0, springVal) * 0.22;
+        cScaleY = cScaleX;
+        break;
+      }
+
+      case 'shutterSlice': {
+        cy = Math.round(springVal * 2.5) * 6;
+        break;
+      }
+
+      case 'spiralOrbit': {
+        cx = Math.cos(phase) * 10 * overshoot;
+        cy = Math.sin(phase) * 10 * overshoot;
+        break;
+      }
+
+      case 'typewriterTick': {
+        cAlpha = springVal > -0.3 ? state.opacity : 0.15;
+        break;
+      }
+
+      case 'fadeScale': {
+        cAlpha = state.opacity * (0.8 + 0.2 * springVal);
+        cScaleX = 0.96 + 0.04 * springVal;
+        cScaleY = cScaleX;
+        break;
+      }
+
+      case 'glitchJitter': {
+        cx = Math.sin(phase * 7) > 0.8 ? (Math.random() - 0.5) * 18 * overshoot : 0;
+        cy = Math.sin(phase * 5) > 0.85 ? (Math.random() - 0.5) * 8 : 0;
+        break;
+      }
+
+      case 'slideUp': {
+        cy = springVal * (fontSize * 0.15);
+        break;
+      }
+
+      default:
+        break;
+    }
+
+    return { cx, cy, cScaleX, cScaleY, cRot, cAlpha };
+  };
+
   lines.forEach((line, lineIdx) => {
     const lineY = startY + lineIdx * lineHeightPx;
 
-    if (!layer.charAnimate || preset === 'none') {
+    // 1. Whole-line mode (or preset 'none')
+    if (target === 'line' || preset === 'none') {
       let offY = 0;
       let offX = 0;
+      let scaleY = 1;
+      let scaleX = 1;
+      let rot = 0;
       let alpha = state.opacity;
-      if (preset === 'slideUp') {
-        offY = Math.sin(t * 2.5 * speed + lineIdx * 0.4) * 8;
-      } else if (preset === 'fadeScale') {
-        alpha = state.opacity * (0.85 + 0.15 * Math.sin(t * 3 * speed + lineIdx));
-      } else if (preset === 'glitchJitter') {
-        offX = Math.sin(t * 22 * speed + lineIdx) > 0.85 ? (Math.random() - 0.5) * 14 : 0;
+
+      if (preset !== 'none') {
+        const linePhase = t * 3.2 * speed - lineIdx * stagger * 6;
+        const res = computeSpringTransform(linePhase, lineIdx, lines.length);
+        offX = res.cx;
+        offY = res.cy;
+        scaleX = res.cScaleX;
+        scaleY = res.cScaleY;
+        rot = res.cRot;
+        alpha = res.cAlpha;
       }
 
+      ctx.save();
+      ctx.translate(offX, lineY + offY);
+      if (rot !== 0) ctx.rotate(rot);
+      if (scaleX !== 1 || scaleY !== 1) ctx.scale(scaleX, scaleY);
       ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
       ctx.fillStyle = layer.color || '#ffffff';
       ctx.textAlign = layer.align || 'center';
@@ -1400,11 +1617,48 @@ function renderTextLayer(ctx, layer, state, t, audio, palette) {
           : layer.align === 'right'
           ? (layer.width || 600) / 2
           : 0;
-      ctx.fillText(line, alignX + offX, lineY + offY);
+      ctx.fillText(line, alignX, 0);
+      ctx.restore();
       return;
     }
 
-    // Per-character kinetic animation
+    // 2. Word-by-word mode
+    if (target === 'word') {
+      const words = line.split(/(\s+)/); // Preserves spaces
+      const tracking = layer.letterSpacing ?? 0;
+      const wordWidths = words.map((w) => ctx.measureText(w).width + tracking);
+      const totalLineWidth = wordWidths.reduce((acc, w) => acc + w, 0) - tracking;
+
+      let cursorX = -totalLineWidth / 2;
+      if (layer.align === 'left') cursorX = -(layer.width || 700) / 2;
+      else if (layer.align === 'right') cursorX = (layer.width || 700) / 2 - totalLineWidth;
+
+      let wordCounter = 0;
+      words.forEach((w, wIdx) => {
+        const ww = wordWidths[wIdx];
+        const isSpace = /^\s+$/.test(w);
+        if (!isSpace) {
+          const wordCenterX = cursorX + ww / 2;
+          const phase = t * 3.2 * speed - (lineIdx * 3 + wordCounter) * stagger * 5;
+          const { cx, cy, cScaleX, cScaleY, cRot, cAlpha } = computeSpringTransform(phase, wordCounter, words.length);
+
+          ctx.save();
+          ctx.translate(wordCenterX + cx, lineY + cy);
+          ctx.rotate(cRot);
+          ctx.scale(cScaleX, cScaleY);
+          ctx.globalAlpha = Math.max(0, Math.min(1, cAlpha));
+          ctx.textAlign = 'center';
+          ctx.fillStyle = layer.color || '#ffffff';
+          ctx.fillText(w, 0, 0);
+          ctx.restore();
+          wordCounter++;
+        }
+        cursorX += ww;
+      });
+      return;
+    }
+
+    // 3. Per-character kinetic animation (default char mode)
     const chars = Array.from(line);
     const tracking = layer.letterSpacing ?? 0;
     const charWidths = chars.map((ch) => ctx.measureText(ch).width + tracking);
@@ -1419,46 +1673,7 @@ function renderTextLayer(ctx, layer, state, t, audio, palette) {
       const charCenterX = cursorX + cw / 2;
       const phase = t * 3.2 * speed - (lineIdx * 4 + charIdx) * stagger * 4;
 
-      let cx = 0;
-      let cy = 0;
-      let cScaleX = 1;
-      let cScaleY = 1;
-      let cRot = 0;
-      let cAlpha = state.opacity;
-
-      switch (preset) {
-        case 'kineticWave':
-          cy = Math.sin(phase) * (fontSize * 0.11);
-          break;
-        case 'stompPop':
-          cScaleX = 1 + Math.max(0, Math.sin(phase)) * 0.14;
-          cScaleY = cScaleX;
-          break;
-        case 'liquidDrift':
-          cx = Math.cos(phase * 0.8) * 10;
-          cy = Math.sin(phase) * 8;
-          cRot = Math.sin(phase * 0.6) * 0.06;
-          break;
-        case 'shutterSlice':
-          cy = Math.round(Math.sin(phase) * 3) * 4;
-          break;
-        case 'elasticStretch':
-          cScaleX = 1 + Math.sin(phase) * 0.18;
-          cScaleY = 1 - Math.sin(phase) * 0.1;
-          break;
-        case 'spiralOrbit':
-          cx = Math.cos(phase) * 8;
-          cy = Math.sin(phase) * 8;
-          break;
-        case 'pendulumSwing':
-          cRot = Math.sin(phase) * 0.14;
-          break;
-        case 'typewriterTick':
-          cAlpha = Math.sin(phase) > -0.6 ? state.opacity : 0.15;
-          break;
-        default:
-          break;
-      }
+      const { cx, cy, cScaleX, cScaleY, cRot, cAlpha } = computeSpringTransform(phase, charIdx, chars.length);
 
       ctx.save();
       ctx.translate(charCenterX + cx, lineY + cy);

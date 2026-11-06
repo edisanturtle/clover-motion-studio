@@ -341,6 +341,24 @@ export const ANIMOS_SHOWCASE_TEMPLATES = [
       shadowEnabled: true,
     },
   },
+  {
+    id: 'perspective-tunnel-3d',
+    name: '3D Hyper Tunnel',
+    category: '3d-perspective',
+    desc: 'Infinite 3D camera fly-through with acceleration warp and floating card stream.',
+    slots: 10,
+    duration: 14,
+    isNew: true,
+    defaults: {
+      cardSize: 34,
+      cardAspect: '1:1',
+      tilt: -12,
+      perspective: 65,
+      backFade: 60,
+      cornerRadius: 3,
+      shadowEnabled: true,
+    },
+  },
 
   // 2. Multiscene
   {
@@ -556,6 +574,22 @@ export const ANIMOS_SHOWCASE_TEMPLATES = [
 
   // 5. Carousel & Flow
   {
+    id: 'curved-carousel-flow',
+    name: 'Curved Carousel Flow',
+    category: 'carousel-flow',
+    desc: '3D parabolic cylindrical carousel where cards face the camera with dynamic depth scaling.',
+    slots: 9,
+    duration: 12,
+    isNew: true,
+    defaults: {
+      cardSize: 36,
+      cardAspect: '1:1',
+      gap: 6,
+      cornerRadius: 3,
+      shadowEnabled: true,
+    },
+  },
+  {
     id: 'cover-flow',
     name: 'Cover Flow',
     category: 'carousel-flow',
@@ -743,6 +777,21 @@ export const ANIMOS_SHOWCASE_TEMPLATES = [
       spread: 70,
       spin: 15,
       cardAspect: '3:4',
+      cornerRadius: 3,
+      shadowEnabled: true,
+    },
+  },
+  {
+    id: 'depth-stack-fan',
+    name: 'Depth Stack Fan',
+    category: 'stack-scatter',
+    desc: 'Behance-inspired multi-layer card deck that snaps open like poker cards with spring overshoot.',
+    slots: 8,
+    duration: 10,
+    isNew: true,
+    defaults: {
+      cardSize: 36,
+      cardAspect: '4:5',
       cornerRadius: 3,
       shadowEnabled: true,
     },

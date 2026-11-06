@@ -334,19 +334,20 @@ export function renderAnimosShowcase({
         alpha: Math.max(0.1, edgeFade * (0.4 + depthNorm * 0.6)),
       });
     }
-  } else if (tplId === 'card-tunnel') {
+  } else if (tplId === 'card-tunnel' || tplId === 'perspective-tunnel-3d') {
     for (let i = 0; i < slotCount; i++) {
       const zNorm = ((i / slotCount + progress) % 1);
       const ringAngle = (i * 1.57) + progress * tau * 0.25;
-      const dist = Math.pow(zNorm, 1.65);
-      const spreadR = Math.min(width, height) * 0.42 * dist;
+      const dist = Math.pow(zNorm, 1.8);
+      const spreadR = Math.min(width, height) * 0.44 * dist;
+      const floatY = Math.sin(localTime * 2.2 + i * 0.7) * 8 * (u / 10);
       drawCardsList.push({
         slotIndex: i,
         x: cx + Math.cos(ringAngle) * spreadR,
-        y: cy + Math.sin(ringAngle) * spreadR,
-        z: dist * 100,
-        scaleX: 0.2 + dist * 1.15,
-        scaleY: 0.2 + dist * 1.15,
+        y: cy + Math.sin(ringAngle) * spreadR + floatY,
+        z: dist * 120,
+        scaleX: 0.18 + dist * 1.25,
+        scaleY: 0.18 + dist * 1.25,
         rotation: Math.sin(ringAngle) * 0.08,
         alpha: Math.sin(zNorm * Math.PI),
       });
@@ -357,15 +358,16 @@ export function renderAnimosShowcase({
     tplId === 'iso-orbit' ||
     tplId === 'stairway'
   ) {
-    // Isometric sheared stack / diagonal ribbon
+    // Isometric sheared stack / diagonal ribbon with floating inertia
     const skewRad = ((showcaseConfig.skew || 32) * Math.PI) / 180;
     for (let i = 0; i < slotCount; i++) {
       const norm = ((i / slotCount + progress) % 1) - 0.5;
       const distFromCenter = Math.abs(norm * 2);
       const spotlightBoost =
         tplId === 'iso-focus' ? Math.max(0, 1 - distFromCenter * 2.2) * 0.38 : 0;
+      const floatOffset = Math.sin(localTime * 2.0 + i) * 6 * (u / 10);
       const x = cx + norm * width * 0.65;
-      const y = cy + norm * height * 0.48 - spotlightBoost * 60 * u;
+      const y = cy + norm * height * 0.48 - spotlightBoost * 60 * u + floatOffset;
       drawCardsList.push({
         slotIndex: i,
         x,
@@ -378,7 +380,12 @@ export function renderAnimosShowcase({
         alpha: 1 - Math.pow(distFromCenter, 2.2) * 0.65,
       });
     }
-  } else if (tplId === 'cover-flow' || tplId === 'focus-slider' || tplId === 'hero-reel') {
+  } else if (
+    tplId === 'curved-carousel-flow' ||
+    tplId === 'cover-flow' ||
+    tplId === 'focus-slider' ||
+    tplId === 'hero-reel'
+  ) {
     for (let i = 0; i < slotCount; i++) {
       let rel = ((i - progress * slotCount) % slotCount);
       if (rel > slotCount / 2) rel -= slotCount;
@@ -386,18 +393,61 @@ export function renderAnimosShowcase({
       const absRel = Math.abs(rel);
       const isCenter = absRel < 0.65;
       const sideSign = Math.sign(rel);
-      const spreadX = rel * cardW * 0.68 + sideSign * Math.min(1, absRel) * cardW * 0.22;
-      const scale = isCenter ? 1.22 : Math.max(0.55, 0.92 - absRel * 0.1);
-      const squeezeX = isCenter ? 1 : 0.68;
+
+      if (tplId === 'curved-carousel-flow') {
+        // 3D Parabolic Cylindrical Arc
+        const angle = (rel / (slotCount * 0.48)) * Math.PI * 0.5;
+        const arcX = Math.sin(angle) * (width * 0.42);
+        const arcZ = Math.cos(angle) * 100;
+        const floatOffset = Math.sin(localTime * 2.0 + i * 0.8) * 8 * (u / 10);
+        const scale = 0.62 + (arcZ / 100) * 0.48;
+        drawCardsList.push({
+          slotIndex: i,
+          x: cx + arcX,
+          y: cy + floatOffset + (1 - Math.cos(angle)) * height * 0.12,
+          z: arcZ,
+          scaleX: scale * (0.85 + 0.15 * Math.cos(angle)),
+          scaleY: scale,
+          rotation: -sideSign * Math.sin(Math.abs(angle)) * 0.15,
+          alpha: Math.max(0.18, arcZ / 100),
+        });
+      } else {
+        const spreadX = rel * cardW * 0.68 + sideSign * Math.min(1, absRel) * cardW * 0.22;
+        const scale = isCenter ? 1.22 : Math.max(0.55, 0.92 - absRel * 0.1);
+        const squeezeX = isCenter ? 1 : 0.68;
+        const floatOffset = Math.sin(localTime * 1.8 + i) * 6 * (u / 10);
+        drawCardsList.push({
+          slotIndex: i,
+          x: cx + spreadX,
+          y: cy + (tplId === 'focus-slider' ? Math.sin(rel * 1.4) * 24 * u : 0) + floatOffset,
+          z: 100 - absRel * 20,
+          scaleX: scale * squeezeX,
+          scaleY: scale,
+          rotation: isCenter ? 0 : -sideSign * 0.08,
+          alpha: Math.max(0.15, 1 - absRel * 0.22),
+        });
+      }
+    }
+  } else if (tplId === 'depth-stack-fan') {
+    // Poker Deck Fan Spread with Inertia
+    const total = Math.max(4, slotCount);
+    const openPhase = Math.sin(progress * Math.PI);
+    const openSpread = 0.35 + 0.65 * openPhase;
+    for (let i = 0; i < total; i++) {
+      const norm = (i - (total - 1) / 2) / Math.max(1, total - 1);
+      const fanAngle = norm * 0.45 * openSpread;
+      const xOffset = norm * width * 0.38 * openSpread;
+      const yOffset = Math.abs(norm) * height * 0.08 * openSpread;
+      const floatOffset = Math.sin(localTime * 2.5 + i * 0.6) * 5 * (u / 10);
       drawCardsList.push({
-        slotIndex: i,
-        x: cx + spreadX,
-        y: cy + (tplId === 'focus-slider' ? Math.sin(rel * 1.4) * 24 * u : 0),
-        z: 100 - absRel * 20,
-        scaleX: scale * squeezeX,
-        scaleY: scale,
-        rotation: isCenter ? 0 : -sideSign * 0.08,
-        alpha: Math.max(0.15, 1 - absRel * 0.22),
+        slotIndex: i % slotCount,
+        x: cx + xOffset,
+        y: cy + yOffset + floatOffset,
+        z: i * 10,
+        scaleX: 0.9 + openPhase * 0.1,
+        scaleY: 0.9 + openPhase * 0.1,
+        rotation: fanAngle,
+        alpha: 1,
       });
     }
   } else if (
