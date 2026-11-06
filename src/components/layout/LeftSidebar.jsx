@@ -175,7 +175,7 @@ export default function LeftSidebar({
 }) {
   const [quickTab, setQuickTab] = useState('content'); // 'content' | 'showcase' | 'fx' | 'style' | 'motion' | 'scenes'
   const [advTab, setAdvTab] = useState('content'); // 'content' | 'showcase' | 'fx' | 'text' | 'graphics' | 'motion' | 'style' | 'layers'
-  const [animosCategory, setAnimosCategory] = useState('All');
+  const [animosCategory, setAnimosCategory] = useState('all');
   const imageUploadRef = useRef(null);
   const mediaSlotUploadRef = useRef(null);
 
@@ -594,19 +594,19 @@ export default function LeftSidebar({
                 {/* Category Filter Pills */}
                 <div className="flex flex-wrap gap-1">
                   {ANIMOS_CATEGORIES.map((cat) => {
-                    const active = animosCategory === cat;
+                    const active = animosCategory === cat.id;
                     return (
                       <button
-                        key={cat}
+                        key={cat.id}
                         type="button"
-                        onClick={() => setAnimosCategory(cat)}
+                        onClick={() => setAnimosCategory(cat.id)}
                         className={`px-2 py-1 rounded-lg text-[10px] font-medium transition-colors ${
                           active
                             ? 'bg-[#159947] text-white font-semibold'
                             : 'bg-[#1c1c1c] text-neutral-400 hover:text-white border border-neutral-800'
                         }`}
                       >
-                        {cat}
+                        {cat.label}
                       </button>
                     );
                   })}
@@ -630,7 +630,7 @@ export default function LeftSidebar({
                   </button>
 
                   {ANIMOS_SHOWCASE_TEMPLATES.filter(
-                    (tpl) => animosCategory === 'All' || tpl.category === animosCategory
+                    (tpl) => animosCategory === 'all' || tpl.category === animosCategory
                   ).map((tpl) => {
                     const isSelected = project.showcase?.templateId === tpl.id;
                     return (
