@@ -1417,7 +1417,17 @@ function renderTextLayer(ctx, layer, state, t, audio, palette) {
   ctx.font = fontStr;
   ctx.textBaseline = 'middle';
 
-  const lines = String(layer.text).split('\n');
+  // Apply optional text transform (VectorCraft / DesignCraft rules)
+  let rawText = String(layer.text);
+  if (layer.textTransform === 'uppercase') {
+    rawText = rawText.toUpperCase();
+  } else if (layer.textTransform === 'lowercase') {
+    rawText = rawText.toLowerCase();
+  } else if (layer.textTransform === 'capitalize') {
+    rawText = rawText.replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  const lines = rawText.split('\n');
   const lineHeightPx = fontSize * (layer.lineHeight || 1.0);
   const totalHeight = lines.length * lineHeightPx;
   const startY = -totalHeight / 2 + lineHeightPx / 2;
@@ -1647,6 +1657,25 @@ function renderTextLayer(ctx, layer, state, t, audio, palette) {
           : layer.align === 'right'
           ? (layer.width || 600) / 2
           : 0;
+
+      // Optional Drop Shadow / Glow (LightCraft)
+      if (layer.shadowEnabled) {
+        ctx.shadowColor = layer.shadowColor || 'rgba(0, 0, 0, 0.65)';
+        ctx.shadowBlur = layer.shadowBlur ?? 14;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 4;
+      }
+
+      // Optional Stroke Outline (VectorCraft)
+      if (layer.strokeEnabled && (layer.strokeWidth || 2) > 0) {
+        ctx.save();
+        ctx.strokeStyle = layer.strokeColor || '#000000';
+        ctx.lineWidth = (layer.strokeWidth || 2) * 2;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(line, alignX, 0);
+        ctx.restore();
+      }
+
       ctx.fillText(line, alignX, 0);
       ctx.restore();
       return;
@@ -1678,6 +1707,23 @@ function renderTextLayer(ctx, layer, state, t, audio, palette) {
           ctx.scale(cScaleX, cScaleY);
           ctx.globalAlpha = Math.max(0, Math.min(1, cAlpha));
           ctx.textAlign = 'center';
+
+          if (layer.shadowEnabled) {
+            ctx.shadowColor = layer.shadowColor || 'rgba(0, 0, 0, 0.65)';
+            ctx.shadowBlur = layer.shadowBlur ?? 14;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 4;
+          }
+
+          if (layer.strokeEnabled && (layer.strokeWidth || 2) > 0) {
+            ctx.save();
+            ctx.strokeStyle = layer.strokeColor || '#000000';
+            ctx.lineWidth = (layer.strokeWidth || 2) * 2;
+            ctx.lineJoin = 'round';
+            ctx.strokeText(w, 0, 0);
+            ctx.restore();
+          }
+
           ctx.fillStyle = layer.color || '#ffffff';
           ctx.fillText(w, 0, 0);
           ctx.restore();
@@ -1711,6 +1757,22 @@ function renderTextLayer(ctx, layer, state, t, audio, palette) {
       ctx.scale(cScaleX, cScaleY);
       ctx.globalAlpha = Math.max(0, Math.min(1, cAlpha));
       ctx.textAlign = 'center';
+
+      if (layer.shadowEnabled) {
+        ctx.shadowColor = layer.shadowColor || 'rgba(0, 0, 0, 0.65)';
+        ctx.shadowBlur = layer.shadowBlur ?? 14;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 4;
+      }
+
+      if (layer.strokeEnabled && (layer.strokeWidth || 2) > 0) {
+        ctx.save();
+        ctx.strokeStyle = layer.strokeColor || '#000000';
+        ctx.lineWidth = (layer.strokeWidth || 2) * 2;
+        ctx.lineJoin = 'round';
+        ctx.strokeText(ch, 0, 0);
+        ctx.restore();
+      }
 
       if (layer.patternFill === 'hangulModular' || layer.patternFill === 'diagonalOlive') {
         const isWhitespace = !ch.trim();

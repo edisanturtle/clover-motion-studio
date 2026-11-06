@@ -373,6 +373,99 @@ export default function RightInspector({
                           />
                         </div>
                       </div>
+
+                      {/* Text Transform, Stroke & Shadow (VectorCraft & LightCraft Styling) */}
+                      <div className="space-y-2.5 pt-2 border-t border-neutral-800">
+                        {/* Text Case Transform */}
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-neutral-400">Case Transform</span>
+                          <div className="flex items-center gap-1 bg-[#181818] p-0.5 rounded-lg border border-neutral-800 text-[10px]">
+                            {[
+                              { id: 'none', label: 'Raw' },
+                              { id: 'uppercase', label: 'AA' },
+                              { id: 'capitalize', label: 'Aa' },
+                              { id: 'lowercase', label: 'aa' },
+                            ].map((tc) => (
+                              <button
+                                key={tc.id}
+                                type="button"
+                                onClick={() => onUpdateLayer(selectedLayer.id, { textTransform: tc.id })}
+                                className={`px-2 py-0.5 rounded font-mono ${
+                                  (selectedLayer.textTransform || 'none') === tc.id
+                                    ? 'bg-[#159947] text-white font-bold'
+                                    : 'text-neutral-400 hover:text-white'
+                                }`}
+                              >
+                                {tc.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Text Stroke / Outline */}
+                        <div className="space-y-1.5">
+                          <label className="flex items-center justify-between cursor-pointer">
+                            <span className="text-[11px] text-neutral-300">Text Stroke Outline</span>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(selectedLayer.strokeEnabled)}
+                              onChange={(e) => onUpdateLayer(selectedLayer.id, { strokeEnabled: e.target.checked })}
+                              className="rounded accent-[#159947]"
+                            />
+                          </label>
+                          {selectedLayer.strokeEnabled && (
+                            <div className="flex items-center gap-2 pl-1">
+                              <span className="text-[10px] text-neutral-400">Width ({selectedLayer.strokeWidth || 2}px)</span>
+                              <input
+                                type="range"
+                                min={1}
+                                max={8}
+                                value={selectedLayer.strokeWidth || 2}
+                                onChange={(e) => onUpdateLayer(selectedLayer.id, { strokeWidth: Number(e.target.value) })}
+                                className="flex-1 accent-[#16a34a]"
+                              />
+                              <input
+                                type="color"
+                                value={selectedLayer.strokeColor || '#000000'}
+                                onChange={(e) => onUpdateLayer(selectedLayer.id, { strokeColor: e.target.value })}
+                                className="w-5 h-5 rounded cursor-pointer bg-transparent border-0 shrink-0"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Text Glow / Drop Shadow */}
+                        <div className="space-y-1.5">
+                          <label className="flex items-center justify-between cursor-pointer">
+                            <span className="text-[11px] text-neutral-300">Drop Shadow / Glow</span>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(selectedLayer.shadowEnabled)}
+                              onChange={(e) => onUpdateLayer(selectedLayer.id, { shadowEnabled: e.target.checked })}
+                              className="rounded accent-[#159947]"
+                            />
+                          </label>
+                          {selectedLayer.shadowEnabled && (
+                            <div className="flex items-center gap-2 pl-1">
+                              <span className="text-[10px] text-neutral-400">Blur ({selectedLayer.shadowBlur || 14}px)</span>
+                              <input
+                                type="range"
+                                min={2}
+                                max={36}
+                                value={selectedLayer.shadowBlur || 14}
+                                onChange={(e) => onUpdateLayer(selectedLayer.id, { shadowBlur: Number(e.target.value) })}
+                                className="flex-1 accent-[#16a34a]"
+                              />
+                              <input
+                                type="color"
+                                value={selectedLayer.shadowColor || '#000000'}
+                                onChange={(e) => onUpdateLayer(selectedLayer.id, { shadowColor: e.target.value })}
+                                className="w-5 h-5 rounded cursor-pointer bg-transparent border-0 shrink-0"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </>
                 ) : (
