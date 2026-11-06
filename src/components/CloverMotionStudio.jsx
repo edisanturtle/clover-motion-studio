@@ -156,20 +156,27 @@ export default function CloverMotionStudio() {
     if (!isPlaying) return;
     let rafId;
     let lastTs = performance.now();
+    let lastAudioTs = 0;
 
     const tick = (now) => {
-      const dt = (now - lastTs) / 1000;
+      // Clamp dt to avoid huge time jumps if tab was backgrounded
+      const rawDt = (now - lastTs) / 1000;
+      const dt = Math.min(0.1, Math.max(0.001, rawDt));
       lastTs = now;
 
-      if (audioEngineRef.current) {
-        const analysis = audioEngineRef.current.getAnalysis();
-        setAudioSignals({
-          bass: analysis.bass,
-          mid: analysis.mid,
-          treble: analysis.treble,
-          rms: analysis.rms,
-        });
-        setSpectrum(analysis.bars);
+      // Throttle audio FFT analysis state updates to ~32Hz to keep 60/120fps motion silky smooth
+      if (now - lastAudioTs > 30) {
+        lastAudioTs = now;
+        if (audioEngineRef.current) {
+          const analysis = audioEngineRef.current.getAnalysis();
+          setAudioSignals({
+            bass: analysis.bass,
+            mid: analysis.mid,
+            treble: analysis.treble,
+            rms: analysis.rms,
+          });
+          setSpectrum(analysis.bars);
+        }
       }
 
       const sceneDur = activeScene?.duration || 4;
@@ -492,16 +499,14 @@ export default function CloverMotionStudio() {
   };
 
   // Apply Motion Template from MotionTemplatesModal
-  const handleApplyMotionTemplate = ({ motionPreset, motionSpeed, stagger }) => {
+  const handleApplyMotionTemplate = (motionConfig = {}) => {
     if (selectedLayer) {
       handleUpdateLayer(selectedLayer.id, {
-        motionPreset,
-        motionSpeed,
-        stagger,
+        ...motionConfig,
         charAnimate: true,
       });
     } else {
-      handleSelectSceneMotionPreset(motionPreset);
+      handleSelectSceneMotionPreset(motionConfig.motionPreset);
     }
   };
 

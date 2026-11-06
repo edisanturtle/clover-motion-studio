@@ -46,10 +46,13 @@ export default function CanvasViewport({
 }) {
   const containerRef = useRef(null);
   const colorsRef = useRef(null);
+  const settingsRef = useRef(null);
   const [zoomMultiplier, setZoomMultiplier] = useState(1.0); // 1.0 = Fit
   const [zoomMode, setZoomMode] = useState('fit'); // 'fit' | 'custom'
   const [dragState, setDragState] = useState(null);
   const [colorsOpen, setColorsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showCenterCrosshair, setShowCenterCrosshair] = useState(false);
 
   const dim = ASPECT_RATIOS[project.ratio] || ASPECT_RATIOS['4:5'];
 
@@ -82,6 +85,9 @@ export default function CanvasViewport({
       if (colorsRef.current && !colorsRef.current.contains(e.target)) {
         setColorsOpen(false);
       }
+      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+        setSettingsOpen(false);
+      }
     };
     window.addEventListener('mousedown', handleOutside);
     return () => window.removeEventListener('mousedown', handleOutside);
@@ -102,6 +108,7 @@ export default function CanvasViewport({
       selectedLayerId,
       showGrid,
       showSafeGuides,
+      showCenterCrosshair,
       project,
     });
   }, [
@@ -114,6 +121,7 @@ export default function CanvasViewport({
     selectedLayerId,
     showGrid,
     showSafeGuides,
+    showCenterCrosshair,
     project,
   ]);
 
@@ -413,14 +421,112 @@ export default function CanvasViewport({
                 <Link2 className="w-3.5 h-3.5" />
               </button>
 
-              <button
-                type="button"
-                onClick={() => setShowGrid((v) => !v)}
-                className="p-1.5 rounded-lg bg-[#202020] border border-neutral-800 text-neutral-400 hover:text-white transition-colors"
-                title="Canvas settings"
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-              </button>
+              {/* Canvas Settings Popover */}
+              <div className="relative" ref={settingsRef}>
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen((v) => !v)}
+                  className={`p-1.5 rounded-lg border transition-colors ${
+                    settingsOpen
+                      ? 'bg-[#2a2a2a] border-white text-white'
+                      : 'bg-[#202020] border-neutral-800 text-neutral-400 hover:text-white'
+                  }`}
+                  title="Canvas Viewport & Guide Settings"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                </button>
+
+                {settingsOpen && (
+                  <div className="absolute right-0 mt-2 w-64 rounded-xl bg-[#1c1c1c] border border-neutral-700/90 shadow-2xl p-3 z-50 text-xs text-neutral-200 space-y-2.5">
+                    <div className="font-semibold text-white border-b border-neutral-800 pb-1.5 flex items-center justify-between">
+                      <span>Canvas Settings</span>
+                      <span className="text-[10px] font-mono text-[#4ade80]">Viewport</span>
+                    </div>
+
+                    {/* Toggle Safe Area Guides */}
+                    <label className="flex items-center justify-between cursor-pointer py-0.5">
+                      <span className="text-neutral-300">Safe Area (90% / 93%)</span>
+                      <input
+                        type="checkbox"
+                        checked={showSafeGuides}
+                        onChange={(e) => setShowSafeGuides(e.target.checked)}
+                        className="rounded accent-[#159947]"
+                      />
+                    </label>
+
+                    {/* Toggle Grid */}
+                    <label className="flex items-center justify-between cursor-pointer py-0.5">
+                      <span className="text-neutral-300">Modular Layout Grid</span>
+                      <input
+                        type="checkbox"
+                        checked={showGrid}
+                        onChange={(e) => setShowGrid(e.target.checked)}
+                        className="rounded accent-[#159947]"
+                      />
+                    </label>
+
+                    {/* Toggle Center Crosshair */}
+                    <label className="flex items-center justify-between cursor-pointer py-0.5">
+                      <span className="text-neutral-300">Center Crosshair</span>
+                      <input
+                        type="checkbox"
+                        checked={showCenterCrosshair}
+                        onChange={(e) => setShowCenterCrosshair(e.target.checked)}
+                        className="rounded accent-[#159947]"
+                      />
+                    </label>
+
+                    {/* Quick Preset Zoom Buttons */}
+                    <div className="pt-2 border-t border-neutral-800 flex items-center justify-between">
+                      <span className="text-[11px] text-neutral-400">Zoom scale</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setZoomMode('fit');
+                            setZoomMultiplier(1.0);
+                          }}
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono ${
+                            zoomMode === 'fit'
+                              ? 'bg-[#159947] text-white font-bold'
+                              : 'bg-[#252525] text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          Fit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setZoomMode('custom');
+                            setZoomMultiplier(1.0);
+                          }}
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono ${
+                            zoomMode === 'custom' && Math.abs(zoomMultiplier - 1.0) < 0.05
+                              ? 'bg-[#159947] text-white font-bold'
+                              : 'bg-[#252525] text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          100%
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setZoomMode('custom');
+                            setZoomMultiplier(1.5);
+                          }}
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono ${
+                            zoomMode === 'custom' && Math.abs(zoomMultiplier - 1.5) < 0.05
+                              ? 'bg-[#159947] text-white font-bold'
+                              : 'bg-[#252525] text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          150%
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Colors Popover matching Screenshots 24 & 25 */}
               <div className="relative" ref={colorsRef}>

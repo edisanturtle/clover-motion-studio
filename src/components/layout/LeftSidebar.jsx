@@ -660,7 +660,7 @@ export default function LeftSidebar({
                           <span className="text-xs font-bold text-white truncate">{tpl.name}</span>
                           <div className="flex items-center gap-1 shrink-0">
                             <span className="px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-700 text-[9px] font-mono text-[#4ade80]">
-                              {tpl.badge}
+                              {tpl.isNew ? 'NEW' : tpl.category}
                             </span>
                             <span className="px-1.5 py-0.5 rounded bg-neutral-900 text-[9px] font-mono text-neutral-400">
                               {tpl.slots} slots
@@ -668,7 +668,7 @@ export default function LeftSidebar({
                           </div>
                         </div>
                         <div className="text-[11px] text-neutral-400 mt-0.5 line-clamp-1">
-                          {tpl.description}
+                          {tpl.desc || tpl.description}
                         </div>
                       </button>
                     );

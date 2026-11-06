@@ -224,11 +224,19 @@ export default function MotionTemplatesModal({
           <button
             type="button"
             onClick={() => {
-              onApplyMotionTemplate?.({
+              const found = MOTION_PRESETS.find((p) => p.id === selectedPresetId);
+              const patch = {
                 motionPreset: selectedPresetId,
                 motionSpeed: speed,
                 stagger,
-              });
+              };
+              if (found?.defaultParams) {
+                patch.motionStiffness = found.defaultParams.stiffness;
+                patch.motionDamping = found.defaultParams.damping;
+                patch.motionOvershoot = found.defaultParams.overshoot;
+                patch.motionWaveform = found.defaultParams.waveform;
+              }
+              onApplyMotionTemplate?.(patch);
               onClose();
             }}
             className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#159947] hover:bg-[#19b353] border border-[#22c55e]/35 text-white text-xs font-bold transition-colors shadow-[0_2px_12px_rgba(21,153,71,0.3)]"

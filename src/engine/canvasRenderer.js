@@ -69,6 +69,7 @@ export function renderSceneToCanvas({
   selectedLayerId = null,
   showGrid = false,
   showSafeGuides = false,
+  showCenterCrosshair = false,
   project = null,
 }) {
   if (!ctx || !scene) return;
@@ -188,6 +189,35 @@ export function renderSceneToCanvas({
     drawSafeAreaGuides(ctx, width, height, scene.bg);
   }
 
+  // 5b. Center Alignment Crosshair Overlay
+  if (showCenterCrosshair) {
+    drawCenterCrosshair(ctx, width, height, scene.bg);
+  }
+
+  ctx.restore();
+}
+
+function drawCenterCrosshair(ctx, width, height, bgHex) {
+  ctx.save();
+  const isLight = isLightHex(bgHex || '#101935');
+  ctx.strokeStyle = isLight ? 'rgba(21, 153, 71, 0.75)' : 'rgba(74, 222, 128, 0.75)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+
+  const cx = width / 2;
+  const cy = height / 2;
+  const arm = Math.min(width, height) * 0.12;
+
+  ctx.beginPath();
+  ctx.moveTo(cx - arm, cy);
+  ctx.lineTo(cx + arm, cy);
+  ctx.moveTo(cx, cy - arm);
+  ctx.lineTo(cx, cy + arm);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.restore();
 }
 

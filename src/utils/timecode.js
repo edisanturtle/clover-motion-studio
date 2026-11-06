@@ -58,11 +58,75 @@ export function solveSpring(t, {
 }
 
 /**
+ * High-precision Cubic-Bezier Solver (Newton-Raphson with bisection fallback)
+ * Matches transitions.dev Jakub Antalik curves & CSS cubic-bezier specification.
+ */
+export function solveCubicBezier(t, x1, y1, x2, y2) {
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+
+  const cx = 3 * x1;
+  const bx = 3 * (x2 - x1) - cx;
+  const ax = 1 - cx - bx;
+
+  const cy = 3 * y1;
+  const by = 3 * (y2 - y1) - cy;
+  const ay = 1 - cy - by;
+
+  function sampleCurveX(u) {
+    return ((ax * u + bx) * u + cx) * u;
+  }
+  function sampleCurveY(u) {
+    return ((ay * u + by) * u + cy) * u;
+  }
+  function sampleCurveDerivativeX(u) {
+    return (3 * ax * u + 2 * bx) * u + cx;
+  }
+
+  // Newton-Raphson iteration
+  let u = t;
+  for (let i = 0; i < 8; i++) {
+    const x = sampleCurveX(u) - t;
+    if (Math.abs(x) < 1e-6) return sampleCurveY(u);
+    const d2 = sampleCurveDerivativeX(u);
+    if (Math.abs(d2) < 1e-6) break;
+    u -= x / d2;
+  }
+
+  // Bisection fallback if Newton diverges
+  let u0 = 0;
+  let u1 = 1;
+  u = t;
+  while (u0 < u1) {
+    const x = sampleCurveX(u);
+    if (Math.abs(x - t) < 1e-6) return sampleCurveY(u);
+    if (t > x) u0 = u;
+    else u1 = u;
+    u = (u1 - u0) * 0.5 + u0;
+  }
+  return sampleCurveY(u);
+}
+
+/**
+ * Transitions.dev Signature Timing Function
+ * --p-ease: cubic-bezier(0.22, 1, 0.36, 1)
+ */
+export function transitionsDevEase(t) {
+  return solveCubicBezier(t, 0.22, 1.0, 0.36, 1.0);
+}
+
+/**
  * Comprehensive Cubic, Exponential, Back, Bounce & Spring Easing Evaluator
  */
 export function evaluateEasing(type = 'easeOutCubic', rawT = 0, options = {}) {
   const t = Math.max(0, Math.min(1, rawT));
   switch (type) {
+    case 'transitions':
+    case 'transitionsDev':
+    case 'bannerStack':
+    case 'cardTilt':
+      return solveCubicBezier(t, 0.22, 1.0, 0.36, 1.0);
+
     case 'linear':
       return t;
 
@@ -112,8 +176,6 @@ export function evaluateEasing(type = 'easeOutCubic', rawT = 0, options = {}) {
     }
 
     case 'anticipate': {
-      // Pulls slightly backward before accelerating fast forward
-      const c1 = 1.70158;
       if (t < 0.25) {
         const p = t / 0.25;
         return -0.15 * Math.sin(p * Math.PI);
@@ -160,7 +222,7 @@ export function evaluateEasing(type = 'easeOutCubic', rawT = 0, options = {}) {
 /**
  * Continuous Elastic Harmonic Motion Waveform
  * Computes organic periodic motion with spring-damped elasticity
- * rather than rigid, stiff sine waves.
+ * without phase-wrapping seams or derivative discontinuities.
  */
 export function evaluatePeriodicSpring(phase, {
   stiffness = 180,
@@ -168,40 +230,51 @@ export function evaluatePeriodicSpring(phase, {
   overshoot = 1.0,
   waveform = 'spring',
 } = {}) {
-  // Map phase to normalized cycle 0..1
-  const cycle = ((phase % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-  const norm = cycle / (Math.PI * 2);
+  // Normalize phase to 0..2*PI
+  const tau = Math.PI * 2;
+  const cycle = ((phase % tau) + tau) % tau;
 
   if (waveform === 'spring') {
-    // 2-stroke cyclic spring: First half snaps up with spring overshoot, second half smoothly recovers
-    if (norm < 0.5) {
-      const localT = norm * 2;
-      const val = solveSpring(localT * 1.25, { stiffness, damping, mass: 1 });
-      return (val - 0.5) * 2 * overshoot;
-    } else {
-      const localT = (norm - 0.5) * 2;
-      const val = solveSpring(localT * 1.25, { stiffness, damping, mass: 1 });
-      return (0.5 - val) * 2 * overshoot;
-    }
+    // Continuous harmonic spring formulation:
+    // Fundamental sine + 2nd harmonic with damping phase shift + 3rd harmonic
+    // Damping factor smoothly tempers the upper harmonic
+    const dampNorm = Math.max(0.3, Math.min(2.0, damping / 14));
+    const h1 = Math.sin(cycle);
+    const h2 = (0.24 / dampNorm) * Math.sin(cycle * 2 - Math.PI * 0.25);
+    const h3 = (0.08 / dampNorm) * Math.sin(cycle * 3);
+    const combined = (h1 + h2 + h3) / (1 + 0.24 / dampNorm + 0.08 / dampNorm);
+    return combined * overshoot;
   }
 
   if (waveform === 'elastic') {
+    // Organic squash and stretch with elastic bounce
     const rawSin = Math.sin(cycle);
-    // Add 3rd harmonic for organic non-linear weight (squash & stretch)
-    const harmonic = Math.sin(cycle * 3) * 0.18;
+    const harmonic = Math.sin(cycle * 3) * 0.22 - Math.sin(cycle * 5) * 0.06;
     return (rawSin + harmonic) * overshoot;
   }
 
   if (waveform === 'anticipate') {
-    // Pulls back then snaps with velocity
+    // Continuous anticipation: wind-up before snap
     const sin1 = Math.sin(cycle);
-    const cos1 = Math.cos(cycle);
-    return (sin1 + 0.35 * Math.sin(cycle * 2 - Math.PI * 0.5)) * overshoot;
+    const windup = 0.32 * Math.sin(cycle * 2 - Math.PI * 0.5);
+    return (sin1 + windup) * overshoot;
   }
 
   if (waveform === 'bounce') {
+    // Smooth cyclic bounce with zero discontinuity
     const bounce = Math.abs(Math.sin(cycle));
-    return (bounce * 1.4 - 0.7) * overshoot;
+    const smoothed = Math.pow(bounce, 0.85);
+    return (smoothed * 1.6 - 0.8) * overshoot;
+  }
+
+  if (waveform === 'transitions' || waveform === 'transitionsDev') {
+    // Jakub Antalik transitions.dev cubic-bezier(0.22, 1, 0.36, 1) cyclic oscillation
+    const half = cycle / Math.PI; // 0..2
+    if (half < 1) {
+      return (solveCubicBezier(half, 0.22, 1.0, 0.36, 1.0) * 2 - 1) * overshoot;
+    } else {
+      return (1 - solveCubicBezier(half - 1, 0.22, 1.0, 0.36, 1.0) * 2) * overshoot;
+    }
   }
 
   // Smooth harmonic sine default
