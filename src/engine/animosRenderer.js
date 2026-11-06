@@ -1,8 +1,8 @@
 /**
  * @file animosRenderer.js
  * @description Pure HTML5 2D Canvas 3D/Perspective Card Showcase Renderer
- * reverse-engineered from Animos Editor (https://animos.app/editor) and enhanced
- * with transitions.dev Jakub Antalik motion physics, card tilt glare, and banner stacking.
+ * Enhanced with transitions.dev Jakub Antalik motion physics, customizable
+ * easing curves, glassmorphism, border glow, depth of field, and proportional auto-framing.
  * Supports 32 showcase templates across 9 categories with C1-continuous periodic math.
  */
 
@@ -43,8 +43,8 @@ function drawRoundedRectPath(ctx, x, y, w, h, r) {
 }
 
 /**
- * Draws the content of a showcase card with transitions.dev specular glare
- * and depth shading.
+ * Draws the content of a showcase card with customizable glassmorphism,
+ * transitions.dev specular glare, depth occlusion, and border glow effects.
  */
 function drawShowcaseCardContent(
   ctx,
@@ -54,7 +54,8 @@ function drawShowcaseCardContent(
   cornerRadiusPx,
   mediaSlots = [],
   depthNorm = 1.0,
-  glareAngle = 0
+  glareAngle = 0,
+  showcaseConfig = {}
 ) {
   const customSlot = mediaSlots?.[slotIndex];
   const fallback = DEFAULT_SHOWCASE_CARDS[slotIndex % DEFAULT_SHOWCASE_CARDS.length];
@@ -84,6 +85,41 @@ function drawShowcaseCardContent(
       -drawH / 2 + panY * cardH * 0.25,
       drawW,
       drawH
+    );
+  } else if (showcaseConfig.glassmorphism) {
+    // Glassmorphism Frosted Acrylic Finish
+    const glassGrad = ctx.createLinearGradient(-cardW / 2, -cardH / 2, cardW / 2, cardH / 2);
+    glassGrad.addColorStop(0, 'rgba(255, 255, 255, 0.16)');
+    glassGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.06)');
+    glassGrad.addColorStop(1, 'rgba(255, 255, 255, 0.02)');
+    ctx.fillStyle = glassGrad;
+    ctx.fillRect(-cardW / 2, -cardH / 2, cardW, cardH);
+
+    // Subtle glass reflections
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Top-left slot label
+    const pad = cardW * 0.08;
+    ctx.fillStyle = '#4ade80';
+    ctx.font = `700 ${Math.max(10, Math.round(cardW * 0.055))}px 'JetBrains Mono', monospace`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(
+      customSlot?.subtitle || fallback.subtitle,
+      -cardW / 2 + pad,
+      -cardH / 2 + pad
+    );
+
+    // Bottom-left title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `800 ${Math.max(12, Math.round(cardW * 0.1))}px 'Space Grotesk', sans-serif`;
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(
+      customSlot?.title || fallback.title,
+      -cardW / 2 + pad,
+      cardH / 2 - pad
     );
   } else {
     // Vibrant procedural design showcase card
@@ -157,20 +193,27 @@ function drawShowcaseCardContent(
   }
 
   // Transitions.dev Specular Glare (Screen blend light sheen tracking 3D tilt)
-  const gx = Math.cos(glareAngle) * cardW * 0.35;
-  const gy = Math.sin(glareAngle) * cardH * 0.35;
-  const glareGrad = ctx.createRadialGradient(
-    gx, gy, 0,
-    gx, gy, Math.max(cardW, cardH) * 0.95
-  );
-  glareGrad.addColorStop(0, 'rgba(255, 255, 255, 0.24)');
-  glareGrad.addColorStop(0.45, 'rgba(255, 255, 255, 0.06)');
-  glareGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  ctx.fillStyle = glareGrad;
-  ctx.fill();
+  const glareMult = (showcaseConfig.glareIntensity ?? 60) / 100;
+  if (glareMult > 0.01) {
+    const gx = Math.cos(glareAngle) * cardW * 0.35;
+    const gy = Math.sin(glareAngle) * cardH * 0.35;
+    const glareGrad = ctx.createRadialGradient(
+      gx, gy, 0,
+      gx, gy, Math.max(cardW, cardH) * 0.95
+    );
+    glareGrad.addColorStop(0, `rgba(255, 255, 255, ${(0.30 * glareMult).toFixed(3)})`);
+    glareGrad.addColorStop(0.45, `rgba(255, 255, 255, ${(0.08 * glareMult).toFixed(3)})`);
+    glareGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = glareGrad;
+    ctx.fill();
+  }
 
-  // Depth occlusion (farther cards are gently dimmed for natural photographic depth)
-  if (depthNorm < 0.95) {
+  // Depth of field simulation (distant cards softly dimmed)
+  if (showcaseConfig.depthOfField && depthNorm < 0.85) {
+    const dofAlpha = Math.max(0, Math.min(0.45, (1 - depthNorm) * 0.45));
+    ctx.fillStyle = `rgba(16, 25, 53, ${dofAlpha.toFixed(3)})`;
+    ctx.fillRect(-cardW / 2, -cardH / 2, cardW, cardH);
+  } else if (depthNorm < 0.95) {
     const dimAlpha = Math.max(0, Math.min(0.55, (1 - depthNorm) * 0.5));
     ctx.fillStyle = `rgba(0, 0, 0, ${dimAlpha.toFixed(3)})`;
     ctx.fillRect(-cardW / 2, -cardH / 2, cardW, cardH);
@@ -178,11 +221,25 @@ function drawShowcaseCardContent(
 
   // Subtle inner card bevel border
   drawRoundedRectPath(ctx, -cardW / 2, -cardH / 2, cardW, cardH, cornerRadiusPx);
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.20)';
+  ctx.strokeStyle = showcaseConfig.glassmorphism
+    ? 'rgba(255, 255, 255, 0.45)'
+    : 'rgba(255, 255, 255, 0.20)';
   ctx.lineWidth = Math.max(1, cardW * 0.008);
   ctx.stroke();
 
   ctx.restore();
+
+  // Outer Neon Border Glow Effect
+  if (showcaseConfig.borderGlow) {
+    ctx.save();
+    ctx.shadowColor = showcaseConfig.borderGlowColor || '#22c55e';
+    ctx.shadowBlur = 14;
+    drawRoundedRectPath(ctx, -cardW / 2, -cardH / 2, cardW, cardH, cornerRadiusPx);
+    ctx.strokeStyle = showcaseConfig.borderGlowColor || '#22c55e';
+    ctx.lineWidth = 2.0;
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 function getCardAspectMultiplier(aspect = '1:1') {
@@ -199,6 +256,9 @@ function getCardAspectMultiplier(aspect = '1:1') {
     case '3:4':
     case '3:4 Poster':
       return { w: 0.86, h: 1.15 };
+    case '4:3':
+    case '4:3 Classic':
+      return { w: 1.15, h: 0.86 };
     case '1:1':
     default:
       return { w: 1, h: 1 };
@@ -235,6 +295,8 @@ export function renderAnimosShowcase({
 
   const tplId = showcaseConfig.templateId;
   const u = Math.min(width, height) / 100;
+
+  // Symmetrical and customizable positioning
   const cx = width / 2 + (showcaseConfig.offsetX || 0) * u;
   const cy = height / 2 + (showcaseConfig.offsetY || 0) * u;
 
@@ -250,11 +312,34 @@ export function renderAnimosShowcase({
   const cornerRadiusPx = (showcaseConfig.cornerRadius ?? 3) * u;
   const slotCount = Math.max(3, Math.min(16, showcaseConfig.slots || 8));
   const safeDuration = Math.max(2, duration || 12);
-  const progress = (localTime % safeDuration) / safeDuration;
+
+  // Speed multiplier & customizable motion curve
+  const speedMult = showcaseConfig.motionSpeed || 1.0;
+  const rawProgress = ((localTime * speedMult) % safeDuration) / safeDuration;
   const tau = Math.PI * 2;
+
+  let progress = rawProgress;
+  const curveType = showcaseConfig.motionCurve || 'transitions';
+  if (curveType === 'transitions') {
+    // Continuous harmonic cycle shaped by transitions.dev decel curve
+    const cycle = rawProgress * 2;
+    if (cycle < 1) {
+      progress = solveCubicBezier(cycle, 0.22, 1.0, 0.36, 1.0) * 0.5;
+    } else {
+      progress = 0.5 + solveCubicBezier(cycle - 1, 0.22, 1.0, 0.36, 1.0) * 0.5;
+    }
+  } else if (curveType === 'spring') {
+    progress = rawProgress + 0.04 * Math.sin(rawProgress * tau * 2);
+  } else if (curveType === 'elastic') {
+    progress = rawProgress + 0.07 * (Math.sin(rawProgress * tau) + Math.sin(rawProgress * tau * 3) * 0.2);
+  } else if (curveType === 'anticipate') {
+    progress = rawProgress - 0.05 * Math.sin(rawProgress * tau);
+  }
+
   const tiltRad = ((showcaseConfig.tilt ?? -18) * Math.PI) / 180;
   const backFade = (showcaseConfig.backFade ?? 55) / 100;
   const focalLength = 900; // Camera focal length for natural perspective
+  const gapPx = (showcaseConfig.spreadGap ?? 6) * u * 0.5;
 
   // Optional Animos gradient backdrop
   if (showcaseConfig.bgGradient && showcaseConfig.bgGradient !== 'none') {
@@ -284,9 +369,8 @@ export function renderAnimosShowcase({
       const z3 = Math.cos(angle) * rz;
       const y3 = -z3 * Math.sin(tiltRad);
 
-      // True perspective division
       const pScale = focalLength / (focalLength + z3);
-      const depthNorm = (z3 / rz + 1) / 2; // 0 (back) .. 1 (front)
+      const depthNorm = (z3 / rz + 1) / 2;
       const alpha = 1 - (1 - depthNorm) * backFade;
 
       const rot =
@@ -315,30 +399,28 @@ export function renderAnimosShowcase({
   }
 
   // =========================================================================
-  // 2. SPHERE WALL & CARD GLOBE (Natural 3D Dome / Geodesic Sphere)
+  // 2. SPHERE WALL & CARD GLOBE (Panoramic Amphitheater Dome)
   // =========================================================================
   else if (tplId === 'sphere-globe' || tplId === 'sphere-wall') {
     const isWall = tplId === 'sphere-wall';
     const rows = 3;
     const cols = Math.ceil(slotCount / rows);
-    const radius = Math.min(width, height) * (isWall ? 0.44 : 0.36);
+    const radius = Math.min(width, height) * (isWall ? 0.46 : 0.38);
     let idx = 0;
 
     for (let r = 0; r < rows; r++) {
-      const lat = ((r - (rows - 1) / 2) / rows) * (isWall ? 0.75 : 1.15);
+      const lat = ((r - (rows - 1) / 2) / rows) * (isWall ? 0.65 : 1.15);
       for (let c = 0; c < cols; c++) {
-        // Continuous rotation around dome
         const lon = (c / cols) * tau + progress * tau + (isWall ? 0 : r * 0.35);
         const ringR = Math.cos(lat) * radius;
         const x3 = Math.sin(lon) * ringR;
         const z3 = Math.cos(lon) * ringR;
-        const y3 = Math.sin(lat) * radius + z3 * Math.sin(tiltRad * 0.4);
+        const y3 = Math.sin(lat) * radius + z3 * Math.sin(tiltRad * 0.35);
 
         const pScale = focalLength / (focalLength + z3);
         const depthNorm = (z3 / radius + 1) / 2;
 
-        // Front-facing priority for Wall (hide cards completely behind the camera dome)
-        const wallAlpha = isWall ? Math.max(0, Math.cos(lon)) : 1;
+        const wallAlpha = isWall ? Math.max(0, Math.cos(lon) + 0.25) : 1;
         const alpha = Math.max(0, Math.min(1, (0.35 + depthNorm * 0.65) * wallAlpha));
 
         drawCardsList.push({
@@ -346,9 +428,9 @@ export function renderAnimosShowcase({
           x: cx + x3 * pScale,
           y: cy + y3 * pScale,
           z: z3,
-          scaleX: pScale * Math.max(0.3, Math.abs(Math.cos(lon * 0.7)) * 0.6 + 0.4),
+          scaleX: pScale * Math.max(0.35, Math.abs(Math.cos(lon * 0.7)) * 0.6 + 0.4),
           scaleY: pScale,
-          rotation: Math.sin(lon) * 0.12,
+          rotation: Math.sin(lon) * 0.1,
           alpha,
           depthNorm,
           glareAngle: lon,
@@ -362,7 +444,7 @@ export function renderAnimosShowcase({
   // =========================================================================
   else if (tplId === 'spiral-stream') {
     const totalCards = Math.max(slotCount, 12);
-    const rx = width * 0.28;
+    const rx = width * 0.30;
     const spanH = height * 0.72;
 
     for (let i = 0; i < totalCards; i++) {
@@ -374,7 +456,6 @@ export function renderAnimosShowcase({
 
       const pScale = focalLength / (focalLength + z3);
       const depthNorm = (z3 / (rx * 0.75) + 1) / 2;
-      // Smooth sinusoidal envelope at top and bottom to avoid snapping
       const edgeEnvelope = Math.sin(norm * Math.PI);
 
       drawCardsList.push({
@@ -401,9 +482,10 @@ export function renderAnimosShowcase({
       const ringAngle = i * 1.57 + progress * tau * 0.2;
       const dist = Math.pow(zNorm, 2.0);
       const spreadR = Math.min(width, height) * 0.42 * dist;
-      const floatY = Math.sin(localTime * 2.2 + i * 0.7) * 6 * (u / 10);
+      const floatY = showcaseConfig.floatingLevitation !== false
+        ? Math.sin(localTime * 2.2 + i * 0.7) * 5 * (u / 10)
+        : 0;
 
-      // Smooth envelope so cards fade in at vanishing point and fade out at camera lens
       const edgeAlpha = Math.sin(zNorm * Math.PI);
       const scale = 0.22 + dist * 1.15;
 
@@ -423,30 +505,26 @@ export function renderAnimosShowcase({
   }
 
   // =========================================================================
-  // 5. FAN SHUFFLE & DEPTH STACK FAN (Jakub Antalik / Transitions.dev Poker Fan)
-  // Symmetrical organic fan arc with continuous spring physics
+  // 5. FAN SHUFFLE & DEPTH STACK FAN (Symmetrical Poker Deck Spread)
   // =========================================================================
   else if (tplId === 'fan-shuffle' || tplId === 'depth-stack-fan') {
     const total = Math.max(4, slotCount);
-    // Smooth breathing fan spread using transitions.dev cubic curve
-    const cycleNorm = ((progress * 2) % 1);
     const breathe = 0.75 + 0.25 * Math.sin(progress * tau);
-    const maxFanAngle = 0.42 * breathe;
-    const fanRadius = height * 0.75;
+    const maxFanAngle = 0.38 * breathe;
+    const fanRadius = height * 0.70;
 
     for (let i = 0; i < total; i++) {
-      // Symmetrical normalized position from center: -1 .. 0 .. +1
       const norm = (i - (total - 1) / 2) / Math.max(1, (total - 1) / 2);
       const angle = norm * maxFanAngle;
-      const xOffset = Math.sin(angle) * fanRadius;
+      const xOffset = Math.sin(angle) * fanRadius + norm * gapPx;
       const yOffset = (1 - Math.cos(angle)) * fanRadius * 0.65;
-      const floatOffset = Math.sin(localTime * 2.0 + i * 0.5) * 5 * (u / 10);
+      const floatOffset = showcaseConfig.floatingLevitation !== false
+        ? Math.sin(localTime * 2.0 + i * 0.5) * 5 * (u / 10)
+        : 0;
 
-      // Center card pops slightly higher in z-depth
       const zDepth = 100 - Math.abs(norm) * 30 + i * 2;
       const depthNorm = 1 - Math.abs(norm) * 0.25;
 
-      // Realistic 3D card tilt: cards angled away have gentle perspective foreshortening
       const cardTiltScaleX = 0.92 * Math.cos(norm * 0.22);
       const cardTiltScaleY = 0.92;
 
@@ -466,21 +544,19 @@ export function renderAnimosShowcase({
   }
 
   // =========================================================================
-  // 6. CARD TOSS (Smooth Ballistic Toss & Catch Physics)
+  // 6. CARD TOSS (Wide Dynamic Ballistic Trajectory)
   // =========================================================================
   else if (tplId === 'card-toss') {
     for (let i = 0; i < slotCount; i++) {
-      // Shift phase per card so each card tosses in sequence
       const tossPhase = ((progress * slotCount + i) % slotCount) / slotCount;
       const arc = Math.sin(tossPhase * Math.PI);
-      const easeArc = Math.pow(arc, 1.4); // Ballistic hang time at apex
+      const easeArc = Math.pow(arc, 1.35);
 
-      const tossX = (tossPhase - 0.5) * width * 0.48;
-      const tossY = -easeArc * height * 0.38 + 20 * u;
-      const tossRot = (tossPhase - 0.5) * 0.32;
-      const pScale = 0.85 + easeArc * 0.3;
-
-      // Fade in at launch and fade out at catch to eliminate snapping
+      // Wide distribution so cards do not bunch up into a square lump
+      const tossX = (tossPhase - 0.5) * width * 0.58;
+      const tossY = -easeArc * height * 0.32 + 15 * u;
+      const tossRot = (tossPhase - 0.5) * 0.28;
+      const pScale = 0.88 + easeArc * 0.25;
       const alpha = Math.sin(tossPhase * Math.PI);
 
       drawCardsList.push({
@@ -505,10 +581,10 @@ export function renderAnimosShowcase({
     for (let i = 0; i < slotCount; i++) {
       const angle = (i / slotCount) * tau + progress * tau;
       const spiralNorm = ((i / slotCount + progress * 0.5) % 1);
-      const spiralR = (width * 0.36) * (0.35 + 0.65 * spiralNorm);
+      const spiralR = (width * 0.35) * (0.35 + 0.65 * spiralNorm);
       const x3 = Math.sin(angle) * spiralR;
       const z3 = Math.cos(angle) * (spiralR * 0.6);
-      const y3 = (spiralNorm - 0.5) * height * 0.5;
+      const y3 = (spiralNorm - 0.5) * height * 0.48;
 
       const pScale = focalLength / (focalLength + z3);
       const depthNorm = (z3 / (width * 0.25) + 1) / 2;
@@ -530,7 +606,7 @@ export function renderAnimosShowcase({
   }
 
   // =========================================================================
-  // 8. FLYBY ROLODEX & DECK PEEL & CENTER STAGE (3D Vertical Revolving Drum)
+  // 8. FLYBY ROLODEX, DECK PEEL, CENTER STAGE, DIAGONAL WIPE (Proportional 3D Revolving Drum)
   // =========================================================================
   else if (
     tplId === 'flyby-rolodex' ||
@@ -538,7 +614,8 @@ export function renderAnimosShowcase({
     tplId === 'deck-peel' ||
     tplId === 'diagonal-wipe'
   ) {
-    const ry = height * 0.38;
+    const isWipe = tplId === 'diagonal-wipe';
+    const ry = height * (isWipe ? 0.32 : 0.38);
     const rz = 140;
 
     for (let i = 0; i < slotCount; i++) {
@@ -548,19 +625,21 @@ export function renderAnimosShowcase({
 
       const pScale = focalLength / (focalLength + z3);
       const depthNorm = (z3 / rz + 1) / 2;
-      // Vertical foreshortening as cards rotate away from camera
       const cosA = Math.cos(angle);
-      const faceVisible = cosA > -0.2;
+      const faceVisible = cosA > -0.15;
       const alpha = faceVisible ? Math.max(0.12, depthNorm) : 0;
+
+      // Diagonal wipe introduces an elegant 25° shear translation
+      const wipeX = isWipe ? Math.sin(angle) * (width * 0.22) : 0;
 
       drawCardsList.push({
         slotIndex: i,
-        x: cx,
+        x: cx + wipeX,
         y: cy + y3 * pScale,
         z: z3,
-        scaleX: pScale * 1.05,
+        scaleX: pScale * (isWipe ? 0.95 : 1.05),
         scaleY: pScale * Math.max(0.35, Math.abs(cosA) * 0.85 + 0.15),
-        rotation: 0,
+        rotation: isWipe ? -0.12 : 0,
         alpha,
         depthNorm,
         glareAngle: angle,
@@ -569,7 +648,7 @@ export function renderAnimosShowcase({
   }
 
   // =========================================================================
-  // 9. ISOMETRIC STAIRWAY & CASCADE (Architectural Stepped Deck)
+  // 9. ISOMETRIC STAIRWAY & CASCADE DECK (Architectural Stepped Deck)
   // =========================================================================
   else if (
     tplId === 'iso-cascade' ||
@@ -583,16 +662,18 @@ export function renderAnimosShowcase({
 
     for (let i = 0; i < spanCount; i++) {
       const norm = ((i / spanCount + progress) % 1);
-      const centered = norm - 0.5; // -0.5 .. +0.5
+      const centered = norm - 0.5;
       const distFromCenter = Math.abs(centered * 2);
 
       const spotlightBoost =
         tplId === 'iso-focus' ? Math.max(0, 1 - distFromCenter * 2.2) * 0.35 : 0;
-      const floatOffset = Math.sin(localTime * 2.0 + i) * 5 * (u / 10);
+      const floatOffset = showcaseConfig.floatingLevitation !== false
+        ? Math.sin(localTime * 2.0 + i) * 5 * (u / 10)
+        : 0;
 
-      const x = cx + centered * width * 0.62;
-      const y = cy + centered * height * 0.45 - spotlightBoost * 50 * u + floatOffset;
-      // Seamless envelope fade at conveyor boundaries
+      // Spacing adjusted with gapPx so cards do not obscure foreground typography
+      const x = cx + centered * (width * 0.60 + spanCount * gapPx);
+      const y = cy + centered * height * 0.42 - spotlightBoost * 45 * u + floatOffset;
       const edgeAlpha = Math.sin(norm * Math.PI);
 
       drawCardsList.push({
@@ -630,9 +711,11 @@ export function renderAnimosShowcase({
 
       if (tplId === 'curved-carousel-flow') {
         const angle = (rel / (slotCount * 0.46)) * Math.PI * 0.5;
-        const arcX = Math.sin(angle) * (width * 0.42);
+        const arcX = Math.sin(angle) * (width * 0.42 + gapPx * 4);
         const arcZ = Math.cos(angle) * 120;
-        const floatOffset = Math.sin(localTime * 2.0 + i * 0.8) * 6 * (u / 10);
+        const floatOffset = showcaseConfig.floatingLevitation !== false
+          ? Math.sin(localTime * 2.0 + i * 0.8) * 5 * (u / 10)
+          : 0;
         const pScale = focalLength / (focalLength + (120 - arcZ));
 
         drawCardsList.push({
@@ -648,11 +731,12 @@ export function renderAnimosShowcase({
           glareAngle: angle,
         });
       } else {
-        // Apple Cover Flow / Hero Reel with smooth perspective tilt
-        const spreadX = rel * cardW * 0.65 + sideSign * Math.min(1, absRel) * cardW * 0.25;
+        const spreadX = rel * (cardW * 0.65 + gapPx) + sideSign * Math.min(1, absRel) * cardW * 0.25;
         const scale = isCenter ? 1.2 : Math.max(0.6, 0.94 - absRel * 0.12);
         const squeezeX = isCenter ? 1 : 0.72;
-        const floatOffset = Math.sin(localTime * 1.8 + i) * 5 * (u / 10);
+        const floatOffset = showcaseConfig.floatingLevitation !== false
+          ? Math.sin(localTime * 1.8 + i) * 5 * (u / 10)
+          : 0;
 
         drawCardsList.push({
           slotIndex: i,
@@ -672,7 +756,6 @@ export function renderAnimosShowcase({
 
   // =========================================================================
   // 11. TICKER TILT, GRID DIVE, FEED SCROLL & SPOTLIGHT ZOOM
-  // Seamless edge envelopes eliminate all jumping and popping
   // =========================================================================
   else if (
     tplId === 'ticker-tilt' ||
@@ -682,7 +765,6 @@ export function renderAnimosShowcase({
   ) {
     const cols = 3;
     const rows = 3;
-    const gapPx = (showcaseConfig.gap ?? 4) * u;
     const isTilt = tplId === 'ticker-tilt';
 
     for (let r = 0; r < rows; r++) {
@@ -690,14 +772,12 @@ export function renderAnimosShowcase({
       for (let c = 0; c < cols; c++) {
         const idx = (r * cols + c) % slotCount;
         const rawOffset = ((progress * dir + c / cols) % 1 + 1) % 1;
-        const centeredX = rawOffset - 0.5; // -0.5 .. +0.5
+        const centeredX = rawOffset - 0.5;
         const rowOffset = r - (rows - 1) / 2;
 
-        const gx = centeredX * (cols * (cardW + gapPx));
-        const gy = rowOffset * (cardH + gapPx);
-        // Perspective depth scale per row
+        const gx = centeredX * (cols * (cardW + gapPx * 2));
+        const gy = rowOffset * (cardH + gapPx * 2);
         const perspectiveScale = isTilt ? 0.85 + (r / rows) * 0.32 : 1;
-        // Edge envelope fade eliminates jumping when items loop around
         const edgeEnvelope = Math.sin(rawOffset * Math.PI);
 
         drawCardsList.push({
@@ -718,14 +798,13 @@ export function renderAnimosShowcase({
 
   // =========================================================================
   // 12. NATURAL ROBUST FALLBACK (Continuous Harmonic Spread)
-  // Zero phase jumping; all items strictly bound within seamless envelopes
   // =========================================================================
   else {
     for (let i = 0; i < slotCount; i++) {
       const phase = ((progress + i / slotCount) % 1);
       const arc = Math.sin(phase * Math.PI);
       const spreadNorm = (i - (slotCount - 1) / 2) / Math.max(1, (slotCount - 1) / 2);
-      const x = cx + spreadNorm * width * 0.36;
+      const x = cx + spreadNorm * (width * 0.36 + gapPx * 2);
       const y = cy + Math.sin(progress * tau + i * 0.8) * 12 * (u / 10);
       const scale = 0.85 + 0.15 * Math.cos(progress * tau + i);
 
@@ -747,7 +826,7 @@ export function renderAnimosShowcase({
   // Sort back-to-front by z depth
   drawCardsList.sort((a, b) => a.z - b.z);
 
-  // Draw each card with depth-aware lighting and shadows
+  // Draw each card with depth-aware lighting, glassmorphism, and neon glow
   for (const item of drawCardsList) {
     if (item.alpha <= 0.01) continue;
 
@@ -759,7 +838,7 @@ export function renderAnimosShowcase({
     ctx.scale(item.scaleX, item.scaleY);
 
     // Natural multi-tier drop shadow matching transitions.dev depth scale
-    if (showcaseConfig.shadowEnabled !== false) {
+    if (showcaseConfig.shadowEnabled !== false && !showcaseConfig.glassmorphism) {
       ctx.save();
       const shadowBlur = (16 + (item.depthNorm || 0.5) * 18) * (u / 10);
       const shadowY = (8 + (item.depthNorm || 0.5) * 12) * (u / 10);
@@ -780,7 +859,8 @@ export function renderAnimosShowcase({
       cornerRadiusPx,
       mediaSlots,
       item.depthNorm ?? 1.0,
-      item.glareAngle ?? 0
+      item.glareAngle ?? 0,
+      showcaseConfig
     );
 
     ctx.restore();

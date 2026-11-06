@@ -57,6 +57,7 @@ export default function TimelinePanel({
   onClearLayerKeyframes,
   onUpdateSceneDuration,
   onChangeFps,
+  onAddScene,
 }) {
   const [viewMode, setViewMode] = useState('keyframes'); // 'keyframes' | 'graph'
   const [activeProp, setActiveProp] = useState('posX'); // 'posX' | 'posY' | 'scale' | 'rotation' | 'opacity'
@@ -137,9 +138,12 @@ export default function TimelinePanel({
     <div className="px-2.5 pb-2 bg-[#0e0e0e] shrink-0 select-none space-y-2">
       {/* Proportional Horizontal Scenes Bar in Advanced Mode (Screenshots 15, 31-35) */}
       {(project?.scenes?.length || 0) > 1 && (
-        <div className="h-11 bg-[#161616] border border-neutral-800/80 rounded-2xl px-3.5 flex items-center gap-3">
-          <span className="text-xs font-medium text-neutral-300 shrink-0">Scenes</span>
-          <div className="flex-1 flex items-center gap-2 h-7">
+        <div className="h-11 bg-[#161616] border border-neutral-800/80 rounded-2xl px-3.5 flex items-center gap-3 overflow-hidden">
+          <span className="text-xs font-semibold text-neutral-300 shrink-0 flex items-center gap-1.5">
+            <span>Scenes</span>
+            <span className="text-[10px] font-mono text-neutral-500">({project.scenes.length})</span>
+          </span>
+          <div className="flex-1 flex items-center gap-2 h-7 overflow-x-auto custom-scrollbar min-w-0 py-0.5">
             {project.scenes.map((sc, idx) => {
               const active = idx === activeSceneIndex;
               const num = String(idx + 1).padStart(2, '0');
@@ -150,17 +154,31 @@ export default function TimelinePanel({
                   type="button"
                   onClick={() => setActiveSceneIndex?.(idx)}
                   style={{ flex: flexWeight }}
-                  className={`h-full px-3 rounded-lg border flex items-center gap-1.5 text-xs transition-all overflow-hidden ${
+                  className={`h-full min-w-[120px] max-w-[240px] px-3 rounded-lg border flex items-center justify-between gap-1.5 text-xs transition-all shrink-0 ${
                     active
                       ? 'bg-[#159947]/20 border-[#22c55e] text-white font-semibold shadow-sm'
                       : 'bg-[#1b1b1b] border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-700'
                   }`}
                 >
-                  <span className="font-mono text-[10px] text-neutral-400 shrink-0">{num}</span>
-                  <span className="truncate">{sc.name}</span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-mono text-[10px] text-neutral-400 shrink-0">{num}</span>
+                    <span className="truncate">{sc.name}</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-neutral-500 shrink-0">{sc.duration || 4}s</span>
                 </button>
               );
             })}
+            {onAddScene && (
+              <button
+                type="button"
+                onClick={onAddScene}
+                className="h-full px-2.5 rounded-lg border border-dashed border-neutral-700 hover:border-[#22c55e] bg-[#1a1a1a] hover:bg-[#202020] text-neutral-400 hover:text-white flex items-center gap-1 text-[11px] font-semibold shrink-0 transition-colors"
+                title="Add a new scene"
+              >
+                <Plus className="w-3 h-3 text-[#4ade80]" />
+                <span className="whitespace-nowrap">Add</span>
+              </button>
+            )}
           </div>
         </div>
       )}

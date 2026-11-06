@@ -9,6 +9,7 @@ import {
   Shuffle,
   Lock,
   Link2,
+  Plus,
 } from 'lucide-react';
 import { ASPECT_RATIOS } from '../../constants/fonts';
 import { renderSceneToCanvas, getLayerBoundingBox } from '../../engine/canvasRenderer';
@@ -43,6 +44,7 @@ export default function CanvasViewport({
   onChangeRatio,
   onGeneratePalette,
   onToggleLockSwatch,
+  onAddScene,
 }) {
   const containerRef = useRef(null);
   const colorsRef = useRef(null);
@@ -683,20 +685,35 @@ export default function CanvasViewport({
 
       {/* Horizontal Scenes Strip (Below Canvas in Quick Editor Mode — Screenshots 8, 9, 10, 26) */}
       {editorMode === 'quick' && (
-        <div className="h-[82px] bg-[#161616] border border-neutral-800/80 rounded-2xl px-4 flex items-center gap-3 shrink-0">
-          <span className="text-xs font-medium text-neutral-400 shrink-0 mr-1">Scenes</span>
-          <div className="flex-1 grid grid-cols-3 gap-2.5">
+        <div className="h-[84px] bg-[#161616] border border-neutral-800/80 rounded-2xl px-4 flex items-center gap-3 shrink-0 overflow-hidden">
+          <span className="text-xs font-semibold text-neutral-300 shrink-0 mr-1 flex items-center gap-1.5">
+            <span>Scenes</span>
+            <span className="text-[10px] font-mono text-neutral-500">({project.scenes.length})</span>
+          </span>
+          <div className="flex-1 flex items-center gap-2.5 overflow-x-auto custom-scrollbar py-2 min-w-0">
             {project.scenes.map((sc, idx) => (
-              <SceneStripCard
-                key={sc.id}
-                scene={sc}
-                project={project}
-                index={idx}
-                ratio={project.ratio}
-                isActive={idx === activeSceneIndex}
-                onSelect={() => setActiveSceneIndex(idx)}
-              />
+              <div key={sc.id} className="shrink-0 min-w-[140px] max-w-[200px] flex-1">
+                <SceneStripCard
+                  scene={sc}
+                  project={project}
+                  index={idx}
+                  ratio={project.ratio}
+                  isActive={idx === activeSceneIndex}
+                  onSelect={() => setActiveSceneIndex(idx)}
+                />
+              </div>
             ))}
+            <button
+              type="button"
+              onClick={onAddScene}
+              className="h-14 px-3.5 rounded-xl border border-dashed border-neutral-700 hover:border-[#22c55e] bg-[#1a1a1a] hover:bg-[#202020] text-neutral-400 hover:text-white flex items-center gap-2 text-xs font-semibold shrink-0 transition-all group"
+              title="Add a new scene to project"
+            >
+              <div className="w-5 h-5 rounded-md bg-[#252525] group-hover:bg-[#159947] flex items-center justify-center transition-colors">
+                <Plus className="w-3.5 h-3.5 text-neutral-300 group-hover:text-white" />
+              </div>
+              <span className="whitespace-nowrap">Add Scene</span>
+            </button>
           </div>
         </div>
       )}

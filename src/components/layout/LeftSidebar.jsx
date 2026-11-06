@@ -677,11 +677,55 @@ export default function LeftSidebar({
 
                 {/* Animos 3D Controls (shown when a showcase template is active) */}
                 {project.showcase?.templateId && project.showcase.templateId !== 'none' && (
-                  <div className="space-y-3 pt-3 border-t border-neutral-800">
-                    <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
-                      SHOWCASE GEOMETRY & CAMERA
+                  <div className="space-y-3.5 pt-3 border-t border-neutral-800">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                        SHOWCASE GEOMETRY & CAMERA
+                      </div>
+                      <span className="text-[10px] font-mono text-[#4ade80]">Transitions.dev 3D</span>
                     </div>
 
+                    {/* Vertical Position (Y Offset) — Solves typography overlap */}
+                    <div>
+                      <div className="flex justify-between text-[11px] mb-1">
+                        <span className="text-neutral-300">Vertical Framing (Y-Offset)</span>
+                        <span className="font-mono text-neutral-400">
+                          {project.showcase.offsetY ?? 0}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-40}
+                        max={40}
+                        value={project.showcase.offsetY ?? 0}
+                        onChange={(e) =>
+                          onUpdateShowcase?.({ offsetY: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                      <div className="flex gap-1.5 mt-1.5">
+                        {[
+                          { label: 'Above Title', val: -22 },
+                          { label: 'Center', val: 0 },
+                          { label: 'Below Title', val: 24 },
+                        ].map((pos) => (
+                          <button
+                            key={pos.label}
+                            type="button"
+                            onClick={() => onUpdateShowcase?.({ offsetY: pos.val })}
+                            className={`flex-1 py-1 rounded-md text-[10px] font-medium border transition-colors ${
+                              (project.showcase.offsetY ?? 0) === pos.val
+                                ? 'bg-[#159947]/20 border-[#22c55e] text-[#4ade80]'
+                                : 'bg-[#1a1a1a] border-neutral-800 text-neutral-400 hover:text-white'
+                            }`}
+                          >
+                            {pos.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Card Size */}
                     <div>
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Card Size</span>
@@ -691,8 +735,8 @@ export default function LeftSidebar({
                       </div>
                       <input
                         type="range"
-                        min={10}
-                        max={52}
+                        min={12}
+                        max={65}
                         value={project.showcase.cardSize ?? 24}
                         onChange={(e) =>
                           onUpdateShowcase?.({ cardSize: Number(e.target.value) })
@@ -701,6 +745,72 @@ export default function LeftSidebar({
                       />
                     </div>
 
+                    {/* Card Spacing Gap */}
+                    <div>
+                      <div className="flex justify-between text-[11px] mb-1">
+                        <span className="text-neutral-300">Card Spread Spacing</span>
+                        <span className="font-mono text-neutral-400">
+                          {project.showcase.spreadGap ?? 6}px
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={32}
+                        value={project.showcase.spreadGap ?? 6}
+                        onChange={(e) =>
+                          onUpdateShowcase?.({ spreadGap: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
+
+                    {/* Motion Curve & Speed Customization */}
+                    <div className="space-y-2 pt-2 border-t border-neutral-800/80">
+                      <div className="text-[11px] font-semibold text-white">Motion Dynamics & Curves</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] text-neutral-400 mb-1">
+                            Easing Curve
+                          </label>
+                          <select
+                            value={project.showcase.motionCurve || 'transitions'}
+                            onChange={(e) =>
+                              onUpdateShowcase?.({ motionCurve: e.target.value })
+                            }
+                            className="w-full px-2 py-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-700 text-xs text-white"
+                          >
+                            <option value="transitions">Transitions.dev Fluid</option>
+                            <option value="spring">Physics Spring</option>
+                            <option value="elastic">Elastic Rubber</option>
+                            <option value="anticipate">Anticipate Snap</option>
+                            <option value="linear">Linear Drift</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] text-neutral-400 mb-1">
+                            Motion Speed ({project.showcase.motionSpeed ?? 1.0}×)
+                          </label>
+                          <select
+                            value={project.showcase.motionSpeed ?? 1.0}
+                            onChange={(e) =>
+                              onUpdateShowcase?.({ motionSpeed: Number(e.target.value) })
+                            }
+                            className="w-full px-2 py-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-700 text-xs text-white"
+                          >
+                            <option value={0.5}>0.5× Slow</option>
+                            <option value={0.75}>0.75× Calm</option>
+                            <option value={1.0}>1.0× Normal</option>
+                            <option value={1.25}>1.25× Brisk</option>
+                            <option value={1.5}>1.5× Dynamic</option>
+                            <option value={2.0}>2.0× Rapid</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Aspect & Backdrop */}
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-[10px] text-neutral-400 mb-1">
@@ -742,6 +852,7 @@ export default function LeftSidebar({
                       </div>
                     </div>
 
+                    {/* Camera Tilt */}
                     <div>
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Camera Tilt</span>
@@ -761,6 +872,7 @@ export default function LeftSidebar({
                       />
                     </div>
 
+                    {/* Depth Fade */}
                     <div>
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Depth Fade</span>
@@ -780,31 +892,141 @@ export default function LeftSidebar({
                       />
                     </div>
 
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-xs text-neutral-300">Audio Reactive Pulse</span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={project.showcase.audioReactive !== false}
-                        onClick={() =>
-                          onUpdateShowcase?.({
-                            audioReactive: project.showcase.audioReactive === false,
-                          })
-                        }
-                        className={`w-9 h-5 rounded-full transition-colors p-0.5 ${
-                          project.showcase.audioReactive !== false
-                            ? 'bg-[#159947]'
-                            : 'bg-neutral-700'
-                        }`}
-                      >
-                        <div
-                          className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                            project.showcase.audioReactive !== false
-                              ? 'translate-x-4'
-                              : 'translate-x-0'
-                          }`}
+                    {/* Card Visual Effects Rack */}
+                    <div className="space-y-2.5 pt-2 border-t border-neutral-800/80">
+                      <div className="text-[11px] font-semibold text-white">Card Effects & Styling</div>
+
+                      {/* Glare Intensity */}
+                      <div>
+                        <div className="flex justify-between text-[10px] mb-1">
+                          <span className="text-neutral-400">Transitions.dev Glare Sheen</span>
+                          <span className="font-mono text-neutral-400">
+                            {project.showcase.glareIntensity ?? 60}%
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={project.showcase.glareIntensity ?? 60}
+                          onChange={(e) =>
+                            onUpdateShowcase?.({ glareIntensity: Number(e.target.value) })
+                          }
+                          className="w-full accent-[#16a34a]"
                         />
-                      </button>
+                      </div>
+
+                      {/* Glassmorphism Toggle */}
+                      <label className="flex items-center justify-between cursor-pointer py-1">
+                        <div>
+                          <span className="text-xs text-neutral-300 block">Frosted Glass (Acrylic)</span>
+                          <span className="text-[10px] text-neutral-500 block">Translucent glass card body</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(project.showcase.glassmorphism)}
+                          onChange={(e) =>
+                            onUpdateShowcase?.({ glassmorphism: e.target.checked })
+                          }
+                          className="rounded accent-[#159947]"
+                        />
+                      </label>
+
+                      {/* Border Glow Toggle */}
+                      <div className="space-y-1.5 py-1">
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <div>
+                            <span className="text-xs text-neutral-300 block">Neon Border Glow</span>
+                            <span className="text-[10px] text-neutral-500 block">Outer luminous neon outline</span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(project.showcase.borderGlow)}
+                            onChange={(e) =>
+                              onUpdateShowcase?.({ borderGlow: e.target.checked })
+                            }
+                            className="rounded accent-[#159947]"
+                          />
+                        </label>
+                        {project.showcase.borderGlow && (
+                          <div className="flex items-center gap-2 pl-1">
+                            <span className="text-[10px] text-neutral-400">Glow Color:</span>
+                            {['#22c55e', '#38bdf8', '#f43f5e', '#fbbf24', '#c084fc'].map((col) => (
+                              <button
+                                key={col}
+                                type="button"
+                                onClick={() => onUpdateShowcase?.({ borderGlowColor: col })}
+                                style={{ backgroundColor: col }}
+                                className={`w-4 h-4 rounded-full border ${
+                                  (project.showcase.borderGlowColor || '#22c55e') === col
+                                    ? 'border-white scale-110 shadow-sm'
+                                    : 'border-transparent opacity-70 hover:opacity-100'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Depth of Field Toggle */}
+                      <label className="flex items-center justify-between cursor-pointer py-1">
+                        <div>
+                          <span className="text-xs text-neutral-300 block">Cinematic Depth Blur (DOF)</span>
+                          <span className="text-[10px] text-neutral-500 block">Defocuses distant background cards</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(project.showcase.depthOfField)}
+                          onChange={(e) =>
+                            onUpdateShowcase?.({ depthOfField: e.target.checked })
+                          }
+                          className="rounded accent-[#159947]"
+                        />
+                      </label>
+
+                      {/* Weightless Floating Levitation */}
+                      <label className="flex items-center justify-between cursor-pointer py-1">
+                        <div>
+                          <span className="text-xs text-neutral-300 block">Weightless Levitation</span>
+                          <span className="text-[10px] text-neutral-500 block">Harmonic floating sine inertia</span>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={project.showcase.floatingLevitation !== false}
+                          onChange={(e) =>
+                            onUpdateShowcase?.({ floatingLevitation: e.target.checked })
+                          }
+                          className="rounded accent-[#159947]"
+                        />
+                      </label>
+
+                      {/* Audio Reactive Pulse */}
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-xs text-neutral-300">Audio Reactive Pulse</span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={project.showcase.audioReactive !== false}
+                          onClick={() =>
+                            onUpdateShowcase?.({
+                              audioReactive: project.showcase.audioReactive === false,
+                            })
+                          }
+                          className={`w-9 h-5 rounded-full transition-colors p-0.5 ${
+                            project.showcase.audioReactive !== false
+                              ? 'bg-[#159947]'
+                              : 'bg-neutral-700'
+                          }`}
+                        >
+                          <div
+                            className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                              project.showcase.audioReactive !== false
+                                ? 'translate-x-4'
+                                : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

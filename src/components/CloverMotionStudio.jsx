@@ -8,6 +8,15 @@ import { COLOR_PALETTES } from '../constants/motionPresets';
 import { EFFECTCRAFT_FX_RACK } from '../constants/effectCraftEffects';
 import { buildProjectFromTemplate } from '../utils/projectBuilder';
 import { ProceduralAudioEngine } from '../engine/audioEngine';
+import {
+  addScene,
+  duplicateScene,
+  deleteScene,
+  updateSceneProp,
+  updateShowcaseConfig,
+  updateLayer,
+  reorderLayers,
+} from '../core/services/projectService';
 
 import TopHeaderBar from './layout/TopHeaderBar';
 import LeftSidebar from './layout/LeftSidebar';
@@ -719,45 +728,24 @@ export default function CloverMotionStudio() {
     }));
   };
 
-  // Scene Management
+  // Scene Management (Hexagonal Architecture Domain Services)
   const handleAddScene = () => {
-    updateProjectWithHistory((prev) => {
-      const source = prev.scenes[prev.scenes.length - 1] || prev.scenes[0];
-      const cloned = JSON.parse(JSON.stringify(source));
-      cloned.id = `scene_${Date.now()}`;
-      cloned.name = `Scene ${prev.scenes.length + 1}`;
-      return { ...prev, scenes: [...prev.scenes, cloned] };
-    });
+    updateProjectWithHistory((prev) => addScene(prev, activeSceneIndex));
     setActiveSceneIndex(project.scenes.length);
   };
 
   const handleDuplicateScene = (idx) => {
-    updateProjectWithHistory((prev) => {
-      const cloned = JSON.parse(JSON.stringify(prev.scenes[idx]));
-      cloned.id = `scene_${Date.now()}`;
-      cloned.name = `${cloned.name} Copy`;
-      const nextScenes = [...prev.scenes];
-      nextScenes.splice(idx + 1, 0, cloned);
-      return { ...prev, scenes: nextScenes };
-    });
+    updateProjectWithHistory((prev) => duplicateScene(prev, idx));
   };
 
   const handleDeleteScene = (idx) => {
     if (project.scenes.length <= 1) return;
-    updateProjectWithHistory((prev) => ({
-      ...prev,
-      scenes: prev.scenes.filter((_, i) => i !== idx),
-    }));
+    updateProjectWithHistory((prev) => deleteScene(prev, idx));
     setActiveSceneIndex((prev) => Math.max(0, prev - 1));
   };
 
   const handleUpdateSceneProp = (key, val) => {
-    updateProjectWithHistory((prev) => ({
-      ...prev,
-      scenes: prev.scenes.map((sc, idx) =>
-        idx !== activeSceneIndex ? sc : { ...sc, [key]: val }
-      ),
-    }));
+    updateProjectWithHistory((prev) => updateSceneProp(prev, activeSceneIndex, key, val));
   };
 
   const handleChangeFps = (newFps) => {
@@ -957,13 +945,7 @@ export default function CloverMotionStudio() {
 
   // Animos 3D Showcase & Media Slots Handlers
   const handleUpdateShowcase = (patch) => {
-    updateProjectWithHistory((prev) => ({
-      ...prev,
-      showcase: {
-        ...(prev.showcase || {}),
-        ...patch,
-      },
-    }));
+    updateProjectWithHistory((prev) => updateShowcaseConfig(prev, patch));
     // Auto start playback if paused so the user immediately sees the 3D motion preview!
     if (!isPlaying && patch.templateId && patch.templateId !== 'none') {
       setIsPlaying(true);
@@ -1351,6 +1333,7 @@ export default function CloverMotionStudio() {
               onChangeRatio={handleChangeRatio}
               onGeneratePalette={handleGeneratePalette}
               onToggleLockSwatch={handleToggleLockSwatch}
+              onAddScene={handleAddScene}
             />
 
             {editorMode === 'advanced' && rightPanelOpen && (
@@ -1395,6 +1378,7 @@ export default function CloverMotionStudio() {
               onClearLayerKeyframes={handleClearLayerKeyframes}
               onUpdateSceneDuration={(dur) => handleUpdateSceneProp('duration', dur)}
               onChangeFps={handleChangeFps}
+              onAddScene={handleAddScene}
             />
           )}
 
