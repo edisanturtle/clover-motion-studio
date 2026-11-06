@@ -15,6 +15,11 @@ import {
   Upload,
   Plus,
   Activity,
+  Music,
+  Zap,
+  Box,
+  Palette,
+  Sparkles,
 } from 'lucide-react';
 import { FONT_OPTIONS } from '../../constants/fonts';
 import {
@@ -24,6 +29,9 @@ import {
   MOTION_TARGETS,
 } from '../../constants/motionPresets';
 import { GRAPHIC_SHAPES, MOTION_GRAPHICS_ASSETS } from '../../constants/graphicAssets';
+import { DEMO_TRACKS } from '../../constants/audioTracks';
+import { EVENT_SFX_PADS, EFFECTCRAFT_SHADER_BACKGROUNDS } from '../../constants/effectCraftEffects';
+import { ANIMOS_SHOWCASE_TEMPLATES } from '../../constants/animosTemplates';
 import { solveSpring } from '../../utils/timecode';
 
 function SpringCurvePreview({ stiffness = 200, damping = 13, overshoot = 1.2 }) {
@@ -55,9 +63,12 @@ function SpringCurvePreview({ stiffness = 200, damping = 13, overshoot = 1.2 }) 
 export default function RightInspector({
   selectedLayer,
   activeScene,
+  project,
   audioSignals = { bass: 0, mid: 0, treble: 0, rms: 0 },
   onUpdateLayer,
   onUpdateSceneProp,
+  onSelectSceneAudio,
+  onTriggerSfx,
   onUploadCustomFont,
   onUploadCustomImage,
   onOpenMotionTemplates,
@@ -165,21 +176,226 @@ export default function RightInspector({
       <div className="flex-1 overflow-y-auto custom-scrollbar p-3.5 space-y-4">
         {!selectedLayer ? (
           <div className="space-y-4">
-            <div className="text-xs text-neutral-400 leading-relaxed">
-              Select any text or graphic layer on the canvas to inspect its design, motion, and audio reactivity.
-            </div>
-            {activeScene && (
-              <div className="p-3 rounded-xl bg-[#1e1e1e] border border-neutral-800 space-y-3">
-                <div className="text-xs font-semibold text-white">Scene Background</div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-neutral-400">Paper Color</span>
-                  <input
-                    type="color"
-                    value={activeScene.bg || '#f4f1ea'}
-                    onChange={(e) => onUpdateSceneProp('bg', e.target.value)}
-                    className="w-8 h-6 rounded cursor-pointer bg-transparent border-0"
+            {activeScene ? (
+              <div className="space-y-4">
+                {/* Scene Identity & Duration */}
+                <div className="p-3.5 rounded-2xl bg-[#1a1a1a] border border-neutral-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-[#4ade80]">Active Scene</span>
+                    <span className="text-[10px] font-mono text-neutral-400">{activeScene.duration || 4}s total</span>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-neutral-400 mb-1">Scene Name</label>
+                    <input
+                      type="text"
+                      value={activeScene.name || ''}
+                      onChange={(e) => onUpdateSceneProp?.('name', e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#222] border border-neutral-700 text-xs font-semibold text-white focus:outline-none focus:border-[#22c55e]"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-neutral-300">Duration</label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min={1}
+                        max={60}
+                        value={activeScene.duration || 4}
+                        onChange={(e) => onUpdateSceneProp?.('duration', Number(e.target.value) || 2)}
+                        className="w-14 px-2 py-1 rounded-lg bg-[#222] border border-neutral-700 text-xs font-mono text-right text-white focus:outline-none focus:border-[#22c55e]"
+                      />
+                      <span className="text-xs font-mono text-neutral-400">s</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Per-Scene Independent Sound & Entrance SFX */}
+                <div className="p-3.5 rounded-2xl bg-[#1a1a1a] border border-neutral-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Music className="w-3.5 h-3.5 text-[#4ade80]" />
+                      <span className="text-xs font-semibold text-white">Scene Sound</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded bg-[#159947]/20 text-[9px] font-mono text-[#4ade80]">
+                      {activeScene.audioTrackId ? 'CUSTOM' : 'INHERITED'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-neutral-400 mb-1">Audio Track</label>
+                    <select
+                      value={activeScene.audioTrackId || ''}
+                      onChange={(e) => onSelectSceneAudio?.(e.target.value || null)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#222] border border-neutral-700 text-xs text-white focus:outline-none focus:border-[#22c55e]"
+                    >
+                      <option value="">Inherit Project Track ({project?.audioTrackId || 'funk'})</option>
+                      <option value="mute">Mute (Silent)</option>
+                      <optgroup label="Procedural Tracks">
+                        {DEMO_TRACKS.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.genre} · {t.bpm} BPM)
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[10px] text-neutral-400">Scene Entrance SFX</label>
+                      {activeScene.sfxOnEnter && activeScene.sfxOnEnter !== 'none' && (
+                        <button
+                          type="button"
+                          onClick={() => onTriggerSfx?.(activeScene.sfxOnEnter)}
+                          className="text-[10px] text-[#4ade80] hover:underline flex items-center gap-0.5"
+                        >
+                          <Zap className="w-2.5 h-2.5" />
+                          <span>Test</span>
+                        </button>
+                      )}
+                    </div>
+                    <select
+                      value={activeScene.sfxOnEnter || 'none'}
+                      onChange={(e) => onSelectSceneAudio?.(activeScene.audioTrackId, e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#222] border border-neutral-700 text-xs text-white focus:outline-none focus:border-[#22c55e]"
+                    >
+                      <option value="none">None</option>
+                      {EVENT_SFX_PADS.map((pad) => (
+                        <option key={pad.id} value={pad.id}>
+                          {pad.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Per-Scene Kinetic Motion Preset */}
+                <div className="p-3.5 rounded-2xl bg-[#1a1a1a] border border-neutral-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Film className="w-3.5 h-3.5 text-[#4ade80]" />
+                      <span className="text-xs font-semibold text-white">Scene Kinetic Motion</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-[#4ade80]">
+                      {activeScene.motionPreset || 'default'}
+                    </span>
+                  </div>
+
+                  <select
+                    value={activeScene.motionPreset || 'none'}
+                    onChange={(e) => onUpdateSceneProp?.('motionPreset', e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#222] border border-neutral-700 text-xs text-white focus:outline-none focus:border-[#22c55e]"
+                  >
+                    <option value="none">None (Static Typography)</option>
+                    {MOTION_PRESETS.filter((p) => p.id !== 'none').map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <SpringCurvePreview
+                    stiffness={activeScene.motionStiffness || 200}
+                    damping={activeScene.motionDamping || 14}
+                    overshoot={1.2}
                   />
                 </div>
+
+                {/* Per-Scene 3D Cards Showcase Preview */}
+                <div className="p-3.5 rounded-2xl bg-[#1a1a1a] border border-neutral-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Box className="w-3.5 h-3.5 text-[#4ade80]" />
+                      <span className="text-xs font-semibold text-white">Scene 3D Cards</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded bg-[#159947]/20 text-[9px] font-mono text-[#4ade80]">
+                      {activeScene.showcase?.templateId && activeScene.showcase.templateId !== 'none'
+                        ? activeScene.showcase.templateId
+                        : 'OFF'}
+                    </span>
+                  </div>
+
+                  <select
+                    value={activeScene.showcase?.templateId || 'none'}
+                    onChange={(e) =>
+                      onUpdateSceneProp?.('showcase', {
+                        ...(activeScene.showcase || {}),
+                        templateId: e.target.value,
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#222] border border-neutral-700 text-xs text-white focus:outline-none focus:border-[#22c55e]"
+                  >
+                    <option value="none">None · Typography Only</option>
+                    {ANIMOS_SHOWCASE_TEMPLATES.map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.name} ({tpl.slots} slots)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Per-Scene Shader Background & Colors */}
+                <div className="p-3.5 rounded-2xl bg-[#1a1a1a] border border-neutral-800 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#4ade80]" />
+                      <span className="text-xs font-semibold text-white">Shader & Background</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-[#4ade80]">
+                      {activeScene.shaderBg || 'none'}
+                    </span>
+                  </div>
+
+                  <select
+                    value={activeScene.shaderBg || 'none'}
+                    onChange={(e) => onUpdateSceneProp?.('shaderBg', e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-[#222] border border-neutral-700 text-xs text-white focus:outline-none focus:border-[#22c55e]"
+                  >
+                    {EFFECTCRAFT_SHADER_BACKGROUNDS.map((sh) => (
+                      <option key={sh.id} value={sh.id}>
+                        {sh.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs text-neutral-300">Background Color</span>
+                    <input
+                      type="color"
+                      value={activeScene.bg || '#101935'}
+                      onChange={(e) => onUpdateSceneProp?.('bg', e.target.value)}
+                      className="w-8 h-6 rounded cursor-pointer bg-transparent border-0"
+                    />
+                  </div>
+
+                  {/* 6-Color Palette Swatches */}
+                  {Array.isArray(activeScene.palette) && (
+                    <div className="pt-2 border-t border-neutral-800">
+                      <span className="text-[10px] text-neutral-400 block mb-1.5">Scene Palette Swatches</span>
+                      <div className="flex items-center gap-1.5">
+                        {activeScene.palette.map((col, idx) => (
+                          <div key={idx} className="relative w-6 h-6 rounded-lg overflow-hidden border border-white/20">
+                            <input
+                              type="color"
+                              value={col}
+                              onChange={(e) => {
+                                const nextPalette = [...activeScene.palette];
+                                nextPalette[idx] = e.target.value;
+                                onUpdateSceneProp?.('palette', nextPalette);
+                              }}
+                              className="w-8 h-8 -top-1 -left-1 absolute cursor-pointer opacity-0"
+                            />
+                            <div className="w-full h-full" style={{ backgroundColor: col }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-neutral-400 leading-relaxed">
+                Select any text or graphic layer on the canvas to inspect its design, motion, and audio reactivity.
               </div>
             )}
           </div>

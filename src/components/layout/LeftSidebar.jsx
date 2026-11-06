@@ -28,10 +28,14 @@ import {
   Box,
   Wand2,
   Upload,
+  Music,
+  Volume2,
+  Zap,
 } from 'lucide-react';
 import { FONT_OPTIONS } from '../../constants/fonts';
 import { COLOR_PALETTES, MOTION_PRESETS } from '../../constants/motionPresets';
 import { GRAPHIC_TEMPLATES } from '../../constants/graphicAssets';
+import { DEMO_TRACKS } from '../../constants/audioTracks';
 import {
   ANIMOS_CATEGORIES,
   ANIMOS_SHOWCASE_TEMPLATES,
@@ -40,8 +44,48 @@ import {
 import {
   EFFECTCRAFT_FX_RACK,
   EFFECTCRAFT_SHADER_BACKGROUNDS,
+  EVENT_SFX_PADS,
 } from '../../constants/effectCraftEffects';
 import { formatTimecode } from '../../utils/timecode';
+
+function ScopeBanner({ targetScope, setTargetScope, activeSceneIndex, activeSceneName }) {
+  return (
+    <div className="flex items-center justify-between bg-[#141414] px-2.5 py-1.5 rounded-xl border border-neutral-800/90 mb-3 shadow-inner">
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className="text-[10px] font-mono text-neutral-400 uppercase tracking-wider shrink-0">Scope:</span>
+        <span className="text-[11px] font-semibold text-[#4ade80] truncate">
+          {targetScope === 'scene' ? `Scene ${activeSceneIndex + 1} (${activeSceneName || 'Active'})` : 'All Scenes'}
+        </span>
+      </div>
+      <div className="flex items-center bg-[#1c1c1c] p-0.5 rounded-lg border border-neutral-800 shrink-0">
+        <button
+          type="button"
+          onClick={() => setTargetScope('scene')}
+          className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${
+            targetScope === 'scene'
+              ? 'bg-[#159947] text-white font-semibold shadow-sm'
+              : 'text-neutral-400 hover:text-white'
+          }`}
+          title="Apply modifications only to the currently selected scene"
+        >
+          🎬 Scene Only
+        </button>
+        <button
+          type="button"
+          onClick={() => setTargetScope('all')}
+          className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${
+            targetScope === 'all'
+              ? 'bg-[#159947] text-white font-semibold shadow-sm'
+              : 'text-neutral-400 hover:text-white'
+          }`}
+          title="Sync modifications across all scenes in this project"
+        >
+          🌐 All Scenes
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function GraphicTemplateThumbnail({ template, isActive }) {
   const bg = template.bg || '#08183a';
@@ -163,6 +207,8 @@ export default function LeftSidebar({
   onUpdateShaderBg,
   onToggleFxRack,
   onUpdateFxParam,
+  onSelectSceneAudio,
+  onTriggerSfx,
   onOpenTemplates,
   onOpenBrandKits,
   onOpenFormatReview,
@@ -175,6 +221,7 @@ export default function LeftSidebar({
 }) {
   const [quickTab, setQuickTab] = useState('content'); // 'content' | 'showcase' | 'fx' | 'style' | 'motion' | 'scenes'
   const [advTab, setAdvTab] = useState('content'); // 'content' | 'showcase' | 'fx' | 'text' | 'graphics' | 'motion' | 'style' | 'layers'
+  const [targetScope, setTargetScope] = useState('scene'); // 'scene' | 'all'
   const [animosCategory, setAnimosCategory] = useState('all');
   const imageUploadRef = useRef(null);
   const mediaSlotUploadRef = useRef(null);
@@ -525,7 +572,16 @@ export default function LeftSidebar({
             {/* =========================================================
                 TAB: 3D SHOWCASE (ANIMOS ENGINE)
                ========================================================= */}
-            {currentTab === 'showcase' && (
+            {currentTab === 'showcase' && (() => {
+              const currentShowcase = (targetScope === 'scene' && activeScene?.showcase)
+                ? activeScene.showcase
+                : (project.showcase || {});
+              const currentMediaSlots = (targetScope === 'scene' && activeScene?.mediaSlots && activeScene.mediaSlots.length > 0)
+                ? activeScene.mediaSlots
+                : (project.mediaSlots || []);
+              const isActiveShowcase = currentShowcase.templateId && currentShowcase.templateId !== 'none';
+
+              return (
               <div className="space-y-4">
                 <div>
                   <div className="flex items-center justify-between">
@@ -533,9 +589,7 @@ export default function LeftSidebar({
                       ANIMOS 3D SHOWCASE ENGINE
                     </div>
                     <span className="px-1.5 py-0.5 rounded bg-[#159947]/20 border border-[#22c55e]/40 text-[10px] font-mono text-[#4ade80]">
-                      {(project.showcase?.templateId && project.showcase.templateId !== 'none')
-                        ? 'ACTIVE'
-                        : 'OFF'}
+                      {isActiveShowcase ? 'ACTIVE' : 'OFF'}
                     </span>
                   </div>
                   <h2 className="text-sm font-bold text-white mt-0.5">3D & Perspective Cards</h2>
@@ -544,17 +598,25 @@ export default function LeftSidebar({
                   </p>
                 </div>
 
+                {/* Scope Selector Banner */}
+                <ScopeBanner
+                  targetScope={targetScope}
+                  setTargetScope={setTargetScope}
+                  activeSceneIndex={activeSceneIndex}
+                  activeSceneName={activeScene?.name}
+                />
+
                 {/* Media Slots Uploader Bar (Matching Animos Editor "Media · N slots") */}
                 <div className="p-2.5 rounded-xl bg-[#1a1a1a] border border-neutral-800 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-white">
-                      Media · {project.showcase?.slots || 8} slots
+                      Media · {currentShowcase.slots || 8} slots {targetScope === 'scene' ? '(Scene)' : '(Global)'}
                     </span>
                     <div className="flex items-center gap-1.5">
-                      {(project.mediaSlots?.length || 0) > 0 && (
+                      {currentMediaSlots.length > 0 && (
                         <button
                           type="button"
-                          onClick={onClearMediaSlots}
+                          onClick={() => onClearMediaSlots?.(targetScope)}
                           className="text-[10px] text-neutral-400 hover:text-red-400 underline"
                         >
                           Reset default
@@ -578,15 +640,15 @@ export default function LeftSidebar({
                     onChange={(e) => {
                       const files = Array.from(e.target.files || []);
                       if (files.length > 0 && onUploadMediaSlots) {
-                        onUploadMediaSlots(files);
+                        onUploadMediaSlots(files, targetScope);
                       }
                       e.target.value = '';
                     }}
                     className="hidden"
                   />
                   <div className="text-[10px] text-neutral-400">
-                    {(project.mediaSlots?.length || 0) > 0
-                      ? `${project.mediaSlots.length} custom image(s) loaded into 3D cards`
+                    {currentMediaSlots.length > 0
+                      ? `${currentMediaSlots.length} custom image(s) loaded into this scene's 3D cards`
                       : 'Using 12 procedural Clover Studio showcase cards. Upload PNG/JPG to replace.'}
                   </div>
                 </div>
@@ -616,15 +678,15 @@ export default function LeftSidebar({
                 <div className="space-y-1.5 max-h-[250px] overflow-y-auto custom-scrollbar pr-1">
                   <button
                     type="button"
-                    onClick={() => onUpdateShowcase?.({ templateId: 'none' })}
+                    onClick={() => onUpdateShowcase?.({ templateId: 'none' }, targetScope)}
                     className={`w-full px-3 py-2 rounded-xl border text-left flex items-center justify-between transition-all ${
-                      !project.showcase?.templateId || project.showcase.templateId === 'none'
+                      !currentShowcase?.templateId || currentShowcase.templateId === 'none'
                         ? 'bg-[#1f1f1f] border-white text-white'
                         : 'bg-[#181818] border-neutral-800/90 text-neutral-400 hover:text-white'
                     }`}
                   >
                     <span className="text-xs font-semibold">None · Typography & Vector Only</span>
-                    {(!project.showcase?.templateId || project.showcase.templateId === 'none') && (
+                    {(!currentShowcase?.templateId || currentShowcase.templateId === 'none') && (
                       <Check className="w-3.5 h-3.5 text-[#22c55e]" />
                     )}
                   </button>
@@ -632,7 +694,7 @@ export default function LeftSidebar({
                   {ANIMOS_SHOWCASE_TEMPLATES.filter(
                     (tpl) => animosCategory === 'all' || tpl.category === animosCategory
                   ).map((tpl) => {
-                    const isSelected = project.showcase?.templateId === tpl.id;
+                    const isSelected = currentShowcase?.templateId === tpl.id;
                     return (
                       <button
                         key={tpl.id}
@@ -648,7 +710,7 @@ export default function LeftSidebar({
                             ringWidth: tpl.defaults?.ringWidth ?? 68,
                             ringDepth: tpl.defaults?.ringDepth ?? 48,
                             backFade: tpl.defaults?.backFade ?? 55,
-                          })
+                          }, targetScope)
                         }
                         className={`w-full p-2.5 rounded-xl border text-left transition-all ${
                           isSelected
@@ -676,7 +738,7 @@ export default function LeftSidebar({
                 </div>
 
                 {/* Animos 3D Controls (shown when a showcase template is active) */}
-                {project.showcase?.templateId && project.showcase.templateId !== 'none' && (
+                {currentShowcase?.templateId && currentShowcase.templateId !== 'none' && (
                   <div className="space-y-3.5 pt-3 border-t border-neutral-800">
                     <div className="flex items-center justify-between">
                       <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
@@ -690,16 +752,16 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Vertical Framing (Y-Offset)</span>
                         <span className="font-mono text-neutral-400">
-                          {project.showcase.offsetY ?? 0}%
+                          {currentShowcase.offsetY ?? 0}%
                         </span>
                       </div>
                       <input
                         type="range"
                         min={-40}
                         max={40}
-                        value={project.showcase.offsetY ?? 0}
+                        value={currentShowcase.offsetY ?? 0}
                         onChange={(e) =>
-                          onUpdateShowcase?.({ offsetY: Number(e.target.value) })
+                          onUpdateShowcase?.({ offsetY: Number(e.target.value) }, targetScope)
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -712,9 +774,9 @@ export default function LeftSidebar({
                           <button
                             key={pos.label}
                             type="button"
-                            onClick={() => onUpdateShowcase?.({ offsetY: pos.val })}
+                            onClick={() => onUpdateShowcase?.({ offsetY: pos.val }, targetScope)}
                             className={`flex-1 py-1 rounded-md text-[10px] font-medium border transition-colors ${
-                              (project.showcase.offsetY ?? 0) === pos.val
+                              (currentShowcase.offsetY ?? 0) === pos.val
                                 ? 'bg-[#159947]/20 border-[#22c55e] text-[#4ade80]'
                                 : 'bg-[#1a1a1a] border-neutral-800 text-neutral-400 hover:text-white'
                             }`}
@@ -730,16 +792,16 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Card Size</span>
                         <span className="font-mono text-neutral-400">
-                          {project.showcase.cardSize ?? 24}%
+                          {currentShowcase.cardSize ?? 24}%
                         </span>
                       </div>
                       <input
                         type="range"
                         min={12}
                         max={65}
-                        value={project.showcase.cardSize ?? 24}
+                        value={currentShowcase.cardSize ?? 24}
                         onChange={(e) =>
-                          onUpdateShowcase?.({ cardSize: Number(e.target.value) })
+                          onUpdateShowcase?.({ cardSize: Number(e.target.value) }, targetScope)
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -750,16 +812,16 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Card Spread Spacing</span>
                         <span className="font-mono text-neutral-400">
-                          {project.showcase.spreadGap ?? 6}px
+                          {currentShowcase.spreadGap ?? 6}px
                         </span>
                       </div>
                       <input
                         type="range"
                         min={0}
                         max={32}
-                        value={project.showcase.spreadGap ?? 6}
+                        value={currentShowcase.spreadGap ?? 6}
                         onChange={(e) =>
-                          onUpdateShowcase?.({ spreadGap: Number(e.target.value) })
+                          onUpdateShowcase?.({ spreadGap: Number(e.target.value) }, targetScope)
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -774,9 +836,9 @@ export default function LeftSidebar({
                             Easing Curve
                           </label>
                           <select
-                            value={project.showcase.motionCurve || 'transitions'}
+                            value={currentShowcase.motionCurve || 'transitions'}
                             onChange={(e) =>
-                              onUpdateShowcase?.({ motionCurve: e.target.value })
+                              onUpdateShowcase?.({ motionCurve: e.target.value }, targetScope)
                             }
                             className="w-full px-2 py-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-700 text-xs text-white"
                           >
@@ -790,12 +852,12 @@ export default function LeftSidebar({
 
                         <div>
                           <label className="block text-[10px] text-neutral-400 mb-1">
-                            Motion Speed ({project.showcase.motionSpeed ?? 1.0}×)
+                            Motion Speed ({currentShowcase.motionSpeed ?? 1.0}×)
                           </label>
                           <select
-                            value={project.showcase.motionSpeed ?? 1.0}
+                            value={currentShowcase.motionSpeed ?? 1.0}
                             onChange={(e) =>
-                              onUpdateShowcase?.({ motionSpeed: Number(e.target.value) })
+                              onUpdateShowcase?.({ motionSpeed: Number(e.target.value) }, targetScope)
                             }
                             className="w-full px-2 py-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-700 text-xs text-white"
                           >
@@ -817,9 +879,9 @@ export default function LeftSidebar({
                           Card Aspect
                         </label>
                         <select
-                          value={project.showcase.cardAspect || '1:1'}
+                          value={currentShowcase.cardAspect || '1:1'}
                           onChange={(e) =>
-                            onUpdateShowcase?.({ cardAspect: e.target.value })
+                            onUpdateShowcase?.({ cardAspect: e.target.value }, targetScope)
                           }
                           className="w-full px-2 py-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-700 text-xs text-white"
                         >
@@ -836,9 +898,9 @@ export default function LeftSidebar({
                           Backdrop Glow
                         </label>
                         <select
-                          value={project.showcase.bgGradient || 'none'}
+                          value={currentShowcase.bgGradient || 'none'}
                           onChange={(e) =>
-                            onUpdateShowcase?.({ bgGradient: e.target.value })
+                            onUpdateShowcase?.({ bgGradient: e.target.value }, targetScope)
                           }
                           className="w-full px-2 py-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-700 text-xs text-white"
                         >
@@ -857,16 +919,16 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Camera Tilt</span>
                         <span className="font-mono text-neutral-400">
-                          {project.showcase.tilt ?? -18}°
+                          {currentShowcase.tilt ?? -18}°
                         </span>
                       </div>
                       <input
                         type="range"
                         min={-60}
                         max={60}
-                        value={project.showcase.tilt ?? -18}
+                        value={currentShowcase.tilt ?? -18}
                         onChange={(e) =>
-                          onUpdateShowcase?.({ tilt: Number(e.target.value) })
+                          onUpdateShowcase?.({ tilt: Number(e.target.value) }, targetScope)
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -877,16 +939,16 @@ export default function LeftSidebar({
                       <div className="flex justify-between text-[11px] mb-1">
                         <span className="text-neutral-300">Depth Fade</span>
                         <span className="font-mono text-neutral-400">
-                          {project.showcase.backFade ?? 55}%
+                          {currentShowcase.backFade ?? 55}%
                         </span>
                       </div>
                       <input
                         type="range"
                         min={0}
                         max={90}
-                        value={project.showcase.backFade ?? 55}
+                        value={currentShowcase.backFade ?? 55}
                         onChange={(e) =>
-                          onUpdateShowcase?.({ backFade: Number(e.target.value) })
+                          onUpdateShowcase?.({ backFade: Number(e.target.value) }, targetScope)
                         }
                         className="w-full accent-[#16a34a]"
                       />
@@ -901,16 +963,16 @@ export default function LeftSidebar({
                         <div className="flex justify-between text-[10px] mb-1">
                           <span className="text-neutral-400">Transitions.dev Glare Sheen</span>
                           <span className="font-mono text-neutral-400">
-                            {project.showcase.glareIntensity ?? 60}%
+                            {currentShowcase.glareIntensity ?? 60}%
                           </span>
                         </div>
                         <input
                           type="range"
                           min={0}
                           max={100}
-                          value={project.showcase.glareIntensity ?? 60}
+                          value={currentShowcase.glareIntensity ?? 60}
                           onChange={(e) =>
-                            onUpdateShowcase?.({ glareIntensity: Number(e.target.value) })
+                            onUpdateShowcase?.({ glareIntensity: Number(e.target.value) }, targetScope)
                           }
                           className="w-full accent-[#16a34a]"
                         />
@@ -924,9 +986,9 @@ export default function LeftSidebar({
                         </div>
                         <input
                           type="checkbox"
-                          checked={Boolean(project.showcase.glassmorphism)}
+                          checked={Boolean(currentShowcase.glassmorphism)}
                           onChange={(e) =>
-                            onUpdateShowcase?.({ glassmorphism: e.target.checked })
+                            onUpdateShowcase?.({ glassmorphism: e.target.checked }, targetScope)
                           }
                           className="rounded accent-[#159947]"
                         />
@@ -941,24 +1003,24 @@ export default function LeftSidebar({
                           </div>
                           <input
                             type="checkbox"
-                            checked={Boolean(project.showcase.borderGlow)}
+                            checked={Boolean(currentShowcase.borderGlow)}
                             onChange={(e) =>
-                              onUpdateShowcase?.({ borderGlow: e.target.checked })
+                              onUpdateShowcase?.({ borderGlow: e.target.checked }, targetScope)
                             }
                             className="rounded accent-[#159947]"
                           />
                         </label>
-                        {project.showcase.borderGlow && (
+                        {currentShowcase.borderGlow && (
                           <div className="flex items-center gap-2 pl-1">
                             <span className="text-[10px] text-neutral-400">Glow Color:</span>
                             {['#22c55e', '#38bdf8', '#f43f5e', '#fbbf24', '#c084fc'].map((col) => (
                               <button
                                 key={col}
                                 type="button"
-                                onClick={() => onUpdateShowcase?.({ borderGlowColor: col })}
+                                onClick={() => onUpdateShowcase?.({ borderGlowColor: col }, targetScope)}
                                 style={{ backgroundColor: col }}
                                 className={`w-4 h-4 rounded-full border ${
-                                  (project.showcase.borderGlowColor || '#22c55e') === col
+                                  (currentShowcase.borderGlowColor || '#22c55e') === col
                                     ? 'border-white scale-110 shadow-sm'
                                     : 'border-transparent opacity-70 hover:opacity-100'
                                 }`}
@@ -976,9 +1038,9 @@ export default function LeftSidebar({
                         </div>
                         <input
                           type="checkbox"
-                          checked={Boolean(project.showcase.depthOfField)}
+                          checked={Boolean(currentShowcase.depthOfField)}
                           onChange={(e) =>
-                            onUpdateShowcase?.({ depthOfField: e.target.checked })
+                            onUpdateShowcase?.({ depthOfField: e.target.checked }, targetScope)
                           }
                           className="rounded accent-[#159947]"
                         />
@@ -992,9 +1054,9 @@ export default function LeftSidebar({
                         </div>
                         <input
                           type="checkbox"
-                          checked={project.showcase.floatingLevitation !== false}
+                          checked={currentShowcase.floatingLevitation !== false}
                           onChange={(e) =>
-                            onUpdateShowcase?.({ floatingLevitation: e.target.checked })
+                            onUpdateShowcase?.({ floatingLevitation: e.target.checked }, targetScope)
                           }
                           className="rounded accent-[#159947]"
                         />
@@ -1006,21 +1068,21 @@ export default function LeftSidebar({
                         <button
                           type="button"
                           role="switch"
-                          aria-checked={project.showcase.audioReactive !== false}
+                          aria-checked={currentShowcase.audioReactive !== false}
                           onClick={() =>
                             onUpdateShowcase?.({
-                              audioReactive: project.showcase.audioReactive === false,
-                            })
+                              audioReactive: currentShowcase.audioReactive === false,
+                            }, targetScope)
                           }
                           className={`w-9 h-5 rounded-full transition-colors p-0.5 ${
-                            project.showcase.audioReactive !== false
+                            currentShowcase.audioReactive !== false
                               ? 'bg-[#159947]'
                               : 'bg-neutral-700'
                           }`}
                         >
                           <div
                             className={`w-4 h-4 rounded-full bg-white transition-transform ${
-                              project.showcase.audioReactive !== false
+                              currentShowcase.audioReactive !== false
                                 ? 'translate-x-4'
                                 : 'translate-x-0'
                             }`}
@@ -1031,16 +1093,28 @@ export default function LeftSidebar({
                   </div>
                 )}
               </div>
-            )}
+              );
+            })()}
 
             {/* =========================================================
                 TAB: FX RACK & SHADERS (EFFECTCRAFT ENGINE)
                ========================================================= */}
-            {currentTab === 'fx' && (
+            {currentTab === 'fx' && (() => {
+              const currentShader = (targetScope === 'scene' && activeScene?.shaderBg !== undefined ? activeScene.shaderBg : null) || project.shaderBg || 'none';
+              const currentFxRack = (targetScope === 'scene' && activeScene?.fxRack ? activeScene.fxRack : null) || project.fxRack || {};
+
+              return (
               <div className="space-y-4">
                 <div>
-                  <div className="text-[10px] font-mono uppercase tracking-widest text-[#4ade80]">
-                    EFFECTCRAFT POST-FX & SHADERS
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] font-mono uppercase tracking-widest text-[#4ade80]">
+                      EFFECTCRAFT POST-FX & SHADERS
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded bg-[#159947]/20 border border-[#22c55e]/40 text-[10px] font-mono text-[#4ade80]">
+                      {currentShader !== 'none' || Object.values(currentFxRack).some((f) => f?.enabled)
+                        ? 'ACTIVE'
+                        : 'READY'}
+                    </span>
                   </div>
                   <h2 className="text-sm font-bold text-white mt-0.5">Shaders & FX Rack</h2>
                   <p className="text-[11px] text-neutral-400 mt-0.5 leading-relaxed">
@@ -1048,19 +1122,27 @@ export default function LeftSidebar({
                   </p>
                 </div>
 
+                {/* Scope Selector Banner */}
+                <ScopeBanner
+                  targetScope={targetScope}
+                  setTargetScope={setTargetScope}
+                  activeSceneIndex={activeSceneIndex}
+                  activeSceneName={activeScene?.name}
+                />
+
                 {/* Procedural Shader Backgrounds */}
                 <div className="space-y-2 pb-3 border-b border-neutral-800">
                   <div className="text-xs font-semibold text-white">
-                    Procedural Shader Background
+                    Procedural Shader Background {targetScope === 'scene' ? '(This Scene)' : '(All Scenes)'}
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
                     {EFFECTCRAFT_SHADER_BACKGROUNDS.map((sh) => {
-                      const active = (project.shaderBg || 'none') === sh.id;
+                      const active = currentShader === sh.id;
                       return (
                         <button
                           key={sh.id}
                           type="button"
-                          onClick={() => onUpdateShaderBg?.(sh.id)}
+                          onClick={() => onUpdateShaderBg?.(sh.id, targetScope)}
                           className={`p-2 rounded-xl border text-left transition-all ${
                             active
                               ? 'bg-[#159947]/20 border-[#22c55e] text-white'
@@ -1088,7 +1170,7 @@ export default function LeftSidebar({
                     </span>
                     <span className="text-[10px] font-mono text-[#4ade80]">
                       {
-                        Object.values(project.fxRack || {}).filter((fx) => fx?.enabled)
+                        Object.values(currentFxRack || {}).filter((fx) => fx?.enabled)
                           .length
                       }{' '}
                       active
@@ -1097,7 +1179,7 @@ export default function LeftSidebar({
 
                   <div className="space-y-2">
                     {EFFECTCRAFT_FX_RACK.map((fxDef) => {
-                      const state = project.fxRack?.[fxDef.id] || {
+                      const state = currentFxRack?.[fxDef.id] || {
                         enabled: false,
                         intensity: fxDef.defaultIntensity,
                         secondary: fxDef.defaultSecondary,
@@ -1126,7 +1208,7 @@ export default function LeftSidebar({
                               type="button"
                               role="switch"
                               aria-checked={!!state.enabled}
-                              onClick={() => onToggleFxRack?.(fxDef.id)}
+                              onClick={() => onToggleFxRack?.(fxDef.id, targetScope)}
                               className={`w-9 h-5 rounded-full transition-colors p-0.5 shrink-0 ${
                                 state.enabled ? 'bg-[#159947]' : 'bg-neutral-700'
                               }`}
@@ -1156,7 +1238,7 @@ export default function LeftSidebar({
                                   onChange={(e) =>
                                     onUpdateFxParam?.(fxDef.id, {
                                       intensity: Number(e.target.value),
-                                    })
+                                    }, targetScope)
                                   }
                                   className="w-full accent-[#16a34a]"
                                 />
@@ -1177,7 +1259,7 @@ export default function LeftSidebar({
                                   onChange={(e) =>
                                     onUpdateFxParam?.(fxDef.id, {
                                       secondary: Number(e.target.value),
-                                    })
+                                    }, targetScope)
                                   }
                                   className="w-full accent-[#16a34a]"
                                 />
@@ -1193,7 +1275,7 @@ export default function LeftSidebar({
                                   onChange={(e) =>
                                     onUpdateFxParam?.(fxDef.id, {
                                       audioReactive: e.target.checked,
-                                    })
+                                    }, targetScope)
                                   }
                                   className="accent-[#16a34a]"
                                 />
@@ -1206,7 +1288,8 @@ export default function LeftSidebar({
                   </div>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* =========================================================
                 TAB: STYLE / BRAND KITS
@@ -1229,12 +1312,20 @@ export default function LeftSidebar({
                   </button>
                 </div>
 
+                {/* Scope Selector Banner */}
+                <ScopeBanner
+                  targetScope={targetScope}
+                  setTargetScope={setTargetScope}
+                  activeSceneIndex={activeSceneIndex}
+                  activeSceneName={activeScene?.name}
+                />
+
                 <div className="space-y-2">
                   {COLOR_PALETTES.map((pal) => (
                     <button
                       key={pal.id}
                       type="button"
-                      onClick={() => onApplyPalette(pal.colors)}
+                      onClick={() => onApplyPalette(pal.colors, targetScope)}
                       className="w-full p-2.5 rounded-xl bg-[#1c1c1c] hover:bg-neutral-800/80 border border-neutral-800 hover:border-neutral-700 flex items-center justify-between transition-all"
                     >
                       <span className="text-xs font-medium text-neutral-200">{pal.name}</span>
@@ -1339,11 +1430,129 @@ export default function LeftSidebar({
                         <option value="Cut">Cut</option>
                         <option value="Fade · 150 ms">Fade · 150 ms</option>
                         <option value="Fade · 300 ms">Fade · 300 ms</option>
+                        <option value="Wipe Left · 200 ms">Wipe Left · 200 ms</option>
+                        <option value="Zoom Blur · 250 ms">Zoom Blur · 250 ms</option>
+                        <option value="Iris Circle · 300 ms">Iris Circle · 300 ms</option>
+                        <option value="Glitch Slice · 200 ms">Glitch Slice · 200 ms</option>
                       </select>
                     </div>
 
-                    <p className="text-[11px] text-neutral-500 leading-relaxed">
-                      Share text and motion. Colors belong to each scene.
+                    {/* Per-Scene Dedicated Sound & Music */}
+                    <div className="pt-2 border-t border-neutral-800/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Music className="w-3.5 h-3.5 text-[#4ade80]" />
+                          <span className="text-xs font-semibold text-white">Scene Sound & Audio</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-[#4ade80]">Independent</span>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] text-neutral-400 mb-1">Audio Track</label>
+                        <select
+                          value={activeScene.audioTrackId || ''}
+                          onChange={(e) => onSelectSceneAudio?.(e.target.value || null)}
+                          className="w-full px-2 py-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-700/80 text-xs text-white focus:outline-none focus:border-white"
+                        >
+                          <option value="">Inherit Project Track ({project.audioTrackId || 'funk'})</option>
+                          <option value="mute">Mute Scene (Silent)</option>
+                          <optgroup label="Procedural Tracks">
+                            {DEMO_TRACKS.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name} ({t.genre} · {t.bpm} BPM)
+                              </option>
+                            ))}
+                          </optgroup>
+                        </select>
+                      </div>
+
+                      {/* Scene Entrance SFX Trigger */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] text-neutral-400">Scene Entrance SFX</label>
+                          {activeScene.sfxOnEnter && activeScene.sfxOnEnter !== 'none' && (
+                            <button
+                              type="button"
+                              onClick={() => onTriggerSfx?.(activeScene.sfxOnEnter)}
+                              className="text-[10px] text-[#4ade80] hover:underline flex items-center gap-0.5"
+                            >
+                              <Zap className="w-2.5 h-2.5" />
+                              <span>Test SFX</span>
+                            </button>
+                          )}
+                        </div>
+                        <select
+                          value={activeScene.sfxOnEnter || 'none'}
+                          onChange={(e) => onSelectSceneAudio?.(activeScene.audioTrackId, e.target.value)}
+                          className="w-full px-2 py-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-700/80 text-xs text-white focus:outline-none focus:border-white"
+                        >
+                          <option value="none">None (No entrance SFX)</option>
+                          {EVENT_SFX_PADS.map((pad) => (
+                            <option key={pad.id} value={pad.id}>
+                              {pad.label} ({pad.desc})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Per-Scene Kinetic Motion Preset */}
+                    <div className="pt-2 border-t border-neutral-800/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-white">Scene Kinetic Motion</span>
+                        <span className="text-[10px] font-mono text-[#4ade80]">
+                          {activeScene.motionPreset || 'default'}
+                        </span>
+                      </div>
+
+                      <select
+                        value={activeScene.motionPreset || 'none'}
+                        onChange={(e) => onUpdateSceneProp?.('motionPreset', e.target.value)}
+                        className="w-full px-2 py-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-700/80 text-xs text-white focus:outline-none focus:border-white"
+                      >
+                        <option value="none">None (Static Typography)</option>
+                        {MOTION_PRESETS.filter((p) => p.id !== 'none').map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} — {p.desc}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div>
+                          <label className="block text-[10px] text-neutral-400 mb-0.5">Motion Curve</label>
+                          <select
+                            value={activeScene.motionCurve || 'transitions'}
+                            onChange={(e) => onUpdateSceneProp?.('motionCurve', e.target.value)}
+                            className="w-full px-2 py-1 rounded-lg bg-[#1c1c1c] border border-neutral-700/80 text-[11px] text-white"
+                          >
+                            <option value="transitions">transitions.dev</option>
+                            <option value="spring">Spring Snap</option>
+                            <option value="elastic">Elastic Rubber</option>
+                            <option value="anticipate">Anticipate Back</option>
+                            <option value="linear">Linear</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] text-neutral-400 mb-0.5">
+                            Speed ({activeScene.motionSpeed ?? 1.0}×)
+                          </label>
+                          <input
+                            type="range"
+                            min={0.5}
+                            max={2.0}
+                            step={0.1}
+                            value={activeScene.motionSpeed ?? 1.0}
+                            onChange={(e) => onUpdateSceneProp?.('motionSpeed', Number(e.target.value))}
+                            className="w-full accent-[#16a34a] mt-1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-neutral-500 leading-relaxed pt-1">
+                      Each scene can have its own independent sound track, entrance SFX, kinetic motion, and 3D card layout.
                     </p>
                   </div>
                 )}

@@ -89,17 +89,139 @@ export function updateSceneProp(project, sceneIndex, key, value) {
 
 /**
  * Updates showcase configuration with domain validation and effect parameters.
+ * Supports per-scene targeting or global project synchronization.
  */
-export function updateShowcaseConfig(project, patch = {}) {
+export function updateShowcaseConfig(project, sceneIndex = null, patch = {}, applyToAll = false) {
   if (!project) return project;
-  const current = project.showcase || {};
+
+  // Handle case where patch was passed as first argument for backwards compatibility
+  let actualPatch = patch;
+  let actualIdx = sceneIndex;
+  let actualApplyToAll = applyToAll;
+  if (typeof sceneIndex === 'object' && sceneIndex !== null && !('length' in sceneIndex)) {
+    actualPatch = sceneIndex;
+    actualIdx = null;
+    actualApplyToAll = true;
+  }
+
+  const baseShowcase = (actualIdx !== null && project.scenes?.[actualIdx]?.showcase)
+    || project.showcase
+    || {};
+
+  const merged = createShowcaseConfig({
+    ...baseShowcase,
+    ...actualPatch,
+  });
+
+  if (actualApplyToAll || actualIdx === null || !project.scenes?.[actualIdx]) {
+    // Apply globally
+    return {
+      ...project,
+      showcase: merged,
+      scenes: (project.scenes || []).map((sc) => ({
+        ...sc,
+        showcase: createShowcaseConfig({
+          ...(sc.showcase || {}),
+          ...actualPatch,
+        }),
+      })),
+    };
+  }
+
+  // Apply to specific scene only
+  const updatedScenes = project.scenes.map((sc, idx) =>
+    idx !== actualIdx
+      ? sc
+      : {
+          ...sc,
+          showcase: merged,
+        }
+  );
+
+  return { ...project, scenes: updatedScenes };
+}
+
+/**
+ * Updates per-scene sound configuration (track, entrance SFX, volume).
+ */
+export function updateSceneAudio(project, sceneIndex, patch = {}) {
+  if (!project || !project.scenes || !project.scenes[sceneIndex]) return project;
+  const updatedScenes = project.scenes.map((sc, idx) => {
+    if (idx !== sceneIndex) return sc;
+    return {
+      ...sc,
+      ...(patch.audioTrackId !== undefined && { audioTrackId: patch.audioTrackId }),
+      ...(patch.sfxOnEnter !== undefined && { sfxOnEnter: patch.sfxOnEnter }),
+      ...(patch.audioVolume !== undefined && { audioVolume: Number(patch.audioVolume) }),
+      ...(patch.customAudioName !== undefined && { customAudioName: patch.customAudioName }),
+    };
+  });
+  return { ...project, scenes: updatedScenes };
+}
+
+/**
+ * Updates per-scene motion preset, dynamics curve, speed multiplier, or transition.
+ */
+export function updateSceneMotion(project, sceneIndex, patch = {}, applyToAll = false) {
+  if (!project || !project.scenes) return project;
+  const updatedScenes = project.scenes.map((sc, idx) => {
+    if (!applyToAll && idx !== sceneIndex) return sc;
+    return {
+      ...sc,
+      ...(patch.motionPreset !== undefined && { motionPreset: patch.motionPreset }),
+      ...(patch.motionCurve !== undefined && { motionCurve: patch.motionCurve }),
+      ...(patch.motionSpeed !== undefined && { motionSpeed: Number(patch.motionSpeed) }),
+      ...(patch.transition !== undefined && { transition: patch.transition }),
+    };
+  });
+  return { ...project, scenes: updatedScenes };
+}
+
+/**
+ * Updates per-scene design attributes (bg color, palette, shader background, FX rack, poster layout).
+ */
+export function updateSceneDesign(project, sceneIndex, patch = {}, applyToAll = false) {
+  if (!project || !project.scenes) return project;
+  const updatedScenes = project.scenes.map((sc, idx) => {
+    if (!applyToAll && idx !== sceneIndex) return sc;
+    return {
+      ...sc,
+      ...(patch.bg !== undefined && { bg: patch.bg }),
+      ...(patch.palette !== undefined && { palette: [...patch.palette] }),
+      ...(patch.shaderBg !== undefined && { shaderBg: patch.shaderBg }),
+      ...(patch.shaderOpacity !== undefined && { shaderOpacity: Number(patch.shaderOpacity) }),
+      ...(patch.fxRack !== undefined && { fxRack: { ...(sc.fxRack || {}), ...patch.fxRack } }),
+      ...(patch.gridStyle !== undefined && { gridStyle: patch.gridStyle }),
+      ...(patch.decorStyle !== undefined && { decorStyle: patch.decorStyle }),
+      ...(patch.posterLayout !== undefined && { posterLayout: patch.posterLayout }),
+    };
+  });
+
   return {
     ...project,
-    showcase: createShowcaseConfig({
-      ...current,
-      ...patch,
-    }),
+    scenes: updatedScenes,
+    ...(applyToAll && patch.palette && { palette: patch.palette }),
+    ...(applyToAll && patch.shaderBg && { shaderBg: patch.shaderBg }),
+    ...(applyToAll && patch.fxRack && { fxRack: { ...(project.fxRack || {}), ...patch.fxRack } }),
   };
+}
+
+/**
+ * Updates per-scene media slots (images or cards used in 3D showcases and graphic layouts).
+ */
+export function updateSceneMediaSlots(project, sceneIndex, mediaSlots = [], applyToAll = false) {
+  if (!project || !project.scenes) return project;
+  if (applyToAll || sceneIndex === null) {
+    return {
+      ...project,
+      mediaSlots,
+      scenes: project.scenes.map((sc) => ({ ...sc, mediaSlots })),
+    };
+  }
+  const updatedScenes = project.scenes.map((sc, idx) =>
+    idx !== sceneIndex ? sc : { ...sc, mediaSlots }
+  );
+  return { ...project, scenes: updatedScenes };
 }
 
 /**

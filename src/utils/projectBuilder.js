@@ -27,6 +27,22 @@ export function buildProjectFromTemplate(template, ratio = '4:5') {
         gridStyle: template.gridStyle || 'none',
         decorStyle: 'soundcheckBlocks',
         palette: [...(template.palette || ['#f4f1ea', '#111111', '#16a34a'])],
+        showcase: sc.showcase || (idx === 1
+          ? { templateId: 'cascadeDeck', slots: 8, cardSize: 32, cardAspect: '1:1', cornerRadius: 4, tilt: -18, ringWidth: 68, ringDepth: 48, backFade: 55, shadowEnabled: true, audioReactive: true, glareIntensity: 60, floatingLevitation: true, spreadGap: 6, motionCurve: 'transitions', motionSpeed: 1.0 }
+          : idx === 0
+          ? { templateId: 'sphereWall', slots: 8, cardSize: 26, cardAspect: '16:9', cornerRadius: 3, tilt: -12, ringWidth: 68, ringDepth: 48, backFade: 55, shadowEnabled: true, audioReactive: true, glareIntensity: 50, floatingLevitation: true, spreadGap: 4, motionCurve: 'transitions', motionSpeed: 1.0 }
+          : { templateId: 'none' }),
+        audioTrackId: sc.audioTrackId || (idx === 0 ? 'acid' : idx === 1 ? (template.audioTrackId || 'funk') : 'studio'),
+        sfxOnEnter: sc.sfxOnEnter || (idx === 0 ? 'synthLaser' : idx === 1 ? 'subDrop808' : 'cloverLushChord'),
+        audioVolume: 1.0,
+        motionPreset: sc.motionPreset || (idx === 0 ? 'rise' : idx === 1 ? 'elasticPop' : 'swissSlide'),
+        motionCurve: 'transitions',
+        motionSpeed: 1.0,
+        shaderBg: sc.shaderBg || (idx === 1 ? (template.shaderBg || 'magmaFlow') : idx === 0 ? 'cyberGrid' : 'none'),
+        shaderOpacity: 0.85,
+        fxRack: sc.fxRack || {},
+        mediaSlots: [],
+        posterLayout: sc.posterLayout || (idx === 1 ? 'swiss' : idx === 0 ? 'editorial' : 'brutalist'),
         layers: [
           {
             id: `layer_graphic_${idx}`,
@@ -132,6 +148,22 @@ export function buildProjectFromTemplate(template, ratio = '4:5') {
         gridStyle: template.gridStyle || 'editorial',
         decorStyle: 'hangulGrid',
         palette: [...(template.palette || [])],
+        showcase: sc.showcase || (idx === 1
+          ? { templateId: 'cascadeDeck', slots: 8, cardSize: 32, cardAspect: '1:1', cornerRadius: 4, tilt: -18, ringWidth: 68, ringDepth: 48, backFade: 55, shadowEnabled: true, audioReactive: true, glareIntensity: 60, floatingLevitation: true, spreadGap: 6, motionCurve: 'transitions', motionSpeed: 1.0 }
+          : idx === 0
+          ? { templateId: 'sphereWall', slots: 8, cardSize: 26, cardAspect: '16:9', cornerRadius: 3, tilt: -12, ringWidth: 68, ringDepth: 48, backFade: 55, shadowEnabled: true, audioReactive: true, glareIntensity: 50, floatingLevitation: true, spreadGap: 4, motionCurve: 'transitions', motionSpeed: 1.0 }
+          : { templateId: 'none' }),
+        audioTrackId: sc.audioTrackId || (idx === 0 ? 'acid' : idx === 1 ? (template.audioTrackId || 'funk') : 'studio'),
+        sfxOnEnter: sc.sfxOnEnter || (idx === 0 ? 'synthLaser' : idx === 1 ? 'subDrop808' : 'cloverLushChord'),
+        audioVolume: 1.0,
+        motionPreset: sc.motionPreset || (idx === 0 ? 'rise' : idx === 1 ? 'elasticPop' : 'swissSlide'),
+        motionCurve: 'transitions',
+        motionSpeed: 1.0,
+        shaderBg: sc.shaderBg || (idx === 1 ? (template.shaderBg || 'magmaFlow') : idx === 0 ? 'cyberGrid' : 'none'),
+        shaderOpacity: 0.85,
+        fxRack: sc.fxRack || {},
+        mediaSlots: [],
+        posterLayout: sc.posterLayout || (idx === 1 ? 'swiss' : idx === 0 ? 'editorial' : 'brutalist'),
         layers: [
           {
             id: `layer_title_${idx}`,
@@ -922,6 +954,58 @@ export function buildProjectFromTemplate(template, ratio = '4:5') {
       gridStyle: template.gridStyle || 'swiss',
       decorStyle: template.decor,
       palette: [...(template.palette || [])],
+      showcase: sc.showcase || (idx === 1
+        ? {
+            templateId: 'cascadeDeck',
+            slots: 8,
+            cardSize: 32,
+            cardAspect: '1:1',
+            cornerRadius: 4,
+            tilt: -18,
+            ringWidth: 68,
+            ringDepth: 48,
+            backFade: 55,
+            shadowEnabled: true,
+            audioReactive: true,
+            glareIntensity: 60,
+            floatingLevitation: true,
+            spreadGap: 6,
+            motionCurve: 'transitions',
+            motionSpeed: 1.0,
+          }
+        : idx === 0
+        ? {
+            templateId: 'sphereWall',
+            slots: 8,
+            cardSize: 26,
+            cardAspect: '16:9',
+            cornerRadius: 3,
+            tilt: -12,
+            ringWidth: 68,
+            ringDepth: 48,
+            backFade: 55,
+            shadowEnabled: true,
+            audioReactive: true,
+            glareIntensity: 50,
+            floatingLevitation: true,
+            spreadGap: 4,
+            motionCurve: 'transitions',
+            motionSpeed: 1.0,
+          }
+        : {
+            templateId: 'none',
+          }),
+      audioTrackId: sc.audioTrackId || (idx === 0 ? 'acid' : idx === 1 ? (template.audioTrackId || 'funk') : 'studio'),
+      sfxOnEnter: sc.sfxOnEnter || (idx === 0 ? 'synthLaser' : idx === 1 ? 'subDrop808' : 'cloverLushChord'),
+      audioVolume: 1.0,
+      motionPreset: sc.motionPreset || (idx === 0 ? 'rise' : idx === 1 ? 'elasticPop' : 'swissSlide'),
+      motionCurve: 'transitions',
+      motionSpeed: 1.0,
+      shaderBg: sc.shaderBg || (idx === 1 ? (template.shaderBg || 'magmaFlow') : idx === 0 ? 'cyberGrid' : 'none'),
+      shaderOpacity: 0.85,
+      fxRack: sc.fxRack || {},
+      mediaSlots: [],
+      posterLayout: sc.posterLayout || (idx === 1 ? 'swiss' : idx === 0 ? 'editorial' : 'brutalist'),
       layers: [
         graphicLayer,
         subtitleLayer,

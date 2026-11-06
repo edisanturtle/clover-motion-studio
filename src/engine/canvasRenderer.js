@@ -100,18 +100,24 @@ export function renderSceneToCanvas({
   drawTemplateDecor(ctx, width, height, scene, localTime, audioSignals);
 
   // 2b. Animos 3D & Perspective Showcase Engine (if enabled on scene or project)
-  const showcaseConfig = scene.showcase || project?.showcase;
+  const showcaseConfig = (scene.showcase !== undefined && scene.showcase !== null)
+    ? scene.showcase
+    : project?.showcase;
   if (showcaseConfig && showcaseConfig.templateId && showcaseConfig.templateId !== 'none') {
     renderAnimosShowcase({
       ctx,
       width,
       height,
       showcaseConfig,
-      mediaSlots: project?.mediaSlots || scene.mediaSlots || [],
+      mediaSlots: (scene.mediaSlots && scene.mediaSlots.length > 0)
+        ? scene.mediaSlots
+        : (project?.mediaSlots && project.mediaSlots.length > 0)
+        ? project.mediaSlots
+        : [],
       localTime,
       duration: scene.duration || project?.duration || 12,
       audioSignals,
-      palette: scene.palette,
+      palette: scene.palette || project?.palette,
     });
   }
 
@@ -155,9 +161,9 @@ export function renderSceneToCanvas({
     };
 
     if (layer.type === 'graphic') {
-      renderGraphicLayer(ctx, layer, finalState, localTime, audioSignals, scene.palette, width, height);
+      renderGraphicLayer(ctx, layer, finalState, localTime, audioSignals, scene.palette, width, height, scene);
     } else if (layer.type === 'text') {
-      renderTextLayer(ctx, layer, finalState, localTime, audioSignals, scene.palette);
+      renderTextLayer(ctx, layer, finalState, localTime, audioSignals, scene.palette, scene);
     }
 
     if (selectedLayerId && layer.id === selectedLayerId) {
@@ -808,7 +814,7 @@ function drawLayoutGrid(ctx, width, height, gridStyle, palette, isExplicitGridTo
   ctx.restore();
 }
 
-function renderGraphicLayer(ctx, layer, state, t, audio, palette, canvasWidth = 1080, canvasHeight = 1350) {
+function renderGraphicLayer(ctx, layer, state, t, audio, palette, canvasWidth = 1080, canvasHeight = 1350, scene = null) {
   // Background-handled decor assets should not draw duplicate geometry unless selected
   if (
     ['hangulGrid', 'patternBlocks', 'soundcheckBlocks', 'paperSheets', 'splitBars', 'fieldCutout', 'diagonalStripes', 'pressStack'].includes(
@@ -818,13 +824,19 @@ function renderGraphicLayer(ctx, layer, state, t, audio, palette, canvasWidth = 
     return;
   }
 
-  // Physics spring & kinetic motion calculation for graphic layers
+  // Physics spring & kinetic motion calculation for graphic layers (inherits scene motion if layer preset is none)
   let gx = 0;
   let gy = 0;
   let gScale = 1;
   let gRot = 0;
-  if (layer.motionPreset && layer.motionPreset !== 'none') {
-    const gSpeed = layer.motionSpeed ?? 1;
+  const activeGraphicPreset = (layer.motionPreset && layer.motionPreset !== 'none')
+    ? layer.motionPreset
+    : (scene?.motionPreset && scene.motionPreset !== 'none')
+    ? scene.motionPreset
+    : null;
+
+  if (activeGraphicPreset) {
+    const gSpeed = layer.motionSpeed ?? scene?.motionSpeed ?? 1;
     const gStiff = layer.motionStiffness ?? 180;
     const gDamp = layer.motionDamping ?? 14;
     const gOvershoot = layer.motionOvershoot ?? 1.2;
@@ -836,7 +848,7 @@ function renderGraphicLayer(ctx, layer, state, t, audio, palette, canvasWidth = 
       waveform: layer.motionWaveform || 'spring',
     });
 
-    switch (layer.motionPreset) {
+    switch (activeGraphicPreset) {
       case 'kineticSpringHop':
         gy = -Math.abs(gSpring) * 26;
         gScale = 1 + gSpring * 0.14;
@@ -1402,7 +1414,7 @@ function drawPatternClippedChar(ctx, ch, drawX, drawY, fontStr, patternStyle, ch
   ctx.drawImage(scratch, 0, 0, cw, chH, drawX - cx, drawY - cy, cw, chH);
 }
 
-function renderTextLayer(ctx, layer, state, t, audio, palette) {
+function renderTextLayer(ctx, layer, state, t, audio, palette, scene = null) {
   if (!layer.text) return;
 
   ctx.save();
@@ -1432,8 +1444,12 @@ function renderTextLayer(ctx, layer, state, t, audio, palette) {
   const totalHeight = lines.length * lineHeightPx;
   const startY = -totalHeight / 2 + lineHeightPx / 2;
 
-  const preset = layer.motionPreset || 'none';
-  const speed = layer.motionSpeed ?? 1;
+  const preset = (layer.motionPreset && layer.motionPreset !== 'none')
+    ? layer.motionPreset
+    : (scene?.motionPreset && scene.motionPreset !== 'none')
+    ? scene.motionPreset
+    : 'none';
+  const speed = layer.motionSpeed ?? scene?.motionSpeed ?? 1;
   const stagger = layer.stagger ?? 0.04;
   const stiffness = layer.motionStiffness ?? 200;
   const damping = layer.motionDamping ?? 13;

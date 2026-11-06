@@ -54,11 +54,26 @@ export function createScene(init = {}, fallbackName = 'Scene 1') {
     transition: init.transition || 'Cut',
     gridStyle: init.gridStyle || 'none',
     decorStyle: init.decorStyle || 'none',
+    posterLayout: init.posterLayout || 'swiss',
     shaderBg: init.shaderBg || 'none',
     shaderOpacity: Math.max(0, Math.min(1, Number(init.shaderOpacity) ?? 0.85)),
     fxRack: init.fxRack ? { ...init.fxRack } : {},
     layers: Array.isArray(init.layers) ? init.layers.map((l) => ({ ...l })) : [],
     showcase: init.showcase ? createShowcaseConfig(init.showcase) : null,
+
+    // Per-scene audio & sound
+    audioTrackId: init.audioTrackId ?? null, // null inherits project audio track
+    audioVolume: Math.max(0, Math.min(1, Number(init.audioVolume) ?? 1.0)),
+    sfxOnEnter: init.sfxOnEnter || 'none',
+    customAudioName: init.customAudioName || null,
+
+    // Per-scene motion & kinetics
+    motionPreset: init.motionPreset || 'none',
+    motionCurve: init.motionCurve || 'transitions',
+    motionSpeed: Math.max(0.25, Math.min(3.0, Number(init.motionSpeed) || 1.0)),
+
+    // Per-scene graphic & media assets
+    mediaSlots: Array.isArray(init.mediaSlots) ? [...init.mediaSlots] : [],
   };
 }
 

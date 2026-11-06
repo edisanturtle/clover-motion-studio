@@ -28,6 +28,8 @@ import { formatTimecode } from '../../utils/timecode';
 
 export default function BottomAudioBar({
   project,
+  activeScene = null,
+  activeSceneIndex = 0,
   editorMode,
   timelineExpanded = true,
   isPlaying,
@@ -40,6 +42,7 @@ export default function BottomAudioBar({
   micActive,
   spectrum,
   onSelectTrack,
+  onSelectSceneAudio,
   onUploadAudioFile,
   onForgetCustomAudio,
   onToggleMic,
@@ -61,9 +64,13 @@ export default function BottomAudioBar({
   const [dspTab, setDspTab] = useState('eq');
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
   const [rememberAudio, setRememberAudio] = useState(false);
+  const [assignScope, setAssignScope] = useState('scene'); // 'scene' | 'all'
 
+  const activeSceneTrackId = activeScene?.audioTrackId;
+  const isSceneOverride = Boolean(activeSceneTrackId && activeSceneTrackId !== 'none');
+  const effectiveTrackId = isSceneOverride ? activeSceneTrackId : (project.audioTrackId || 'funk');
   const currentTrack =
-    DEMO_TRACKS.find((t) => t.id === project.audioTrackId) || DEMO_TRACKS[0];
+    DEMO_TRACKS.find((t) => t.id === effectiveTrackId) || DEMO_TRACKS[0];
 
   useEffect(() => {
     const handleOutside = (e) => {
@@ -101,13 +108,26 @@ export default function BottomAudioBar({
     ? 'Microphone'
     : project.customAudioName
     ? `File · ${project.customAudioName}`
+    : isSceneOverride
+    ? `🎬 0${activeSceneIndex + 1} · ${currentTrack.name}`
     : `Demo · ${currentTrack.name}`;
 
   const subLabel = micActive
     ? 'Live audio input'
     : project.customAudioName
     ? 'Uploaded audio'
+    : isSceneOverride
+    ? `Scene track · ${currentTrack.bpm} BPM`
     : `${currentTrack.name} · ${currentTrack.bpm} BPM`;
+
+  const handlePickTrack = (trackId) => {
+    if (assignScope === 'scene' && onSelectSceneAudio) {
+      onSelectSceneAudio(trackId);
+    } else {
+      onSelectTrack(trackId);
+    }
+    setTrackMenuOpen(false);
+  };
 
   return (
     <div className="bg-[#0e0e0e] px-2.5 pb-1.5 shrink-0 select-none">
@@ -129,7 +149,12 @@ export default function BottomAudioBar({
                     : 'px-1.5 py-0.5 rounded hover:bg-neutral-800/70'
                 }`}
               >
-                <span className="truncate max-w-[130px]">{triggerLabel}</span>
+                <span className="truncate max-w-[140px] flex items-center gap-1.5">
+                  {isSceneOverride && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] shrink-0" />
+                  )}
+                  <span>{triggerLabel}</span>
+                </span>
                 <ChevronDown className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
               </button>
               <span className="text-[10px] font-mono text-neutral-500 pl-1.5 mt-0.5">
@@ -138,12 +163,61 @@ export default function BottomAudioBar({
             </div>
 
             {trackMenuOpen && (
-              <div className="absolute left-0 bottom-14 w-64 rounded-2xl bg-[#1c1c1c] border border-neutral-700/90 shadow-2xl z-50 flex flex-col overflow-hidden">
+              <div className="absolute left-0 bottom-14 w-72 rounded-2xl bg-[#1c1c1c] border border-neutral-700/90 shadow-2xl z-50 flex flex-col overflow-hidden">
                 <div className="flex justify-center py-1 text-neutral-500 border-b border-neutral-800/60">
                   <ChevronUp className="w-3.5 h-3.5" />
                 </div>
 
+                {/* Scope Target Switcher */}
+                <div className="p-2 border-b border-neutral-800 bg-[#161616]">
+                  <div className="flex items-center justify-between bg-[#1f1f1f] p-0.5 rounded-lg border border-neutral-800">
+                    <button
+                      type="button"
+                      onClick={() => setAssignScope('scene')}
+                      className={`flex-1 py-1 rounded text-[10px] font-medium transition-all ${
+                        assignScope === 'scene'
+                          ? 'bg-[#159947] text-white font-semibold shadow-sm'
+                          : 'text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      🎬 Scene {activeSceneIndex + 1} Only
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssignScope('all')}
+                      className={`flex-1 py-1 rounded text-[10px] font-medium transition-all ${
+                        assignScope === 'all'
+                          ? 'bg-[#159947] text-white font-semibold shadow-sm'
+                          : 'text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      🌐 All Scenes
+                    </button>
+                  </div>
+                </div>
+
                 <div className="max-h-[340px] overflow-y-auto custom-scrollbar py-1.5 text-xs">
+                  {/* Scene Inherit Option */}
+                  {assignScope === 'scene' && (
+                    <div className="px-2 pb-1.5 mb-1.5 border-b border-neutral-800">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelectSceneAudio?.(null);
+                          setTrackMenuOpen(false);
+                        }}
+                        className={`w-full px-2.5 py-1.5 rounded-lg text-left text-xs flex items-center justify-between transition-colors ${
+                          !isSceneOverride
+                            ? 'bg-[#159947]/20 text-white font-semibold border border-[#22c55e]/40'
+                            : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
+                        }`}
+                      >
+                        <span>Inherit Project Track ({project.audioTrackId || 'funk'})</span>
+                        {!isSceneOverride && <Check className="w-3.5 h-3.5 text-[#22c55e]" />}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Section 1: Your audio */}
                   <div className="px-3.5 py-1 text-[11px] font-medium text-neutral-400">
                     Your audio
@@ -180,17 +254,13 @@ export default function BottomAudioBar({
                   {RECOMMENDED_AUDIO_BY_USE.map((rec) => {
                     const tr = DEMO_TRACKS.find((t) => t.id === rec.id);
                     if (!tr) return null;
-                    const active =
-                      !micActive && !project.customAudioName && project.audioTrackId === tr.id;
+                    const active = effectiveTrackId === tr.id;
                     return (
                       <button
                         key={rec.id}
                         type="button"
                         title={tr.detail}
-                        onClick={() => {
-                          onSelectTrack(tr.id);
-                          setTrackMenuOpen(false);
-                        }}
+                        onClick={() => handlePickTrack(tr.id)}
                         className="w-full px-3.5 py-1.5 text-left hover:bg-neutral-800 flex items-center justify-between gap-2"
                       >
                         <div className="min-w-0">
@@ -227,16 +297,13 @@ export default function BottomAudioBar({
                           const active =
                             !micActive &&
                             !project.customAudioName &&
-                            project.audioTrackId === tr.id;
+                            effectiveTrackId === tr.id;
                           return (
                             <button
                               key={tr.id}
                               type="button"
                               title={tr.detail}
-                              onClick={() => {
-                                onSelectTrack(tr.id);
-                                setTrackMenuOpen(false);
-                              }}
+                              onClick={() => handlePickTrack(tr.id)}
                               className="w-full px-3.5 py-1.5 text-left hover:bg-neutral-800 flex items-center justify-between gap-2"
                             >
                               <span className="text-xs font-medium text-white truncate">

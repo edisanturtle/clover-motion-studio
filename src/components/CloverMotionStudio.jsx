@@ -14,6 +14,10 @@ import {
   deleteScene,
   updateSceneProp,
   updateShowcaseConfig,
+  updateSceneAudio,
+  updateSceneMotion,
+  updateSceneDesign,
+  updateSceneMediaSlots,
   updateLayer,
   reorderLayers,
 } from '../core/services/projectService';
@@ -120,14 +124,37 @@ export default function CloverMotionStudio() {
     };
   }, []);
 
-  // Select default headline layer when switching scenes
+  // Select default headline layer and sync per-scene audio/SFX when switching scenes
   useEffect(() => {
     if (activeScene?.layers?.length) {
       const titleLayer =
         activeScene.layers.find((l) => l.role === 'title') || activeScene.layers[0];
       setSelectedLayerId(titleLayer.id);
     }
-  }, [activeSceneIndex, project.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    if (!project?.scenes || !project.scenes[activeSceneIndex]) return;
+    const curScene = project.scenes[activeSceneIndex];
+    const targetTrackId = curScene.audioTrackId || project.audioTrackId || 'funk';
+
+    if (isPlaying && curScene.sfxOnEnter && curScene.sfxOnEnter !== 'none') {
+      audioEngineRef.current?.triggerSfx(curScene.sfxOnEnter);
+    }
+
+    if (isPlaying) {
+      if (targetTrackId === 'none' || targetTrackId === 'mute') {
+        audioEngineRef.current?.setMuted(true);
+      } else {
+        if (!isMuted) audioEngineRef.current?.setMuted(false);
+        const currentAudioTrack = audioEngineRef.current?.currentTrack;
+        if (currentAudioTrack?.id !== targetTrackId) {
+          const track = DEMO_TRACKS.find((t) => t.id === targetTrackId) || DEMO_TRACKS[0];
+          if (track) {
+            audioEngineRef.current?.setTrack(track);
+          }
+        }
+      }
+    }
+  }, [activeSceneIndex, isPlaying, project.audioTrackId, project.id, isMuted]);
 
   // Commit state change with Undo History
   const updateProjectWithHistory = useCallback((updater) => {
@@ -215,16 +242,20 @@ export default function CloverMotionStudio() {
   const handleTogglePlay = useCallback(() => {
     setIsPlaying((prev) => {
       const next = !prev;
+      const targetTrackId = activeScene?.audioTrackId || project.audioTrackId || 'funk';
       const track =
-        DEMO_TRACKS.find((t) => t.id === project.audioTrackId) || DEMO_TRACKS[0];
+        DEMO_TRACKS.find((t) => t.id === targetTrackId) || DEMO_TRACKS[0];
       if (next) {
         audioEngineRef.current?.start(track);
+        if (activeScene?.sfxOnEnter && activeScene.sfxOnEnter !== 'none') {
+          audioEngineRef.current?.triggerSfx(activeScene.sfxOnEnter);
+        }
       } else {
         audioEngineRef.current?.stop();
       }
       return next;
     });
-  }, [project.audioTrackId]);
+  }, [activeScene?.audioTrackId, activeScene?.sfxOnEnter, project.audioTrackId]);
 
   const handleRestart = useCallback(() => {
     setLocalTime(0);
@@ -527,22 +558,43 @@ export default function CloverMotionStudio() {
     });
   };
 
-  const handleApplyPalette = (colors) => {
-    updateProjectWithHistory((prev) => ({
-      ...prev,
-      palette: colors,
-      scenes: prev.scenes.map((sc) => ({
-        ...sc,
-        bg: colors[0],
-        palette: colors,
-        layers: sc.layers.map((l) => {
-          if (l.type === 'text') return { ...l, color: colors[1] };
-          if (l.type === 'graphic')
-            return { ...l, color: colors[2], secondaryColor: colors[1] };
-          return l;
-        }),
-      })),
-    }));
+  const handleApplyPalette = (colors, scope = 'scene') => {
+    updateProjectWithHistory((prev) => {
+      if (scope === 'scene') {
+        return {
+          ...prev,
+          scenes: prev.scenes.map((sc, idx) => {
+            if (idx !== activeSceneIndex) return sc;
+            return {
+              ...sc,
+              bg: colors[0],
+              palette: [...colors],
+              layers: sc.layers.map((l) => {
+                if (l.type === 'text') return { ...l, color: colors[1] };
+                if (l.type === 'graphic')
+                  return { ...l, color: colors[2] || colors[1], secondaryColor: colors[3] || colors[0] };
+                return l;
+              }),
+            };
+          }),
+        };
+      }
+      return {
+        ...prev,
+        palette: [...colors],
+        scenes: prev.scenes.map((sc) => ({
+          ...sc,
+          bg: colors[0],
+          palette: [...colors],
+          layers: sc.layers.map((l) => {
+            if (l.type === 'text') return { ...l, color: colors[1] };
+            if (l.type === 'graphic')
+              return { ...l, color: colors[2] || colors[1], secondaryColor: colors[3] || colors[0] };
+            return l;
+          }),
+        })),
+      };
+    });
   };
 
   // Layer & Scene Mutators
@@ -583,20 +635,38 @@ export default function CloverMotionStudio() {
     });
   };
 
-  const handleSelectSceneMotionPreset = (presetId) => {
+  const handleSelectSceneMotionPreset = (presetId, scope = 'scene') => {
     updateProjectWithHistory((prev) => ({
       ...prev,
       scenes: prev.scenes.map((sc, idx) =>
-        idx !== activeSceneIndex
+        (scope !== 'all' && idx !== activeSceneIndex)
           ? sc
           : {
               ...sc,
+              motionPreset: presetId,
               layers: sc.layers.map((l) =>
                 l.type === 'text' ? { ...l, motionPreset: presetId } : l
               ),
             }
       ),
     }));
+  };
+
+  const handleSelectSceneAudio = (trackId, sfxOnEnter = undefined, volumeVal = undefined) => {
+    updateProjectWithHistory((prev) =>
+      updateSceneAudio(prev, activeSceneIndex, {
+        ...(trackId !== undefined && { audioTrackId: trackId }),
+        ...(sfxOnEnter !== undefined && { sfxOnEnter }),
+        ...(volumeVal !== undefined && { audioVolume: volumeVal }),
+      })
+    );
+    if (trackId && trackId !== 'none' && trackId !== 'mute') {
+      const track = DEMO_TRACKS.find((t) => t.id === trackId) || DEMO_TRACKS[0];
+      if (track && isPlaying) audioEngineRef.current?.setTrack(track);
+    }
+    if (sfxOnEnter && sfxOnEnter !== 'none') {
+      audioEngineRef.current?.triggerSfx(sfxOnEnter);
+    }
   };
 
   const handleAddTextLayer = (text = 'NEW HEADLINE', fontSize = 96) => {
@@ -944,97 +1014,113 @@ export default function CloverMotionStudio() {
   };
 
   // Animos 3D Showcase & Media Slots Handlers
-  const handleUpdateShowcase = (patch) => {
-    updateProjectWithHistory((prev) => updateShowcaseConfig(prev, patch));
+  const handleUpdateShowcase = (patch, scope = 'scene') => {
+    updateProjectWithHistory((prev) =>
+      updateShowcaseConfig(prev, activeSceneIndex, patch, scope === 'all')
+    );
     // Auto start playback if paused so the user immediately sees the 3D motion preview!
     if (!isPlaying && patch.templateId && patch.templateId !== 'none') {
       setIsPlaying(true);
+      const targetTrackId = activeScene?.audioTrackId || project.audioTrackId || 'funk';
       const track =
-        DEMO_TRACKS.find((t) => t.id === project.audioTrackId) || DEMO_TRACKS[0];
+        DEMO_TRACKS.find((t) => t.id === targetTrackId) || DEMO_TRACKS[0];
       audioEngineRef.current?.start(track);
     }
   };
 
-  const handleUploadMediaSlots = (files) => {
+  const handleUploadMediaSlots = (files, scope = 'scene') => {
     files.forEach((file) => {
       const url = URL.createObjectURL(file);
       const img = new window.Image();
       img.onload = () => {
-        setProject((prev) => ({
-          ...prev,
-          mediaSlots: [
-            ...(prev.mediaSlots || []),
-            {
-              id: `slot_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-              title: file.name.replace(/\.[^/.]+$/, '').slice(0, 18),
-              subtitle: 'UPLOADED MEDIA',
-              imageElement: img,
-            },
-          ],
-        }));
+        const newSlot = {
+          id: `slot_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          title: file.name.replace(/\.[^/.]+$/, '').slice(0, 18),
+          subtitle: 'UPLOADED MEDIA',
+          imageElement: img,
+        };
+        updateProjectWithHistory((prev) => {
+          if (scope === 'all') {
+            const nextGlobal = [...(prev.mediaSlots || []), newSlot];
+            return {
+              ...prev,
+              mediaSlots: nextGlobal,
+              scenes: prev.scenes.map((sc) => ({
+                ...sc,
+                mediaSlots: [...(sc.mediaSlots || []), newSlot],
+              })),
+            };
+          }
+          return {
+            ...prev,
+            scenes: prev.scenes.map((sc, idx) =>
+              idx !== activeSceneIndex
+                ? sc
+                : { ...sc, mediaSlots: [...(sc.mediaSlots || []), newSlot] }
+            ),
+          };
+        });
       };
       img.src = url;
     });
   };
 
-  const handleClearMediaSlots = () => {
-    updateProjectWithHistory((prev) => ({
-      ...prev,
-      mediaSlots: [],
-    }));
+  const handleClearMediaSlots = (scope = 'scene') => {
+    updateProjectWithHistory((prev) => {
+      if (scope === 'all') {
+        return {
+          ...prev,
+          mediaSlots: [],
+          scenes: prev.scenes.map((sc) => ({ ...sc, mediaSlots: [] })),
+        };
+      }
+      return {
+        ...prev,
+        scenes: prev.scenes.map((sc, idx) =>
+          idx !== activeSceneIndex ? sc : { ...sc, mediaSlots: [] }
+        ),
+      };
+    });
   };
 
   // EffectCraft Procedural Shader & Post-Processing FX Rack Handlers
-  const handleUpdateShaderBg = (shaderId) => {
-    updateProjectWithHistory((prev) => ({
-      ...prev,
-      shaderBg: shaderId,
-    }));
+  const handleUpdateShaderBg = (shaderId, scope = 'scene') => {
+    updateProjectWithHistory((prev) =>
+      updateSceneDesign(prev, activeSceneIndex, { shaderBg: shaderId }, scope === 'all')
+    );
   };
 
-  const handleToggleFxRack = (fxId) => {
+  const handleToggleFxRack = (fxId, scope = 'scene') => {
     const fxDef = EFFECTCRAFT_FX_RACK.find((f) => f.id === fxId);
     updateProjectWithHistory((prev) => {
-      const current = prev.fxRack?.[fxId] || {
+      const targetScene = prev.scenes[activeSceneIndex];
+      const sourceFx = (scope === 'all' ? prev.fxRack : targetScene?.fxRack) || {};
+      const current = sourceFx[fxId] || {
         enabled: false,
         intensity: fxDef?.defaultIntensity ?? 50,
         secondary: fxDef?.defaultSecondary ?? 50,
         audioReactive: false,
         audioBand: 'bass',
       };
-      return {
-        ...prev,
-        fxRack: {
-          ...(prev.fxRack || {}),
-          [fxId]: {
-            ...current,
-            enabled: !current.enabled,
-          },
-        },
-      };
+      const patched = { [fxId]: { ...current, enabled: !current.enabled } };
+      return updateSceneDesign(prev, activeSceneIndex, { fxRack: patched }, scope === 'all');
     });
   };
 
-  const handleUpdateFxParam = (fxId, patch) => {
+  const handleUpdateFxParam = (fxId, patch, scope = 'scene') => {
     const fxDef = EFFECTCRAFT_FX_RACK.find((f) => f.id === fxId);
     updateProjectWithHistory((prev) => {
-      const current = prev.fxRack?.[fxId] || {
+      const targetScene = prev.scenes[activeSceneIndex];
+      const sourceFx = (scope === 'all' ? prev.fxRack : targetScene?.fxRack) || {};
+      const current = sourceFx[fxId] || {
         enabled: true,
         intensity: fxDef?.defaultIntensity ?? 50,
         secondary: fxDef?.defaultSecondary ?? 50,
         audioReactive: false,
         audioBand: 'bass',
       };
-      return {
-        ...prev,
-        fxRack: {
-          ...(prev.fxRack || {}),
-          [fxId]: {
-            ...current,
-            ...patch,
-          },
-        },
-      };
+      const patched = { [fxId]: { ...current, ...patch } };
+      return updateSceneDesign(prev, activeSceneIndex, { fxRack: patched }, scope === 'all');
     });
   };
 
@@ -1296,6 +1382,8 @@ export default function CloverMotionStudio() {
           onUpdateShaderBg={handleUpdateShaderBg}
           onToggleFxRack={handleToggleFxRack}
           onUpdateFxParam={handleUpdateFxParam}
+          onSelectSceneAudio={handleSelectSceneAudio}
+          onTriggerSfx={handleTriggerSfx}
           onOpenTemplates={() => {
             setTemplateLibraryInitialTab('templates');
             setTemplatesModalOpen(true);
@@ -1340,9 +1428,12 @@ export default function CloverMotionStudio() {
               <RightInspector
                 selectedLayer={selectedLayer}
                 activeScene={activeScene}
+                project={project}
                 audioSignals={audioSignals}
                 onUpdateLayer={handleUpdateLayer}
                 onUpdateSceneProp={handleUpdateSceneProp}
+                onSelectSceneAudio={handleSelectSceneAudio}
+                onTriggerSfx={handleTriggerSfx}
                 onUploadCustomFont={handleUploadCustomFont}
                 onUploadCustomImage={handleUploadCustomImage}
                 onOpenMotionTemplates={() => setMotionTemplatesOpen(true)}
@@ -1385,6 +1476,8 @@ export default function CloverMotionStudio() {
           {/* Bottom Procedural Sound & FFT Spectrum Bar */}
           <BottomAudioBar
             project={project}
+            activeScene={activeScene}
+            activeSceneIndex={activeSceneIndex}
             editorMode={editorMode}
             timelineExpanded={timelineExpanded}
             isPlaying={isPlaying}
@@ -1397,6 +1490,7 @@ export default function CloverMotionStudio() {
             micActive={micActive}
             spectrum={spectrum}
             onSelectTrack={handleSelectTrack}
+            onSelectSceneAudio={handleSelectSceneAudio}
             onUploadAudioFile={handleUploadAudioFile}
             onForgetCustomAudio={handleForgetCustomAudio}
             onToggleMic={handleToggleMic}
