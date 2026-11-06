@@ -15,12 +15,15 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
+  Sliders,
+  Zap,
 } from 'lucide-react';
 import {
   DEMO_TRACKS,
   RECOMMENDED_AUDIO_BY_USE,
   AUDIO_GROUPS,
 } from '../../constants/audioTracks';
+import { EVENT_SFX_PADS } from '../../constants/effectCraftEffects';
 import { formatTimecode } from '../../utils/timecode';
 
 export default function BottomAudioBar({
@@ -42,15 +45,19 @@ export default function BottomAudioBar({
   onToggleMic,
   onToggleMute,
   onChangeVolume,
+  onUpdateAudioDsp,
+  onTriggerSfx,
   onTogglePlay,
   onRestart,
   onSeekLocalTime,
 }) {
   const fileInputRef = useRef(null);
   const storagePopoverRef = useRef(null);
+  const dspPopoverRef = useRef(null);
   const trackMenuRef = useRef(null);
   const scrubberRef = useRef(null);
   const [storageOpen, setStorageOpen] = useState(false);
+  const [dspOpen, setDspOpen] = useState(false);
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
   const [rememberAudio, setRememberAudio] = useState(false);
 
@@ -61,6 +68,9 @@ export default function BottomAudioBar({
     const handleOutside = (e) => {
       if (storagePopoverRef.current && !storagePopoverRef.current.contains(e.target)) {
         setStorageOpen(false);
+      }
+      if (dspPopoverRef.current && !dspPopoverRef.current.contains(e.target)) {
+        setDspOpen(false);
       }
       if (trackMenuRef.current && !trackMenuRef.current.contains(e.target)) {
         setTrackMenuOpen(false);
@@ -336,6 +346,143 @@ export default function BottomAudioBar({
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Forget local copy</span>
                 </button>
+              </div>
+            )}
+          </div>
+
+          {/* Sound DSP & Live Event SFX Pads Popover */}
+          <div className="relative" ref={dspPopoverRef}>
+            <button
+              type="button"
+              onClick={() => setDspOpen((v) => !v)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                dspOpen
+                  ? 'bg-[#159947] border-[#22c55e] text-white shadow-sm'
+                  : 'bg-[#202020] border-neutral-800 text-neutral-300 hover:text-white'
+              }`}
+              title="Master Sound DSP & Event SFX Pads"
+            >
+              <Sliders className="w-3.5 h-3.5 text-[#4ade80]" />
+              <span className="hidden sm:inline">Sound FX</span>
+            </button>
+
+            {dspOpen && (
+              <div className="absolute left-0 bottom-14 w-80 rounded-2xl bg-[#1c1c1c] border border-neutral-700/90 shadow-2xl p-4 z-50 space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] font-mono uppercase tracking-widest text-[#4ade80]">
+                      WEB AUDIO DSP & SAMPLER
+                    </div>
+                    <div className="text-xs font-bold text-white mt-0.5">
+                      Master Sound & Event SFX
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateAudioDsp?.({
+                        lowpassFreq: 20000,
+                        bassGain: 0,
+                        delayMix: 0,
+                      })
+                    }
+                    className="text-[10px] text-neutral-400 hover:text-white underline"
+                  >
+                    Reset DSP
+                  </button>
+                </div>
+
+                {/* DSP Sliders */}
+                <div className="space-y-2.5">
+                  <div>
+                    <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
+                      <span>Lowpass Filter Cutoff</span>
+                      <span className="font-mono text-neutral-400">
+                        {project.audioDsp?.lowpassFreq ?? 20000} Hz
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={200}
+                      max={20000}
+                      step={100}
+                      value={project.audioDsp?.lowpassFreq ?? 20000}
+                      onChange={(e) =>
+                        onUpdateAudioDsp?.({ lowpassFreq: Number(e.target.value) })
+                      }
+                      className="w-full accent-[#16a34a]"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
+                      <span>Sub-Bass Boost (110 Hz)</span>
+                      <span className="font-mono text-neutral-400">
+                        +{project.audioDsp?.bassGain ?? 0} dB
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={15}
+                      step={1}
+                      value={project.audioDsp?.bassGain ?? 0}
+                      onChange={(e) =>
+                        onUpdateAudioDsp?.({ bassGain: Number(e.target.value) })
+                      }
+                      className="w-full accent-[#16a34a]"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-[11px] text-neutral-300 mb-0.5">
+                      <span>Dub Echo Delay Mix</span>
+                      <span className="font-mono text-neutral-400">
+                        {Math.round((project.audioDsp?.delayMix ?? 0) * 100)}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={0.75}
+                      step={0.05}
+                      value={project.audioDsp?.delayMix ?? 0}
+                      onChange={(e) =>
+                        onUpdateAudioDsp?.({ delayMix: Number(e.target.value) })
+                      }
+                      className="w-full accent-[#16a34a]"
+                    />
+                  </div>
+                </div>
+
+                {/* 8 Live Event One-Shot SFX Trigger Pads */}
+                <div className="pt-2 border-t border-neutral-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-white flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-[#4ade80]" />
+                      Live Event & Social SFX Pads
+                    </span>
+                    <span className="text-[10px] font-mono text-neutral-500">Click to trigger</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {EVENT_SFX_PADS.map((sfx) => (
+                      <button
+                        key={sfx.id}
+                        type="button"
+                        onClick={() => onTriggerSfx?.(sfx.id)}
+                        className="px-2.5 py-2 rounded-xl bg-[#242424] hover:bg-[#159947]/25 active:scale-95 border border-neutral-700/80 hover:border-[#22c55e] text-left transition-all flex items-center justify-between"
+                      >
+                        <span className="text-[11px] font-semibold text-white truncate">
+                          {sfx.name}
+                        </span>
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: sfx.color }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>

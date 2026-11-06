@@ -5,6 +5,7 @@ import { STUDIO_TEMPLATES } from '../constants/templateCatalog';
 import { DEMO_TRACKS } from '../constants/audioTracks';
 import { ASPECT_RATIOS } from '../constants/fonts';
 import { COLOR_PALETTES } from '../constants/motionPresets';
+import { EFFECTCRAFT_FX_RACK } from '../constants/effectCraftEffects';
 import { buildProjectFromTemplate } from '../utils/projectBuilder';
 import { ProceduralAudioEngine } from '../engine/audioEngine';
 
@@ -899,6 +900,116 @@ export default function CloverMotionStudio() {
     audioEngineRef.current?.setVolume(val);
   };
 
+  // Animos 3D Showcase & Media Slots Handlers
+  const handleUpdateShowcase = (patch) => {
+    updateProjectWithHistory((prev) => ({
+      ...prev,
+      showcase: {
+        ...(prev.showcase || {}),
+        ...patch,
+      },
+    }));
+  };
+
+  const handleUploadMediaSlots = (files) => {
+    files.forEach((file) => {
+      const url = URL.createObjectURL(file);
+      const img = new window.Image();
+      img.onload = () => {
+        setProject((prev) => ({
+          ...prev,
+          mediaSlots: [
+            ...(prev.mediaSlots || []),
+            {
+              id: `slot_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+              title: file.name.replace(/\.[^/.]+$/, '').slice(0, 18),
+              subtitle: 'UPLOADED MEDIA',
+              imageElement: img,
+            },
+          ],
+        }));
+      };
+      img.src = url;
+    });
+  };
+
+  const handleClearMediaSlots = () => {
+    updateProjectWithHistory((prev) => ({
+      ...prev,
+      mediaSlots: [],
+    }));
+  };
+
+  // EffectCraft Procedural Shader & Post-Processing FX Rack Handlers
+  const handleUpdateShaderBg = (shaderId) => {
+    updateProjectWithHistory((prev) => ({
+      ...prev,
+      shaderBg: shaderId,
+    }));
+  };
+
+  const handleToggleFxRack = (fxId) => {
+    const fxDef = EFFECTCRAFT_FX_RACK.find((f) => f.id === fxId);
+    updateProjectWithHistory((prev) => {
+      const current = prev.fxRack?.[fxId] || {
+        enabled: false,
+        intensity: fxDef?.defaultIntensity ?? 50,
+        secondary: fxDef?.defaultSecondary ?? 50,
+        audioReactive: false,
+        audioBand: 'bass',
+      };
+      return {
+        ...prev,
+        fxRack: {
+          ...(prev.fxRack || {}),
+          [fxId]: {
+            ...current,
+            enabled: !current.enabled,
+          },
+        },
+      };
+    });
+  };
+
+  const handleUpdateFxParam = (fxId, patch) => {
+    const fxDef = EFFECTCRAFT_FX_RACK.find((f) => f.id === fxId);
+    updateProjectWithHistory((prev) => {
+      const current = prev.fxRack?.[fxId] || {
+        enabled: true,
+        intensity: fxDef?.defaultIntensity ?? 50,
+        secondary: fxDef?.defaultSecondary ?? 50,
+        audioReactive: false,
+        audioBand: 'bass',
+      };
+      return {
+        ...prev,
+        fxRack: {
+          ...(prev.fxRack || {}),
+          [fxId]: {
+            ...current,
+            ...patch,
+          },
+        },
+      };
+    });
+  };
+
+  // Master Sound DSP & Live Event SFX Triggers
+  const handleUpdateAudioDsp = (patch) => {
+    setProject((prev) => {
+      const nextDsp = { ...(prev.audioDsp || {}), ...patch };
+      audioEngineRef.current?.setDspParams(nextDsp);
+      return {
+        ...prev,
+        audioDsp: nextDsp,
+      };
+    });
+  };
+
+  const handleTriggerSfx = (sfxId) => {
+    audioEngineRef.current?.triggerSoundEffect(sfxId);
+  };
+
   // Export & Project Persistence
   const handleExportPNG = () => {
     const canvas = canvasRef.current;
@@ -1084,6 +1195,12 @@ export default function CloverMotionStudio() {
           onDuplicateLayer={handleDuplicateLayer}
           onMoveLayerOrder={handleMoveLayerOrder}
           onUploadCustomImage={handleUploadCustomImage}
+          onUpdateShowcase={handleUpdateShowcase}
+          onUploadMediaSlots={handleUploadMediaSlots}
+          onClearMediaSlots={handleClearMediaSlots}
+          onUpdateShaderBg={handleUpdateShaderBg}
+          onToggleFxRack={handleToggleFxRack}
+          onUpdateFxParam={handleUpdateFxParam}
           onOpenTemplates={() => {
             setTemplateLibraryInitialTab('templates');
             setTemplatesModalOpen(true);
@@ -1185,6 +1302,8 @@ export default function CloverMotionStudio() {
             onToggleMic={handleToggleMic}
             onToggleMute={handleToggleMute}
             onChangeVolume={handleChangeVolume}
+            onUpdateAudioDsp={handleUpdateAudioDsp}
+            onTriggerSfx={handleTriggerSfx}
             onTogglePlay={handleTogglePlay}
             onRestart={handleRestart}
             onSeekLocalTime={setLocalTime}
@@ -1255,6 +1374,7 @@ export default function CloverMotionStudio() {
         onTogglePlay={handleTogglePlay}
         onRestart={handleRestart}
         onSeekLocalTime={setLocalTime}
+        onTriggerSfx={handleTriggerSfx}
       />
 
       <HelpShortcutsModal

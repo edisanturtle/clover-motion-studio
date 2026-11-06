@@ -59,6 +59,14 @@ export default function CanvasViewport({
       ? editorMode === 'quick'
         ? 0.25
         : 0.22
+      : project.ratio === '16:9'
+      ? editorMode === 'quick'
+        ? 0.34
+        : 0.30
+      : project.ratio === '4:3'
+      ? editorMode === 'quick'
+        ? 0.36
+        : 0.32
       : project.ratio === '1:1'
       ? editorMode === 'quick'
         ? 0.42
@@ -94,6 +102,7 @@ export default function CanvasViewport({
       selectedLayerId,
       showGrid,
       showSafeGuides,
+      project,
     });
   }, [
     canvasRef,
@@ -105,6 +114,7 @@ export default function CanvasViewport({
     selectedLayerId,
     showGrid,
     showSafeGuides,
+    project,
   ]);
 
   // Pointer Hit Testing & Dragging on Canvas
@@ -232,9 +242,12 @@ export default function CanvasViewport({
                 onChange={(e) => onChangeRatio(e.target.value)}
                 className="px-2.5 py-1 rounded-lg bg-[#202020] border border-neutral-800 text-xs font-medium text-neutral-200 focus:outline-none focus:border-neutral-600"
               >
-                <option value="4:5">4:5 · Portrait</option>
+                <option value="4:5">4:5 · Feed Portrait</option>
                 <option value="1:1">1:1 · Square</option>
-                <option value="9:16">9:16 · Story</option>
+                <option value="9:16">9:16 · Story / Totem</option>
+                <option value="16:9">16:9 · Stage / YouTube</option>
+                <option value="4:3">4:3 · Exhibition Booth</option>
+                <option value="3:4">3:4 · Event Poster</option>
               </select>
 
               <button
@@ -435,6 +448,7 @@ export default function CanvasViewport({
               <SceneStripCard
                 key={sc.id}
                 scene={sc}
+                project={project}
                 index={idx}
                 ratio={project.ratio}
                 isActive={idx === activeSceneIndex}

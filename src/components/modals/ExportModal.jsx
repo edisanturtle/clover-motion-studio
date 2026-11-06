@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import ModalDialog from '../common/ModalDialog';
 import { ASPECT_RATIOS } from '../../constants/fonts';
+import { SOCIAL_AND_EVENT_EXPORT_PRESETS } from '../../constants/effectCraftEffects';
 import { renderSceneToCanvas } from '../../engine/canvasRenderer';
 
 export default function ExportModal({
@@ -65,8 +66,9 @@ export default function ExportModal({
       selectedLayerId: null,
       showGrid: false,
       showSafeGuides: false,
+      project,
     });
-  }, [open, activeScene, dim.width, dim.height]);
+  }, [open, activeScene, project, dim.width, dim.height]);
 
   const handlePrimaryExport = () => {
     if (selectedFormat === 'png' || selectedFormat === 'zip') {
@@ -239,6 +241,48 @@ export default function ExportModal({
               </button>
             </div>
 
+            {/* Social Media & Event Venue Destination Presets */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-neutral-300">
+                  Publish Destination · Social Media & Event Screens
+                </label>
+                <span className="text-[10px] font-mono text-[#4ade80]">1-Click Preset</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1">
+                {SOCIAL_AND_EVENT_EXPORT_PRESETS.map((preset) => {
+                  const active = compositionRatio === preset.ratio;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        setCompositionRatio(preset.ratio);
+                        onChangeRatio?.(preset.ratio);
+                      }}
+                      className={`p-2 rounded-xl border text-left transition-all ${
+                        active
+                          ? 'bg-[#159947]/20 border-[#22c55e] text-white'
+                          : 'bg-[#181818] border-neutral-800 text-neutral-300 hover:border-neutral-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-[11px] font-bold text-white truncate">
+                          {preset.name}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded bg-neutral-900 text-[9px] font-mono text-[#4ade80] shrink-0">
+                          {preset.group}
+                        </span>
+                      </div>
+                      <div className="text-[10px] font-mono text-neutral-400 mt-0.5">
+                        {preset.ratio} · {preset.width}×{preset.height} · {preset.fps}fps
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Composition version & Resolution Dropdowns */}
             <div className="space-y-3 pt-1">
               <div>
@@ -253,9 +297,12 @@ export default function ExportModal({
                   }}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-[#1c1c1c] border border-neutral-700/80 text-xs text-white focus:outline-none focus:border-white"
                 >
-                  <option value="4:5">Current · Feed · 4:5</option>
-                  <option value="1:1">Square · 1:1</option>
-                  <option value="9:16">Story · 9:16</option>
+                  <option value="4:5">Feed · 4:5 (1080 × 1350)</option>
+                  <option value="1:1">Square · 1:1 (1080 × 1080)</option>
+                  <option value="9:16">Story / Event Totem · 9:16 (1080 × 1920)</option>
+                  <option value="16:9">Stage LED Wall / YouTube · 16:9 (1920 × 1080)</option>
+                  <option value="4:3">Exhibition Booth · 4:3 (1440 × 1080)</option>
+                  <option value="3:4">Event Digital Poster · 3:4 (1080 × 1440)</option>
                 </select>
               </div>
 

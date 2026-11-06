@@ -1,4 +1,6 @@
 import { evaluateEasing } from '../utils/timecode';
+import { renderAnimosShowcase } from './animosRenderer';
+import { renderEffectCraftShaderBg, applyEffectCraftRack } from './effectCraftRenderer';
 
 // Cache an offscreen canvas for per-glyph pattern clipping
 let glyphScratchCanvas = null;
@@ -67,6 +69,7 @@ export function renderSceneToCanvas({
   selectedLayerId = null,
   showGrid = false,
   showSafeGuides = false,
+  project = null,
 }) {
   if (!ctx || !scene) return;
 
@@ -77,8 +80,38 @@ export function renderSceneToCanvas({
   ctx.fillStyle = scene.bg || '#101935';
   ctx.fillRect(0, 0, width, height);
 
+  // 1b. EffectCraft Procedural Shader Background (if active on scene or project)
+  const shaderBgId = scene.shaderBg || project?.shaderBg || 'none';
+  if (shaderBgId && shaderBgId !== 'none') {
+    renderEffectCraftShaderBg({
+      ctx,
+      width,
+      height,
+      shaderId: shaderBgId,
+      localTime,
+      audioSignals,
+      palette: scene.palette,
+      opacity: scene.shaderOpacity ?? project?.shaderOpacity ?? 0.85,
+    });
+  }
+
   // 2. Template Generative Background / System Decor
   drawTemplateDecor(ctx, width, height, scene, localTime, audioSignals);
+
+  // 2b. Animos 3D & Perspective Showcase Engine (if enabled on scene or project)
+  const showcaseConfig = scene.showcase || project?.showcase;
+  if (showcaseConfig && showcaseConfig.templateId && showcaseConfig.templateId !== 'none') {
+    renderAnimosShowcase({
+      ctx,
+      width,
+      height,
+      showcase: showcaseConfig,
+      mediaSlots: project?.mediaSlots || scene.mediaSlots || [],
+      localTime,
+      audioSignals,
+      palette: scene.palette,
+    });
+  }
 
   // 3. Optional Swiss Layout Grid Overlay (4x4 modular grid matching Screenshot 23)
   if (showGrid || (scene.gridStyle && scene.gridStyle !== 'none' && scene.decorStyle !== 'hangulGrid')) {
@@ -87,6 +120,9 @@ export function renderSceneToCanvas({
 
   // 4. Render Scene Layers (Bottom to Top)
   const layers = scene.layers || [];
+  let selectedLayerForHud = null;
+  let selectedStateForHud = null;
+
   layers.forEach((layer) => {
     if (layer.visible === false) return;
     const kfState = evaluateLayerKeyframes(layer, localTime);
@@ -123,9 +159,28 @@ export function renderSceneToCanvas({
     }
 
     if (selectedLayerId && layer.id === selectedLayerId) {
-      drawSelectionBox(ctx, layer, finalState);
+      selectedLayerForHud = layer;
+      selectedStateForHud = finalState;
     }
   });
+
+  // 4b. EffectCraft Post-Processing FX Rack (applied to rendered composition before editor HUD)
+  const fxRack = scene.fxRack || project?.fxRack;
+  if (fxRack && Object.keys(fxRack).length > 0) {
+    applyEffectCraftRack({
+      ctx,
+      width,
+      height,
+      fxRack,
+      localTime,
+      audioSignals,
+    });
+  }
+
+  // 4c. Editor Selection Box HUD (drawn after FX Rack so handles stay crisp)
+  if (selectedLayerForHud && selectedStateForHud) {
+    drawSelectionBox(ctx, selectedLayerForHud, selectedStateForHud);
+  }
 
   // 5. Safe Area Guides Overlay (Screenshots 11 & 48)
   if (showSafeGuides) {

@@ -25,10 +25,22 @@ import {
   ArrowUp,
   ArrowDown,
   Columns,
+  Box,
+  Wand2,
+  Upload,
 } from 'lucide-react';
 import { FONT_OPTIONS } from '../../constants/fonts';
 import { COLOR_PALETTES, MOTION_PRESETS } from '../../constants/motionPresets';
 import { GRAPHIC_TEMPLATES } from '../../constants/graphicAssets';
+import {
+  ANIMOS_CATEGORIES,
+  ANIMOS_SHOWCASE_TEMPLATES,
+  ANIMOS_BG_GRADIENTS,
+} from '../../constants/animosTemplates';
+import {
+  EFFECTCRAFT_FX_RACK,
+  EFFECTCRAFT_SHADER_BACKGROUNDS,
+} from '../../constants/effectCraftEffects';
 import { formatTimecode } from '../../utils/timecode';
 
 function GraphicTemplateThumbnail({ template, isActive }) {
@@ -145,6 +157,12 @@ export default function LeftSidebar({
   onDuplicateLayer,
   onMoveLayerOrder,
   onUploadCustomImage,
+  onUpdateShowcase,
+  onUploadMediaSlots,
+  onClearMediaSlots,
+  onUpdateShaderBg,
+  onToggleFxRack,
+  onUpdateFxParam,
   onOpenTemplates,
   onOpenBrandKits,
   onOpenFormatReview,
@@ -155,12 +173,16 @@ export default function LeftSidebar({
   onSaveProject,
   onNewProject,
 }) {
-  const [quickTab, setQuickTab] = useState('content'); // 'content' | 'style' | 'motion' | 'scenes'
-  const [advTab, setAdvTab] = useState('content'); // 'content' | 'text' | 'graphics' | 'motion' | 'style' | 'layers'
+  const [quickTab, setQuickTab] = useState('content'); // 'content' | 'showcase' | 'fx' | 'style' | 'motion' | 'scenes'
+  const [advTab, setAdvTab] = useState('content'); // 'content' | 'showcase' | 'fx' | 'text' | 'graphics' | 'motion' | 'style' | 'layers'
+  const [animosCategory, setAnimosCategory] = useState('All');
   const imageUploadRef = useRef(null);
+  const mediaSlotUploadRef = useRef(null);
 
   const quickNavItems = [
     { id: 'content', label: 'Content', icon: Sliders },
+    { id: 'showcase', label: '3D Cards', icon: Box },
+    { id: 'fx', label: 'FX Rack', icon: Wand2 },
     { id: 'style', label: 'Style', icon: Palette },
     { id: 'motion', label: 'Motion', icon: Clapperboard },
     { id: 'scenes', label: 'Scenes', icon: Columns },
@@ -168,6 +190,8 @@ export default function LeftSidebar({
 
   const advNavItems = [
     { id: 'content', label: 'Quick Edit', icon: Sliders },
+    { id: 'showcase', label: '3D Showcase (Animos)', icon: Box },
+    { id: 'fx', label: 'FX & Shaders (EffectCraft)', icon: Wand2 },
     { id: 'text', label: 'Typography', icon: Type },
     { id: 'graphics', label: 'Graphics', icon: LayoutGrid },
     { id: 'motion', label: 'Scenes', icon: Clapperboard },
@@ -499,6 +523,470 @@ export default function LeftSidebar({
             )}
 
             {/* =========================================================
+                TAB: 3D SHOWCASE (ANIMOS ENGINE)
+               ========================================================= */}
+            {currentTab === 'showcase' && (
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] font-mono uppercase tracking-widest text-[#4ade80]">
+                      ANIMOS 3D SHOWCASE ENGINE
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded bg-[#159947]/20 border border-[#22c55e]/40 text-[10px] font-mono text-[#4ade80]">
+                      {(project.showcase?.templateId && project.showcase.templateId !== 'none')
+                        ? 'ACTIVE'
+                        : 'OFF'}
+                    </span>
+                  </div>
+                  <h2 className="text-sm font-bold text-white mt-0.5">3D & Perspective Cards</h2>
+                  <p className="text-[11px] text-neutral-400 mt-0.5 leading-relaxed">
+                    Add interactive 3D rings, globes, spirals, tunnels & isometric card decks behind or around your typography.
+                  </p>
+                </div>
+
+                {/* Media Slots Uploader Bar (Matching Animos Editor "Media · N slots") */}
+                <div className="p-2.5 rounded-xl bg-[#1a1a1a] border border-neutral-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white">
+                      Media · {project.showcase?.slots || 8} slots
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {(project.mediaSlots?.length || 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={onClearMediaSlots}
+                          className="text-[10px] text-neutral-400 hover:text-red-400 underline"
+                        >
+                          Reset default
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => mediaSlotUploadRef.current?.click()}
+                        className="px-2 py-1 rounded-lg bg-[#159947] hover:bg-[#19b353] text-[11px] font-semibold text-white flex items-center gap-1 transition-colors"
+                      >
+                        <Upload className="w-3 h-3" />
+                        <span>Upload media</span>
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    ref={mediaSlotUploadRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length > 0 && onUploadMediaSlots) {
+                        onUploadMediaSlots(files);
+                      }
+                      e.target.value = '';
+                    }}
+                    className="hidden"
+                  />
+                  <div className="text-[10px] text-neutral-400">
+                    {(project.mediaSlots?.length || 0) > 0
+                      ? `${project.mediaSlots.length} custom image(s) loaded into 3D cards`
+                      : 'Using 12 procedural Clover Studio showcase cards. Upload PNG/JPG to replace.'}
+                  </div>
+                </div>
+
+                {/* Category Filter Pills */}
+                <div className="flex flex-wrap gap-1">
+                  {ANIMOS_CATEGORIES.map((cat) => {
+                    const active = animosCategory === cat;
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setAnimosCategory(cat)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-medium transition-colors ${
+                          active
+                            ? 'bg-[#159947] text-white font-semibold'
+                            : 'bg-[#1c1c1c] text-neutral-400 hover:text-white border border-neutral-800'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Showcase Template Cards */}
+                <div className="space-y-1.5 max-h-[250px] overflow-y-auto custom-scrollbar pr-1">
+                  <button
+                    type="button"
+                    onClick={() => onUpdateShowcase?.({ templateId: 'none' })}
+                    className={`w-full px-3 py-2 rounded-xl border text-left flex items-center justify-between transition-all ${
+                      !project.showcase?.templateId || project.showcase.templateId === 'none'
+                        ? 'bg-[#1f1f1f] border-white text-white'
+                        : 'bg-[#181818] border-neutral-800/90 text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="text-xs font-semibold">None · Typography & Vector Only</span>
+                    {(!project.showcase?.templateId || project.showcase.templateId === 'none') && (
+                      <Check className="w-3.5 h-3.5 text-[#22c55e]" />
+                    )}
+                  </button>
+
+                  {ANIMOS_SHOWCASE_TEMPLATES.filter(
+                    (tpl) => animosCategory === 'All' || tpl.category === animosCategory
+                  ).map((tpl) => {
+                    const isSelected = project.showcase?.templateId === tpl.id;
+                    return (
+                      <button
+                        key={tpl.id}
+                        type="button"
+                        onClick={() =>
+                          onUpdateShowcase?.({
+                            templateId: tpl.id,
+                            slots: tpl.slots || 8,
+                            cardSize: tpl.defaults?.cardSize ?? 24,
+                            cardAspect: tpl.defaults?.cardAspect ?? '1:1',
+                            cornerRadius: tpl.defaults?.cornerRadius ?? 3,
+                            tilt: tpl.defaults?.tilt ?? -18,
+                            ringWidth: tpl.defaults?.ringWidth ?? 68,
+                            ringDepth: tpl.defaults?.ringDepth ?? 48,
+                            backFade: tpl.defaults?.backFade ?? 55,
+                          })
+                        }
+                        className={`w-full p-2.5 rounded-xl border text-left transition-all ${
+                          isSelected
+                            ? 'bg-[#159947]/20 border-[#22c55e] text-white shadow-sm'
+                            : 'bg-[#181818] border-neutral-800/90 text-neutral-300 hover:border-neutral-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-bold text-white truncate">{tpl.name}</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-700 text-[9px] font-mono text-[#4ade80]">
+                              {tpl.badge}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-neutral-900 text-[9px] font-mono text-neutral-400">
+                              {tpl.slots} slots
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-[11px] text-neutral-400 mt-0.5 line-clamp-1">
+                          {tpl.description}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Animos 3D Controls (shown when a showcase template is active) */}
+                {project.showcase?.templateId && project.showcase.templateId !== 'none' && (
+                  <div className="space-y-3 pt-3 border-t border-neutral-800">
+                    <div className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">
+                      SHOWCASE GEOMETRY & CAMERA
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-[11px] mb-1">
+                        <span className="text-neutral-300">Card Size</span>
+                        <span className="font-mono text-neutral-400">
+                          {project.showcase.cardSize ?? 24}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={10}
+                        max={52}
+                        value={project.showcase.cardSize ?? 24}
+                        onChange={(e) =>
+                          onUpdateShowcase?.({ cardSize: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] text-neutral-400 mb-1">
+                          Card Aspect
+                        </label>
+                        <select
+                          value={project.showcase.cardAspect || '1:1'}
+                          onChange={(e) =>
+                            onUpdateShowcase?.({ cardAspect: e.target.value })
+                          }
+                          className="w-full px-2 py-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-700 text-xs text-white"
+                        >
+                          <option value="1:1">1:1 Square</option>
+                          <option value="16:9">16:9 Wide</option>
+                          <option value="4:3">4:3 Classic</option>
+                          <option value="3:4">3:4 Portrait</option>
+                          <option value="9:16">9:16 Tall</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] text-neutral-400 mb-1">
+                          Backdrop Glow
+                        </label>
+                        <select
+                          value={project.showcase.bgGradient || 'none'}
+                          onChange={(e) =>
+                            onUpdateShowcase?.({ bgGradient: e.target.value })
+                          }
+                          className="w-full px-2 py-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-700 text-xs text-white"
+                        >
+                          <option value="none">Scene BG</option>
+                          {ANIMOS_BG_GRADIENTS.map((g) => (
+                            <option key={g.id} value={g.id}>
+                              {g.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-[11px] mb-1">
+                        <span className="text-neutral-300">Camera Tilt</span>
+                        <span className="font-mono text-neutral-400">
+                          {project.showcase.tilt ?? -18}°
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-60}
+                        max={60}
+                        value={project.showcase.tilt ?? -18}
+                        onChange={(e) =>
+                          onUpdateShowcase?.({ tilt: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-[11px] mb-1">
+                        <span className="text-neutral-300">Depth Fade</span>
+                        <span className="font-mono text-neutral-400">
+                          {project.showcase.backFade ?? 55}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={90}
+                        value={project.showcase.backFade ?? 55}
+                        onChange={(e) =>
+                          onUpdateShowcase?.({ backFade: Number(e.target.value) })
+                        }
+                        className="w-full accent-[#16a34a]"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-xs text-neutral-300">Audio Reactive Pulse</span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={project.showcase.audioReactive !== false}
+                        onClick={() =>
+                          onUpdateShowcase?.({
+                            audioReactive: project.showcase.audioReactive === false,
+                          })
+                        }
+                        className={`w-9 h-5 rounded-full transition-colors p-0.5 ${
+                          project.showcase.audioReactive !== false
+                            ? 'bg-[#159947]'
+                            : 'bg-neutral-700'
+                        }`}
+                      >
+                        <div
+                          className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                            project.showcase.audioReactive !== false
+                              ? 'translate-x-4'
+                              : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* =========================================================
+                TAB: FX RACK & SHADERS (EFFECTCRAFT ENGINE)
+               ========================================================= */}
+            {currentTab === 'fx' && (
+              <div className="space-y-4">
+                <div>
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-[#4ade80]">
+                    EFFECTCRAFT POST-FX & SHADERS
+                  </div>
+                  <h2 className="text-sm font-bold text-white mt-0.5">Shaders & FX Rack</h2>
+                  <p className="text-[11px] text-neutral-400 mt-0.5 leading-relaxed">
+                    Layer generative shader backgrounds and real-time post-processing effects synced to audio.
+                  </p>
+                </div>
+
+                {/* Procedural Shader Backgrounds */}
+                <div className="space-y-2 pb-3 border-b border-neutral-800">
+                  <div className="text-xs font-semibold text-white">
+                    Procedural Shader Background
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {EFFECTCRAFT_SHADER_BACKGROUNDS.map((sh) => {
+                      const active = (project.shaderBg || 'none') === sh.id;
+                      return (
+                        <button
+                          key={sh.id}
+                          type="button"
+                          onClick={() => onUpdateShaderBg?.(sh.id)}
+                          className={`p-2 rounded-xl border text-left transition-all ${
+                            active
+                              ? 'bg-[#159947]/20 border-[#22c55e] text-white'
+                              : 'bg-[#1a1a1a] border-neutral-800/90 text-neutral-300 hover:border-neutral-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: sh.previewColors?.[1] || '#22c55e' }}
+                            />
+                            <span className="text-[11px] font-semibold truncate">{sh.name}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Stackable Post-Processing FX Rack */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white">
+                      Master FX Rack (10 Effects)
+                    </span>
+                    <span className="text-[10px] font-mono text-[#4ade80]">
+                      {
+                        Object.values(project.fxRack || {}).filter((fx) => fx?.enabled)
+                          .length
+                      }{' '}
+                      active
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {EFFECTCRAFT_FX_RACK.map((fxDef) => {
+                      const state = project.fxRack?.[fxDef.id] || {
+                        enabled: false,
+                        intensity: fxDef.defaultIntensity,
+                        secondary: fxDef.defaultSecondary,
+                        audioReactive: false,
+                        audioBand: 'bass',
+                      };
+                      return (
+                        <div
+                          key={fxDef.id}
+                          className={`p-2.5 rounded-xl border transition-all ${
+                            state.enabled
+                              ? 'bg-[#159947]/15 border-[#22c55e]/70'
+                              : 'bg-[#181818] border-neutral-800/90'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-white truncate">
+                                {fxDef.name}
+                              </div>
+                              <div className="text-[10px] text-neutral-400 truncate">
+                                {fxDef.description}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={!!state.enabled}
+                              onClick={() => onToggleFxRack?.(fxDef.id)}
+                              className={`w-9 h-5 rounded-full transition-colors p-0.5 shrink-0 ${
+                                state.enabled ? 'bg-[#159947]' : 'bg-neutral-700'
+                              }`}
+                            >
+                              <div
+                                className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                                  state.enabled ? 'translate-x-4' : 'translate-x-0'
+                                }`}
+                              />
+                            </button>
+                          </div>
+
+                          {state.enabled && (
+                            <div className="mt-2.5 pt-2 border-t border-neutral-800/80 space-y-2">
+                              <div>
+                                <div className="flex justify-between text-[10px] text-neutral-300 mb-0.5">
+                                  <span>Intensity</span>
+                                  <span className="font-mono">
+                                    {state.intensity ?? fxDef.defaultIntensity}%
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={100}
+                                  value={state.intensity ?? fxDef.defaultIntensity}
+                                  onChange={(e) =>
+                                    onUpdateFxParam?.(fxDef.id, {
+                                      intensity: Number(e.target.value),
+                                    })
+                                  }
+                                  className="w-full accent-[#16a34a]"
+                                />
+                              </div>
+
+                              <div>
+                                <div className="flex justify-between text-[10px] text-neutral-300 mb-0.5">
+                                  <span>{fxDef.secondaryLabel}</span>
+                                  <span className="font-mono">
+                                    {state.secondary ?? fxDef.defaultSecondary}
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={fxDef.secondaryMin}
+                                  max={fxDef.secondaryMax}
+                                  value={state.secondary ?? fxDef.defaultSecondary}
+                                  onChange={(e) =>
+                                    onUpdateFxParam?.(fxDef.id, {
+                                      secondary: Number(e.target.value),
+                                    })
+                                  }
+                                  className="w-full accent-[#16a34a]"
+                                />
+                              </div>
+
+                              <div className="flex items-center justify-between pt-0.5">
+                                <span className="text-[10px] text-neutral-300">
+                                  Audio Reactive (Bass Pulse)
+                                </span>
+                                <input
+                                  type="checkbox"
+                                  checked={!!state.audioReactive}
+                                  onChange={(e) =>
+                                    onUpdateFxParam?.(fxDef.id, {
+                                      audioReactive: e.target.checked,
+                                    })
+                                  }
+                                  className="accent-[#16a34a]"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* =========================================================
                 TAB: STYLE / BRAND KITS
                ========================================================= */}
             {currentTab === 'style' && (
@@ -650,9 +1138,12 @@ export default function LeftSidebar({
 
                   <div className="space-y-2 pt-1">
                     {[
-                      { id: '4:5', name: 'Feed', dims: '1080 × 1350', aspect: 'w-9 h-11' },
-                      { id: '1:1', name: 'Square', dims: '1080 × 1080', aspect: 'w-9 h-9' },
-                      { id: '9:16', name: 'Story', dims: '1080 × 1920', aspect: 'w-7 h-12' },
+                      { id: '4:5', name: 'Feed (Social)', dims: '1080 × 1350', aspect: 'w-8 h-10' },
+                      { id: '1:1', name: 'Square (Post)', dims: '1080 × 1080', aspect: 'w-9 h-9' },
+                      { id: '9:16', name: 'Story / Totem', dims: '1080 × 1920', aspect: 'w-6 h-11' },
+                      { id: '16:9', name: 'Stage LED / YouTube', dims: '1920 × 1080', aspect: 'w-11 h-6' },
+                      { id: '4:3', name: 'Exhibition Screen', dims: '1440 × 1080', aspect: 'w-10 h-8' },
+                      { id: '3:4', name: 'Event Poster', dims: '1080 × 1440', aspect: 'w-8 h-11' },
                     ].map((fmt) => {
                       const active = project.ratio === fmt.id;
                       return (

@@ -6,6 +6,7 @@ import { renderSceneToCanvas } from '../../engine/canvasRenderer';
 
 export default function SceneStripCard({
   scene,
+  project = null,
   index,
   ratio = '4:5',
   isActive,
@@ -28,8 +29,9 @@ export default function SceneStripCard({
       selectedLayerId: null,
       showGrid: false,
       showSafeGuides: false,
+      project,
     });
-  }, [scene, dim.width, dim.height]);
+  }, [scene, project, dim.width, dim.height]);
 
   return (
     <button

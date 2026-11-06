@@ -1,4 +1,4 @@
-// Curated Typefaces & Aspect Ratio Specifications
+// Curated Typefaces & Multi-Format Aspect Ratio Specifications (Social Media & Event Stage)
 
 export const FONT_OPTIONS = [
   {
@@ -18,6 +18,12 @@ export const FONT_OPTIONS = [
     name: 'Plus Jakarta Sans',
     family: "'Plus Jakarta Sans', sans-serif",
     category: 'Sans',
+  },
+  {
+    id: 'inter',
+    name: 'Inter',
+    family: "'Inter', 'Plus Jakarta Sans', sans-serif",
+    category: 'UI Sans',
   },
   {
     id: 'jetbrains_mono',
@@ -62,7 +68,8 @@ export const ASPECT_RATIOS = {
     id: '4:5',
     name: 'Feed',
     shortLabel: 'Feed · 4:5',
-    advLabel: '4:5 · Portrait',
+    advLabel: '4:5 · Portrait Feed',
+    category: 'Social',
     width: 1080,
     height: 1350,
   },
@@ -71,15 +78,44 @@ export const ASPECT_RATIOS = {
     name: 'Square',
     shortLabel: 'Square · 1:1',
     advLabel: '1:1 · Square',
+    category: 'Social',
     width: 1080,
     height: 1080,
   },
   '9:16': {
     id: '9:16',
-    name: 'Story',
+    name: 'Story / Totem',
     shortLabel: 'Story · 9:16',
-    advLabel: '9:16 · Story',
+    advLabel: '9:16 · Story / Totem',
+    category: 'Social & Event',
     width: 1080,
     height: 1920,
+  },
+  '16:9': {
+    id: '16:9',
+    name: 'Stage / Video',
+    shortLabel: 'Stage · 16:9',
+    advLabel: '16:9 · Stage LED / Video',
+    category: 'Event & Video',
+    width: 1920,
+    height: 1080,
+  },
+  '4:3': {
+    id: '4:3',
+    name: 'Booth / Classic',
+    shortLabel: 'Booth · 4:3',
+    advLabel: '4:3 · Exhibition Booth',
+    category: 'Event',
+    width: 1440,
+    height: 1080,
+  },
+  '3:4': {
+    id: '3:4',
+    name: 'Poster Display',
+    shortLabel: 'Poster · 3:4',
+    advLabel: '3:4 · Digital Poster',
+    category: 'Event',
+    width: 1080,
+    height: 1440,
   },
 };

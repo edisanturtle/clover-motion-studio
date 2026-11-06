@@ -1,8 +1,8 @@
 {
   "name": "clover-motion-studio",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Clover Motion — Audio-Reactive Kinetic Typography & Motion Poster Studio (Next.js Clean Architecture)",
+  "description": "Clover Motion Studio v2.0 — Unified Design, 3D Showcase (Animos), Procedural Shaders & FX Rack (EffectCraft), Web Audio DSP, and Social/Event Media Publishing Platform",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
