@@ -22,7 +22,7 @@ import {
   Activity,
   Waves,
 } from 'lucide-react';
-import { formatTimecode } from '../../utils/timecode';
+import { formatTimecode, getSceneTimeRanges } from '../../utils/timecode';
 import { evaluateLayerKeyframes } from '../../engine/canvasRenderer';
 
 const PROPERTY_LABELS = {
@@ -42,6 +42,10 @@ export default function TimelinePanel({
   selectedLayerId,
   setSelectedLayerId,
   localTime,
+  currentGlobalTime = 0,
+  totalProjectDuration = 60,
+  playbackScope = 'all',
+  setPlaybackScope,
   isPlaying,
   loopPlayback,
   setLoopPlayback,
@@ -50,6 +54,7 @@ export default function TimelinePanel({
   onTogglePlay,
   onRestart,
   onSeekLocalTime,
+  onSeekGlobalTime,
   onAddKeyframe,
   onUpdateKeyframe,
   onPasteKeyframes,
@@ -72,13 +77,16 @@ export default function TimelinePanel({
 
   if (!activeScene) return null;
 
+  const isFullVideo = playbackScope === 'all' && (project?.scenes?.length || 1) > 1;
   const duration = activeScene.duration || 4;
-  const totalProjectDuration = (project?.scenes || []).reduce(
+  const effectiveTotalDuration = totalProjectDuration || (project?.scenes || []).reduce(
     (acc, sc) => acc + (sc.duration || 4),
     0
   );
-  const displayDuration =
-    (project?.scenes?.length || 1) > 1 ? totalProjectDuration : duration;
+  const displayDuration = isFullVideo ? effectiveTotalDuration : duration;
+  const effectiveCurrentTime = isFullVideo ? (currentGlobalTime ?? localTime) : localTime;
+  const sceneRanges = getSceneTimeRanges(project?.scenes || []);
+
   const fps = project?.fps || 30;
   const totalFrames = Math.round(displayDuration * fps);
 
@@ -95,7 +103,11 @@ export default function TimelinePanel({
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    onSeekLocalTime(ratio * duration);
+    if (isFullVideo && onSeekGlobalTime) {
+      onSeekGlobalTime(ratio * displayDuration);
+    } else if (onSeekLocalTime) {
+      onSeekLocalTime(ratio * displayDuration);
+    }
   };
 
   const toggleLayerExpanded = (layerId, e) => {
@@ -108,7 +120,7 @@ export default function TimelinePanel({
 
   // Generate 9 evenly spaced timecode ruler ticks
   const rulerTicks = Array.from({ length: 9 }, (_, i) => (displayDuration / 8) * i);
-  const playheadPercent = Math.min(100, Math.max(0, (localTime / duration) * 100));
+  const playheadPercent = Math.min(100, Math.max(0, (effectiveCurrentTime / displayDuration) * 100));
 
   // Helper to get layer percentage value for display
   const getPropertyDisplayPercent = (layer, prop) => {
@@ -307,11 +319,44 @@ export default function TimelinePanel({
 
                 <div className="h-3.5 w-px bg-neutral-800 mx-1" />
 
+                {/* Scope Switcher in Timeline Header */}
+                <div className="flex items-center bg-[#202020] p-0.5 rounded-lg border border-neutral-800 text-[10px] font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setPlaybackScope?.('all')}
+                    className={`px-2 py-0.5 rounded flex items-center gap-1 transition-all ${
+                      playbackScope === 'all'
+                        ? 'bg-[#159947] text-white shadow-sm'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                    title={`Full Video mode (${Math.round(effectiveTotalDuration)}s)`}
+                  >
+                    <span>Full Video</span>
+                    <span className="text-[9px] font-mono opacity-80">
+                      {Math.round(effectiveTotalDuration)}s
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPlaybackScope?.('scene')}
+                    className={`px-2 py-0.5 rounded flex items-center gap-1 transition-all ${
+                      playbackScope === 'scene'
+                        ? 'bg-[#2a2a2a] text-white shadow-sm'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                    title="Active scene only"
+                  >
+                    <span>Scene 0{activeSceneIndex + 1}</span>
+                  </button>
+                </div>
+
+                <div className="h-3.5 w-px bg-neutral-800 mx-1" />
+
                 {/* Timecode Display */}
                 <div className="flex items-center gap-1.5 text-xs">
                   <span className="text-neutral-400">Timecode</span>
                   <span className="px-2 py-0.5 rounded bg-[#202020] border border-neutral-800 font-mono text-[11px] text-white">
-                    {formatTimecode(localTime, fps)}
+                    {formatTimecode(effectiveCurrentTime, fps)}
                   </span>
                 </div>
 

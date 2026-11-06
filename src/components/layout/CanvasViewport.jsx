@@ -45,6 +45,10 @@ export default function CanvasViewport({
   onGeneratePalette,
   onToggleLockSwatch,
   onAddScene,
+  playbackScope = 'all',
+  setPlaybackScope,
+  totalProjectDuration = 60,
+  currentGlobalTime = 0,
 }) {
   const containerRef = useRef(null);
   const colorsRef = useRef(null);
@@ -686,10 +690,24 @@ export default function CanvasViewport({
       {/* Horizontal Scenes Strip (Below Canvas in Quick Editor Mode — Screenshots 8, 9, 10, 26) */}
       {editorMode === 'quick' && (
         <div className="h-[84px] bg-[#161616] border border-neutral-800/80 rounded-2xl px-4 flex items-center gap-3 shrink-0 overflow-hidden">
-          <span className="text-xs font-semibold text-neutral-300 shrink-0 mr-1 flex items-center gap-1.5">
-            <span>Scenes</span>
-            <span className="text-[10px] font-mono text-neutral-500">({project.scenes.length})</span>
-          </span>
+          <div className="flex flex-col gap-1 shrink-0 mr-1">
+            <span className="text-xs font-semibold text-neutral-300 flex items-center gap-1.5">
+              <span>Scenes</span>
+              <span className="text-[10px] font-mono text-neutral-500">({project.scenes.length})</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setPlaybackScope?.(playbackScope === 'all' ? 'scene' : 'all')}
+              className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-all ${
+                playbackScope === 'all'
+                  ? 'bg-[#159947]/25 border border-[#22c55e]/60 text-[#4ade80]'
+                  : 'bg-[#202020] border border-neutral-700 text-neutral-400'
+              }`}
+              title="Click to toggle Full Video sequence vs Single Scene"
+            >
+              <span>{playbackScope === 'all' ? '🎞️ Full Video' : '🎬 Single Scene'}</span>
+            </button>
+          </div>
           <div className="flex-1 flex items-center gap-2.5 overflow-x-auto custom-scrollbar py-2 min-w-0">
             {project.scenes.map((sc, idx) => (
               <div key={sc.id} className="shrink-0 min-w-[140px] max-w-[200px] flex-1">

@@ -24,7 +24,7 @@ import {
   AUDIO_GROUPS,
 } from '../../constants/audioTracks';
 import { EVENT_SFX_PADS } from '../../constants/effectCraftEffects';
-import { formatTimecode } from '../../utils/timecode';
+import { formatTimecode, getSceneTimeRanges } from '../../utils/timecode';
 
 export default function BottomAudioBar({
   project,
@@ -35,8 +35,12 @@ export default function BottomAudioBar({
   isPlaying,
   loopPlayback,
   setLoopPlayback,
-  localTime,
-  sceneDuration,
+  playbackScope = 'all',
+  setPlaybackScope,
+  localTime = 0,
+  currentGlobalTime = 0,
+  sceneDuration = 12,
+  totalProjectDuration = 60,
   volume,
   isMuted,
   micActive,
@@ -53,6 +57,7 @@ export default function BottomAudioBar({
   onTogglePlay,
   onRestart,
   onSeekLocalTime,
+  onSeekGlobalTime,
 }) {
   const fileInputRef = useRef(null);
   const storagePopoverRef = useRef(null);
@@ -88,12 +93,21 @@ export default function BottomAudioBar({
     return () => window.removeEventListener('mousedown', handleOutside);
   }, []);
 
+  const isFullVideo = playbackScope === 'all' && (project?.scenes?.length || 1) > 1;
+  const effectiveDuration = isFullVideo ? (totalProjectDuration || 60) : (sceneDuration || 12);
+  const effectiveCurrentTime = isFullVideo ? (currentGlobalTime ?? localTime) : localTime;
+  const sceneRanges = getSceneTimeRanges(project?.scenes || []);
+
   const handleScrub = (e) => {
     const el = scrubberRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    onSeekLocalTime(ratio * (sceneDuration || 12));
+    if (isFullVideo && onSeekGlobalTime) {
+      onSeekGlobalTime(ratio * effectiveDuration);
+    } else if (onSeekLocalTime) {
+      onSeekLocalTime(ratio * effectiveDuration);
+    }
   };
 
   // Group spectrum into 3 bands (BASS, MIDS, TREBLE)
@@ -101,7 +115,7 @@ export default function BottomAudioBar({
   const midBars = (spectrum || []).slice(10, 20);
   const trebleBars = (spectrum || []).slice(20, 30);
 
-  const playheadPct = Math.min(100, Math.max(0, (localTime / (sceneDuration || 12)) * 100));
+  const playheadPct = Math.min(100, Math.max(0, (effectiveCurrentTime / effectiveDuration) * 100));
   const showTransportInBottomBar = editorMode === 'quick' || !timelineExpanded;
 
   const triggerLabel = micActive
@@ -778,6 +792,37 @@ export default function BottomAudioBar({
             )}
           </div>
 
+          {/* Playback Scope Switcher (Full 60s Video vs Active Scene Loop) */}
+          <div className="flex items-center bg-[#202020] p-0.5 rounded-lg border border-neutral-800 text-[10px] font-semibold">
+            <button
+              type="button"
+              onClick={() => setPlaybackScope?.('all')}
+              className={`px-2 py-1 rounded flex items-center gap-1 transition-all ${
+                playbackScope === 'all'
+                  ? 'bg-[#159947] text-white shadow-sm'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+              title={`Play entire continuous multi-scene video (${Math.round(totalProjectDuration)}s)`}
+            >
+              <span>Full Video</span>
+              <span className="text-[9px] font-mono opacity-80">
+                {Math.round(totalProjectDuration)}s
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPlaybackScope?.('scene')}
+              className={`px-2 py-1 rounded flex items-center gap-1 transition-all ${
+                playbackScope === 'scene'
+                  ? 'bg-[#2a2a2a] text-white shadow-sm'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+              title="Loop active scene only"
+            >
+              <span>Scene 0{activeSceneIndex + 1}</span>
+            </button>
+          </div>
+
           {/* Transport Controls (Shown in Quick Editor or when Timeline is collapsed — Screenshots 8, 26, 36–47) */}
           {showTransportInBottomBar && (
             <div className="flex items-center gap-1.5 ml-1">
@@ -826,17 +871,37 @@ export default function BottomAudioBar({
 
         {/* Center: Interactive Tick-Mark Waveform Scrubber */}
         <div className="flex-1 flex items-center gap-3 min-w-0 max-w-2xl mx-auto">
-          <span className="text-[11px] font-mono text-neutral-400 shrink-0">
-            {editorMode === 'quick'
-              ? `${localTime.toFixed(1)} s`
-              : formatTimecode(localTime, project.fps || 30)}
-          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isFullVideo && (
+              <span className="px-1.5 py-0.5 rounded bg-[#159947]/20 border border-[#22c55e]/50 text-[#4ade80] text-[9px] font-mono">
+                FULL VIDEO
+              </span>
+            )}
+            <span className="text-[11px] font-mono text-neutral-300">
+              {formatTimecode(effectiveCurrentTime, project.fps || 30)}
+            </span>
+          </div>
 
           <div
             ref={scrubberRef}
             onPointerDown={handleScrub}
-            className="flex-1 h-7 relative flex items-center justify-between cursor-pointer px-1"
+            className="flex-1 h-7 relative flex items-center justify-between cursor-pointer px-1 group"
+            title={`Scrub ${isFullVideo ? 'full continuous video' : 'active scene'}`}
           >
+            {/* Scene Dividers (in Full Video mode) */}
+            {isFullVideo && sceneRanges.map((r, i) => {
+              if (i === 0) return null;
+              const dividerPct = (r.start / effectiveDuration) * 100;
+              return (
+                <div
+                  key={i}
+                  style={{ left: `${dividerPct}%` }}
+                  className="absolute top-0 bottom-0 w-0.5 bg-neutral-600/80 z-10 pointer-events-none"
+                  title={`Scene 0${i + 1} (${r.start.toFixed(1)}s)`}
+                />
+              );
+            })}
+
             {Array.from({ length: 48 }).map((_, idx) => {
               const pct = (idx / 47) * 100;
               const isPassed = pct <= playheadPct;
@@ -854,14 +919,12 @@ export default function BottomAudioBar({
             {/* Playhead Indicator Bar */}
             <div
               style={{ left: `${playheadPct}%` }}
-              className="absolute top-1 bottom-1 w-0.5 bg-[#22c55e] shadow-[0_0_6px_rgba(34,197,94,0.9)] pointer-events-none"
+              className="absolute top-1 bottom-1 w-1 bg-[#22c55e] rounded-full shadow-[0_0_8px_rgba(34,197,94,0.95)] pointer-events-none"
             />
           </div>
 
           <span className="text-[11px] font-mono text-neutral-400 shrink-0">
-            {editorMode === 'quick'
-              ? `${(sceneDuration || 12).toFixed(1)} s`
-              : formatTimecode(sceneDuration || 12, project.fps || 30)}
+            {formatTimecode(effectiveDuration, project.fps || 30)}
           </span>
         </div>
 

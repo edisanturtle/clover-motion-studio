@@ -9,6 +9,12 @@ import { EFFECTCRAFT_FX_RACK } from '../constants/effectCraftEffects';
 import { buildProjectFromTemplate } from '../utils/projectBuilder';
 import { ProceduralAudioEngine } from '../engine/audioEngine';
 import {
+  formatTimecode,
+  getGlobalProjectDuration,
+  mapGlobalTimeToScene,
+  mapSceneTimeToGlobal,
+} from '../utils/timecode';
+import {
   addScene,
   duplicateScene,
   deleteScene,
@@ -64,6 +70,7 @@ export default function CloverMotionStudio() {
   // Playback & Time State
   const [isPlaying, setIsPlaying] = useState(false);
   const [loopPlayback, setLoopPlayback] = useState(true);
+  const [playbackScope, setPlaybackScope] = useState('all'); // 'all' (Master 60s Full Video) | 'scene' (Single Scene Loop)
   const [localTime, setLocalTime] = useState(0);
 
   // Overlays & Canvas HUD
@@ -107,6 +114,9 @@ export default function CloverMotionStudio() {
   const activeScene = project.scenes[activeSceneIndex] || project.scenes[0];
   const selectedLayer =
     activeScene?.layers?.find((l) => l.id === selectedLayerId) || null;
+
+  const totalProjectDuration = getGlobalProjectDuration(project.scenes);
+  const currentGlobalTime = mapSceneTimeToGlobal(project.scenes, activeSceneIndex, localTime);
 
   // Initialize Audio Engine & Load Saved Projects from localStorage
   useEffect(() => {
@@ -216,16 +226,48 @@ export default function CloverMotionStudio() {
       }
 
       const sceneDur = activeScene?.duration || 4;
+      const totalScenes = project.scenes?.length || 1;
+
       setLocalTime((prev) => {
         const next = prev + dt;
         if (next >= sceneDur) {
-          const totalScenes = project.scenes?.length || 1;
-          if (totalScenes > 1 && !loopPlayback) {
-            // Sequential multi-scene progression
-            const nextIdx = (activeSceneIndex + 1) % totalScenes;
-            setActiveSceneIndex(nextIdx);
-            return 0;
+          if (playbackScope === 'all' && totalScenes > 1) {
+            const nextIdx = activeSceneIndex + 1;
+            if (nextIdx < totalScenes) {
+              // Seamless continuous transition to next scene in the master timeline
+              const excess = Math.max(0, next - sceneDur);
+              setActiveSceneIndex(nextIdx);
+              const nextScene = project.scenes[nextIdx];
+              if (nextScene?.sfxOnEnter && nextScene.sfxOnEnter !== 'none') {
+                audioEngineRef.current?.triggerSfx(nextScene.sfxOnEnter);
+              }
+              if (nextScene?.audioTrackId && nextScene.audioTrackId !== 'none') {
+                const targetTrack = DEMO_TRACKS.find((t) => t.id === nextScene.audioTrackId);
+                if (targetTrack) audioEngineRef.current?.start(targetTrack);
+              }
+              return excess;
+            } else {
+              // Reached end of entire multi-scene video (e.g. 60s total)
+              if (loopPlayback) {
+                setActiveSceneIndex(0);
+                const firstScene = project.scenes[0];
+                if (firstScene?.sfxOnEnter && firstScene.sfxOnEnter !== 'none') {
+                  audioEngineRef.current?.triggerSfx(firstScene.sfxOnEnter);
+                }
+                if (firstScene?.audioTrackId && firstScene.audioTrackId !== 'none') {
+                  const targetTrack = DEMO_TRACKS.find((t) => t.id === firstScene.audioTrackId);
+                  if (targetTrack) audioEngineRef.current?.start(targetTrack);
+                }
+                return 0;
+              } else {
+                setIsPlaying(false);
+                audioEngineRef.current?.stop();
+                return sceneDur;
+              }
+            }
           }
+
+          // Single Scene Mode
           return loopPlayback ? 0 : sceneDur;
         }
         return next;
@@ -236,7 +278,7 @@ export default function CloverMotionStudio() {
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [isPlaying, activeScene?.duration, loopPlayback, project.scenes?.length, activeSceneIndex]);
+  }, [isPlaying, activeScene?.duration, loopPlayback, playbackScope, project.scenes, activeSceneIndex]);
 
   // Playback Controls
   const handleTogglePlay = useCallback(() => {
@@ -258,8 +300,26 @@ export default function CloverMotionStudio() {
   }, [activeScene?.audioTrackId, activeScene?.sfxOnEnter, project.audioTrackId]);
 
   const handleRestart = useCallback(() => {
-    setLocalTime(0);
-  }, []);
+    if (playbackScope === 'all') {
+      setActiveSceneIndex(0);
+      setLocalTime(0);
+      const firstScene = project.scenes[0];
+      if (firstScene?.sfxOnEnter && firstScene.sfxOnEnter !== 'none') {
+        audioEngineRef.current?.triggerSfx(firstScene.sfxOnEnter);
+      }
+    } else {
+      setLocalTime(0);
+      if (activeScene?.sfxOnEnter && activeScene.sfxOnEnter !== 'none') {
+        audioEngineRef.current?.triggerSfx(activeScene.sfxOnEnter);
+      }
+    }
+  }, [playbackScope, project.scenes, activeScene?.sfxOnEnter]);
+
+  const handleSeekGlobalTime = useCallback((globalTime) => {
+    const res = mapGlobalTimeToScene(project.scenes, globalTime);
+    setActiveSceneIndex(res.sceneIndex);
+    setLocalTime(res.localTime);
+  }, [project.scenes]);
 
   // Generate Random Harmonious Palette (Respecting Locked Swatches)
   const handleGeneratePalette = useCallback(() => {
@@ -1253,12 +1313,21 @@ export default function CloverMotionStudio() {
         setExportProgress(0);
       };
 
+      const exportScope = exportOptions.exportScope || playbackScope;
+      const isExportAll = exportScope === 'all' && (project.scenes?.length || 1) > 1;
+      const totalSeconds = isExportAll
+        ? getGlobalProjectDuration(project.scenes)
+        : (activeScene?.duration || 4);
+      const totalMs = totalSeconds * 1000;
+
       setIsRecording(true);
+      if (isExportAll) {
+        setActiveSceneIndex(0);
+      }
       setLocalTime(0);
       if (!isPlaying) handleTogglePlay();
       recorder.start();
 
-      const totalMs = (activeScene?.duration || 4) * 1000;
       const startTs = performance.now();
       const progInterval = setInterval(() => {
         const elapsed = performance.now() - startTs;
@@ -1422,6 +1491,10 @@ export default function CloverMotionStudio() {
               onGeneratePalette={handleGeneratePalette}
               onToggleLockSwatch={handleToggleLockSwatch}
               onAddScene={handleAddScene}
+              playbackScope={playbackScope}
+              setPlaybackScope={setPlaybackScope}
+              totalProjectDuration={totalProjectDuration}
+              currentGlobalTime={currentGlobalTime}
             />
 
             {editorMode === 'advanced' && rightPanelOpen && (
@@ -1457,11 +1530,16 @@ export default function CloverMotionStudio() {
               isPlaying={isPlaying}
               loopPlayback={loopPlayback}
               setLoopPlayback={setLoopPlayback}
+              playbackScope={playbackScope}
+              setPlaybackScope={setPlaybackScope}
+              totalProjectDuration={totalProjectDuration}
+              currentGlobalTime={currentGlobalTime}
               timelineExpanded={timelineExpanded}
               setTimelineExpanded={setTimelineExpanded}
               onTogglePlay={handleTogglePlay}
               onRestart={handleRestart}
               onSeekLocalTime={setLocalTime}
+              onSeekGlobalTime={handleSeekGlobalTime}
               onAddKeyframe={handleAddKeyframe}
               onUpdateKeyframe={handleUpdateKeyframe}
               onPasteKeyframes={handlePasteKeyframes}
@@ -1483,8 +1561,12 @@ export default function CloverMotionStudio() {
             isPlaying={isPlaying}
             loopPlayback={loopPlayback}
             setLoopPlayback={setLoopPlayback}
+            playbackScope={playbackScope}
+            setPlaybackScope={setPlaybackScope}
             localTime={localTime}
+            currentGlobalTime={currentGlobalTime}
             sceneDuration={activeScene?.duration || 12}
+            totalProjectDuration={totalProjectDuration}
             volume={volume}
             isMuted={isMuted}
             micActive={micActive}
@@ -1501,6 +1583,7 @@ export default function CloverMotionStudio() {
             onTogglePlay={handleTogglePlay}
             onRestart={handleRestart}
             onSeekLocalTime={setLocalTime}
+            onSeekGlobalTime={handleSeekGlobalTime}
           />
         </div>
       </div>
@@ -1532,6 +1615,8 @@ export default function CloverMotionStudio() {
         onClose={() => setExportModalOpen(false)}
         project={project}
         activeScene={activeScene}
+        playbackScope={playbackScope}
+        totalProjectDuration={totalProjectDuration}
         isRecording={isRecording}
         exportProgress={exportProgress}
         onExportPNG={handleExportPNG}
@@ -1560,7 +1645,13 @@ export default function CloverMotionStudio() {
         onClose={() => setFullscreenOpen(false)}
         project={project}
         activeScene={activeScene}
+        activeSceneIndex={activeSceneIndex}
+        setActiveSceneIndex={setActiveSceneIndex}
         localTime={localTime}
+        currentGlobalTime={currentGlobalTime}
+        totalProjectDuration={totalProjectDuration}
+        playbackScope={playbackScope}
+        setPlaybackScope={setPlaybackScope}
         isPlaying={isPlaying}
         loopPlayback={loopPlayback}
         setLoopPlayback={setLoopPlayback}
@@ -1568,6 +1659,7 @@ export default function CloverMotionStudio() {
         onTogglePlay={handleTogglePlay}
         onRestart={handleRestart}
         onSeekLocalTime={setLocalTime}
+        onSeekGlobalTime={handleSeekGlobalTime}
         onTriggerSfx={handleTriggerSfx}
       />
 

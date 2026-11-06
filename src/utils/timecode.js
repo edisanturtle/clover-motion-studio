@@ -280,3 +280,75 @@ export function evaluatePeriodicSpring(phase, {
   // Smooth harmonic sine default
   return Math.sin(cycle) * overshoot;
 }
+
+/**
+ * Multi-Scene Timeline Mapping & Composition Helpers
+ * Enables seamless continuous 60-second / multi-scene playback, scrubbing & rendering.
+ */
+
+export function getGlobalProjectDuration(scenes = []) {
+  if (!Array.isArray(scenes) || scenes.length === 0) return 4;
+  const total = scenes.reduce((sum, s) => sum + Math.max(0.5, Number(s.duration) || 4), 0);
+  return Math.max(0.5, total);
+}
+
+export function getSceneTimeRanges(scenes = []) {
+  if (!Array.isArray(scenes) || scenes.length === 0) {
+    return [{ sceneIndex: 0, start: 0, duration: 4, end: 4, scene: null }];
+  }
+  let cursor = 0;
+  return scenes.map((scene, idx) => {
+    const dur = Math.max(0.5, Number(scene.duration) || 4);
+    const start = cursor;
+    const end = start + dur;
+    cursor = end;
+    return {
+      sceneIndex: idx,
+      start,
+      duration: dur,
+      end,
+      scene,
+    };
+  });
+}
+
+export function mapGlobalTimeToScene(scenes = [], globalTime = 0) {
+  const ranges = getSceneTimeRanges(scenes);
+  const totalDuration = ranges[ranges.length - 1].end;
+  const clampedGlobal = Math.max(0, Math.min(totalDuration, Number(globalTime) || 0));
+
+  for (let i = 0; i < ranges.length; i++) {
+    const r = ranges[i];
+    // If within this range or if at exact end of final scene
+    if (clampedGlobal >= r.start && (clampedGlobal < r.end || i === ranges.length - 1)) {
+      const localTime = Math.max(0, Math.min(r.duration, clampedGlobal - r.start));
+      const progress = r.duration > 0 ? localTime / r.duration : 0;
+      return {
+        sceneIndex: r.sceneIndex,
+        localTime,
+        progress,
+        sceneDuration: r.duration,
+        sceneStart: r.start,
+        totalDuration,
+      };
+    }
+  }
+
+  return {
+    sceneIndex: 0,
+    localTime: 0,
+    progress: 0,
+    sceneDuration: ranges[0]?.duration || 4,
+    sceneStart: 0,
+    totalDuration,
+  };
+}
+
+export function mapSceneTimeToGlobal(scenes = [], sceneIndex = 0, localTime = 0) {
+  const ranges = getSceneTimeRanges(scenes);
+  const validIdx = Math.max(0, Math.min(ranges.length - 1, sceneIndex));
+  const range = ranges[validIdx];
+  const safeLocal = Math.max(0, Math.min(range.duration, Number(localTime) || 0));
+  return range.start + safeLocal;
+}
+

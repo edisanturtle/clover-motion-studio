@@ -13,7 +13,13 @@ export default function FullscreenPreviewModal({
   onClose,
   project,
   activeScene,
+  activeSceneIndex = 0,
+  setActiveSceneIndex,
   localTime,
+  currentGlobalTime = 0,
+  totalProjectDuration = 60,
+  playbackScope = 'all',
+  setPlaybackScope,
   isPlaying,
   loopPlayback = true,
   setLoopPlayback,
@@ -21,6 +27,7 @@ export default function FullscreenPreviewModal({
   onTogglePlay,
   onRestart,
   onSeekLocalTime,
+  onSeekGlobalTime,
   onTriggerSfx,
 }) {
   const canvasRef = useRef(null);
@@ -29,8 +36,11 @@ export default function FullscreenPreviewModal({
 
   const dim = ASPECT_RATIOS[project.ratio] || ASPECT_RATIOS['4:5'];
   const duration = activeScene?.duration || 12;
+  const isFullVideo = playbackScope === 'all' && (project?.scenes?.length || 1) > 1;
+  const effectiveDuration = isFullVideo ? (totalProjectDuration || 60) : duration;
+  const effectiveCurrentTime = isFullVideo ? (currentGlobalTime ?? localTime) : localTime;
   const fps = project?.fps || 30;
-  const playheadPct = Math.min(100, Math.max(0, (localTime / duration) * 100));
+  const playheadPct = Math.min(100, Math.max(0, (effectiveCurrentTime / effectiveDuration) * 100));
 
   useEffect(() => {
     if (!open || !activeScene) return;
@@ -53,10 +63,14 @@ export default function FullscreenPreviewModal({
 
   const handleScrub = (e) => {
     const el = scrubberRef.current;
-    if (!el || !onSeekLocalTime) return;
+    if (!el) return;
     const rect = el.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    onSeekLocalTime(ratio * duration);
+    if (isFullVideo && onSeekGlobalTime) {
+      onSeekGlobalTime(ratio * effectiveDuration);
+    } else if (onSeekLocalTime) {
+      onSeekLocalTime(ratio * effectiveDuration);
+    }
   };
 
   const handleBrowserFullscreen = () => {
@@ -187,12 +201,43 @@ export default function FullscreenPreviewModal({
               >
                 <Repeat className="w-3.5 h-3.5" />
               </button>
+
+              {/* Scope Switcher */}
+              <div className="flex items-center bg-[#181818] p-0.5 rounded-lg border border-neutral-800 text-[10px] font-semibold ml-1">
+                <button
+                  type="button"
+                  onClick={() => setPlaybackScope?.('all')}
+                  className={`px-2 py-1 rounded flex items-center gap-1 transition-all ${
+                    playbackScope === 'all'
+                      ? 'bg-[#159947] text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                  title={`Play entire continuous video (${Math.round(effectiveDuration)}s)`}
+                >
+                  <span>Full Video</span>
+                  <span className="text-[9px] font-mono opacity-80">
+                    {Math.round(effectiveDuration)}s
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlaybackScope?.('scene')}
+                  className={`px-2 py-1 rounded flex items-center gap-1 transition-all ${
+                    playbackScope === 'scene'
+                      ? 'bg-[#2a2a2a] text-white shadow-sm'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                  title="Loop active scene only"
+                >
+                  <span>Scene 0{activeSceneIndex + 1}</span>
+                </button>
+              </div>
             </div>
 
             {/* Scrubber */}
             <div className="flex items-center gap-3">
-              <span className="text-[11px] font-mono text-neutral-400">
-                {formatTimecode(localTime, fps)}
+              <span className="text-[11px] font-mono text-neutral-300">
+                {formatTimecode(effectiveCurrentTime, fps)}
               </span>
 
               <div
@@ -215,12 +260,12 @@ export default function FullscreenPreviewModal({
                 })}
                 <div
                   style={{ left: `${playheadPct}%` }}
-                  className="absolute top-0.5 bottom-0.5 w-0.5 bg-[#22c55e] pointer-events-none"
+                  className="absolute top-0.5 bottom-0.5 w-1 bg-[#22c55e] rounded-full shadow-[0_0_8px_rgba(34,197,94,0.95)] pointer-events-none"
                 />
               </div>
 
               <span className="text-[11px] font-mono text-neutral-400">
-                {formatTimecode(duration, fps)}
+                {formatTimecode(effectiveDuration, fps)}
               </span>
             </div>
 

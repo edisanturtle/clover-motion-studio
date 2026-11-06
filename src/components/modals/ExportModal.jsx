@@ -22,6 +22,8 @@ export default function ExportModal({
   onClose,
   project,
   activeScene,
+  playbackScope = 'all',
+  totalProjectDuration,
   isRecording,
   exportProgress,
   onExportPNG,
@@ -34,6 +36,7 @@ export default function ExportModal({
   const [compositionRatio, setCompositionRatio] = useState(project?.ratio || '4:5');
   const [resolutionScale, setResolutionScale] = useState('original');
   const [includeAudio, setIncludeAudio] = useState(true);
+  const [exportScope, setExportScope] = useState(playbackScope || 'all');
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   const [batchQueueOpen, setBatchQueueOpen] = useState(false);
   const previewCanvasRef = useRef(null);
@@ -81,6 +84,7 @@ export default function ExportModal({
         format: selectedFormat,
         resolutionScale,
         includeAudio,
+        exportScope,
       });
     }
   };
@@ -234,6 +238,63 @@ export default function ExportModal({
                 );
               })}
             </div>
+
+            {/* Export Scope Selector (Multi-Scene 60s Video vs Active Scene) */}
+            {(selectedFormat === 'mp4' || selectedFormat === 'webm') && (
+              <div className="p-3.5 rounded-2xl bg-[#1c1c1c] border border-neutral-800 space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-neutral-300">
+                  <span className="flex items-center gap-1.5">
+                    <span>Export Scope & Video Length</span>
+                  </span>
+                  <span className="font-mono text-[#4ade80] text-[10px]">
+                    {exportScope === 'all'
+                      ? `${totalDuration.toFixed(1)}s · ${project?.scenes?.length || 1} scenes`
+                      : `${(activeScene?.duration || 4).toFixed(1)}s · 1 scene`}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setExportScope('all')}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      exportScope === 'all'
+                        ? 'bg-[#159947]/20 border-[#22c55e] text-white shadow-sm'
+                        : 'bg-[#141414] border-neutral-800 text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-white flex items-center justify-between">
+                      <span>🎞️ Full Video</span>
+                      <span className="text-[10px] font-mono text-[#4ade80]">
+                        {Math.round(totalDuration)}s
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-neutral-400 mt-1 leading-snug">
+                      Merges all {project?.scenes?.length || 1} scenes into one continuous ~1-minute video
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExportScope('scene')}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      exportScope === 'scene'
+                        ? 'bg-[#159947]/20 border-[#22c55e] text-white shadow-sm'
+                        : 'bg-[#141414] border-neutral-800 text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-white flex items-center justify-between">
+                      <span>🎬 Current Scene</span>
+                      <span className="text-[10px] font-mono text-neutral-400">
+                        {activeScene?.duration || 4}s
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-neutral-400 mt-1 leading-snug">
+                      Exports only active scene ({activeScene?.name || 'Scene'})
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div>
               <button
