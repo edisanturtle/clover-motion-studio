@@ -542,7 +542,7 @@ export function addKeyframeToLayer(project, sceneIndex, layerId, keyframeData = 
         if (l.id !== layerId) return l;
         const currentKfs = l.keyframes || [];
         const existingIdx = currentKfs.findIndex(
-          (k) => k.property === newKf.property && Math.abs(k.time - newKf.time) < 0.001
+          (k) => (k.prop || k.property) === (newKf.prop || newKf.property) && Math.abs(k.time - newKf.time) < 0.001
         );
         let nextKfs;
         if (existingIdx >= 0) {

@@ -149,11 +149,11 @@ export function renderSceneToCanvas({
     }
 
     const finalState = {
-      x: kfState.posX + dx,
-      y: kfState.posY + dy,
-      scale: Math.max(0.05, kfState.scale + dScale),
-      rotation: kfState.rotation + dRot,
-      opacity: Math.max(0, Math.min(1, kfState.opacity + dAlpha)),
+      x: Number.isFinite(kfState.posX + dx) ? kfState.posX + dx : 0,
+      y: Number.isFinite(kfState.posY + dy) ? kfState.posY + dy : 0,
+      scale: Math.max(0.05, Number.isFinite(kfState.scale + dScale) ? kfState.scale + dScale : 1),
+      rotation: Number.isFinite(kfState.rotation + dRot) ? kfState.rotation + dRot : 0,
+      opacity: Math.max(0, Math.min(1, Number.isFinite(kfState.opacity + dAlpha) ? kfState.opacity + dAlpha : 1)),
     };
 
     ctx.save();

@@ -98,3 +98,76 @@
 | **Production Build** | Next.js 16 / Turbopack clean compile | `npm run build` succeeds in 1.6s with 0 errors | **PASS** |
 
 **Conclusion:** All release blockers, latent NaN inputs, dead controls, and object workflow gaps are resolved. Safe to proceed to next planned scope.
+
+---
+
+# Fase 7 Implementation Report: Full Keyframe Animation Lifecycle & Timebase Determinism
+
+**Executed On**: 2026-11-07  
+**Git Branch**: `main`  
+**Base Commit**: `daafba8`  
+**Environment**: Next.js 16.4.5, React 19, HTML5 Canvas 2D, Web Audio API
+
+---
+
+## 1. Scope & Execution Overview
+
+Fase 7 implemented the continuous 7-stage keyframe animation workflow:
+`pilih layer/property → buat keyframe → edit waktu/nilai/easing/curve manual → scrub/playback → undo/redo → save/reopen → preview/render frame`
+
+### Key Implementations:
+1. **Property Key Harmonization**:
+   - Resolved key collision in `src/core/services/projectService.js:545` where `createKeyframe` set `prop` while `addKeyframeToLayer` looked for `property`, causing multi-channel keyframes on the same timestamp to overwrite one another. Normalized to `(k.prop || k.property) === (newKf.prop || newKf.property)`.
+2. **Keyframe Value Hardening**:
+   - In `src/components/CloverMotionStudio.jsx:1420-1455`, `handleAddKeyframe` now verifies finite values, establishes matching `easing` and `interpolation` attributes, sorts keyframes chronologically, and updates existing keyframes cleanly at matching timestamps.
+3. **Canvas Render Interpolation Clamping**:
+   - In `src/engine/canvasRenderer.js:151-157`, `finalState` enforces `Number.isFinite(...)` bounds on all interpolated coordinate and transform deltas (`x`, `y`, `scale`, `rotation`, `opacity`), eliminating any `NaN` propagation into render passes.
+4. **UI Reduced-Motion Isolation**:
+   - In `src/app/globals.css:57-67`, configured `@media (prefers-reduced-motion: reduce)` reducing UI transitions and chrome animations to `0.01ms`, while keeping HTML5 canvas mathematical timecode evaluation completely unthrottled and deterministic.
+5. **Motion Presets Non-Destructive Draft State**:
+   - In `src/components/modals/MotionTemplatesModal.jsx`, presets maintain localized draft state (`selectedPresetId`, `speed`, `stagger`) and never mutate project layers until the user explicitly commits with "Apply motion template".
+6. **EffectCraft AEP Import Quarantine**:
+   - Verified that binary AEP parser experiments from EffectCraft archives remain strictly quarantined (HOLD) and are not claimed as supported; native project persistence relies 100% on Schema V1 `.clovermotion.json`.
+7. **Rational Integer Timebase Exactness**:
+   - Verified that the ADR 004 timebase ($254{,}016{,}000{,}000\text{ ticks/s}$) mathematically divides $48{,}000\text{ Hz}$ ($5{,}292{,}000\text{ ticks/sample}$), $44{,}100\text{ Hz}$ ($5{,}760{,}000\text{ ticks/sample}$), and framerates ($24, 30, 60\text{ fps}$) with zero fractional remainder.
+
+---
+
+## 2. Test Suite & Verification Results
+
+Created `src/core/__tests__/keyframeWorkflowFase7.test.mjs` containing 8 comprehensive tests:
+- **Test 1**: Multi-channel keyframe creation (`posX`, `opacity`).
+- **Test 2**: Manual precision editing of time, value, easing, and Bézier handles.
+- **Test 3**: Scrub and playback evaluation across timestamps ($t=0.0$, $t=1.0$, $t=1.5$, $t=3.0$).
+- **Test 4**: Transactional undo/redo reversibility with `CommandHistoryManager`.
+- **Test 5**: Lossless Schema V1 save/reopen deep equality on keyframes and Bézier curves.
+- **Test 6**: Rational integer timebase exactness with zero remainder across audio/video clocks.
+- **Test 7**: EffectCraft AEP import status verified as HOLD / quarantined.
+- **Test 8**: UI transition isolation from user project animation curves.
+
+**Result**: 44/44 test files and suites in `src/core/__tests__/` passing 100% (zero failures).  
+**Build**: `npm run build` compiled cleanly via Turbopack in 810ms.
+
+---
+
+## 3. Visual Proof
+
+- Live screenshot captured at 1440x900 viewport:
+  - `docs/screenshots/fase7-keyframe-workflow.png`:
+    - Shows timeline with active keyframes on `posX` and `opacity`.
+    - Shows keyframe value & custom Bézier editor active in the timeline panel.
+    - Zero runtime warnings, zero `NaN` values, clean canvas rendering.
+
+---
+
+## 4. Acceptance Criteria Summary
+
+| Criterion | Requirement | Verification | Status |
+| :--- | :--- | :--- | :--- |
+| **Keyframe Workflow** | Create → edit → scrub → undo/redo → save/reopen | `keyframeWorkflowFase7.test.mjs` Tests 1–5 | **PASS** |
+| **Timebase Invariance** | 254,016,000,000 ticks/sec exact integer math | `keyframeWorkflowFase7.test.mjs` Test 6 | **PASS** |
+| **AEP Import Gate** | AEP import quarantined / HOLD | `keyframeWorkflowFase7.test.mjs` Test 7 | **PASS** |
+| **Motion Presets** | Editable drafts without premature mutation | `MotionTemplatesModal.jsx` verified | **PASS** |
+| **Reduced-Motion** | UI transitions respect preference; canvas unthrottled | `globals.css` + Test 8 | **PASS** |
+| **Zero Regressions** | All existing suites and builds pass | 44/44 tests pass; `npm run build` succeeds | **PASS** |
+

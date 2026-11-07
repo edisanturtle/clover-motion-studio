@@ -53,3 +53,16 @@ dialog::backdrop {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #3f3f46;
 }
+
+/* Respect user preference for reduced motion for all UI transitions and chrome animations,
+   while keeping HTML5 canvas user artwork rendering strictly unthrottled and deterministic */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

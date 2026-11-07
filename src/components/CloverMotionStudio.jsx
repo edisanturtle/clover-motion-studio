@@ -1419,7 +1419,7 @@ export default function CloverMotionStudio() {
   // Timeline Keyframe Management
   const handleAddKeyframe = (prop) => {
     if (!selectedLayer) return;
-    const defaultVal =
+    const rawVal =
       prop === 'posX'
         ? selectedLayer.x
         : prop === 'posY'
@@ -1430,16 +1430,39 @@ export default function CloverMotionStudio() {
         ? selectedLayer.rotation ?? 0
         : selectedLayer.opacity ?? 1;
 
+    const defaultVal =
+      typeof rawVal === 'number' && Number.isFinite(rawVal)
+        ? rawVal
+        : prop === 'scale' || prop === 'opacity'
+        ? 1
+        : 0;
+
+    const kfTime = Number(localTime.toFixed(2));
     const newKf = {
-      id: `kf_${Date.now()}`,
-      time: Number(localTime.toFixed(2)),
+      id: `kf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      time: kfTime,
       prop,
       value: defaultVal,
       easing: 'easeOutCubic',
+      interpolation: 'easeOutCubic',
     };
 
+    const currentKfs = selectedLayer.keyframes || [];
+    const existingIdx = currentKfs.findIndex(
+      (k) => k.prop === prop && Math.abs(k.time - kfTime) < 0.001
+    );
+
+    let nextKfs;
+    if (existingIdx >= 0) {
+      nextKfs = currentKfs.map((k, idx) =>
+        idx === existingIdx ? { ...k, value: defaultVal } : k
+      );
+    } else {
+      nextKfs = [...currentKfs, newKf].sort((a, b) => a.time - b.time);
+    }
+
     handleUpdateLayer(selectedLayer.id, {
-      keyframes: [...(selectedLayer.keyframes || []), newKf],
+      keyframes: nextKfs,
     });
   };
 
