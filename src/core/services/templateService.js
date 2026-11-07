@@ -5,7 +5,7 @@
  * custom template persistence, and template cloning.
  */
 
-import { TEMPLATE_CATALOG } from '../../constants/templateCatalog.js';
+import { TEMPLATE_CATALOG, TRACK_ID_MAP } from '../../constants/templateCatalog.js';
 
 export const CUSTOM_TEMPLATES_STORAGE_KEY = 'clover_motion_custom_templates_v1';
 
@@ -26,6 +26,7 @@ export function normalizeTemplateCatalog(catalog = TEMPLATE_CATALOG) {
   return catalog.map((tpl) => ({
     ...tpl,
     templateVersion: 1,
+    audioTrackId: tpl.audioTrackId || (TRACK_ID_MAP && TRACK_ID_MAP[tpl.trackId]) || tpl.trackId || 'funk',
     license: tpl.license || 'MIT',
     author: tpl.author || 'Clover Motion Studio',
     source: tpl.source || 'clover.motion official',

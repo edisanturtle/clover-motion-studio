@@ -36,7 +36,7 @@ function StaticTemplateCardThumb({ template }) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !project.scenes[1]) return;
+    if (!canvas || !project.scenes || project.scenes.length === 0) return;
     const ctx = canvas.getContext('2d');
     renderSceneToCanvas({
       ctx,

@@ -997,7 +997,7 @@ export const PURPOSE_FILTERS = [
   'Brand announcement',
 ];
 
-const TRACK_ID_MAP = {
+export const TRACK_ID_MAP = {
   demo_ticks: 'ticks',
   demo_synthwave: 'synthwave',
   demo_funk: 'funk',
