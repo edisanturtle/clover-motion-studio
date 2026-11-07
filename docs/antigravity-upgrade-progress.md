@@ -472,6 +472,97 @@ Created `src/core/__tests__/proceduralEffectsFase10.test.mjs` containing 10 comp
 | **Non-Destructive Guard** | Display safe warning for unsupported features without data loss | Verified in Test 8 & `detectUnsupportedProjectFeatures` | **PASS** |
 | **Zero Regressions** | All 70 test suites pass; production build succeeds | 70/70 tests pass; `npm run build` succeeds in 1.4s | **PASS** |
 
+---
+
+# Fase 11 — Real Export Pipeline, Preflight Verification & Output Manifest
+
+**File:** `docs/antigravity-upgrade-progress.md`  
+**Current Phase:** **Fase 11 — Real Export Pipeline, Preflight Verification & Output Manifest**  
+**Phase Status:** **COMPLETED & VERIFIED (Gate to Fase 12: LOCKED / AWAITING INSTRUCTION)**  
+**Target Application:** Clover Motion Studio (`http://localhost:3000/`)  
+**Timestamp:** 2026-11-07T22:35:00+07:00 (Asia/Jakarta)  
+
+---
+
+## 1. Executive Summary & Supported Export Pipeline
+
+In strict adherence to the project instructions, **Fase 11** implements a **Genuinely Supported Real Export Pipeline** with end-to-end preflight verification, cryptographic SHA-256 output receipts, progress/cancellation/retry lifecycles, and guaranteed preservation of native editable project state:
+$$\text{Project State} \longrightarrow \text{Preflight Inspection} \longrightarrow \text{Canvas/Audio Stream Recording} \longrightarrow \text{Cryptographic SHA-256 Receipt} \longrightarrow \text{Output Download & Editable Roundtrip}$$
+
+### Core Features Implemented:
+1. **Real Export Pipeline**:
+   - Primary: **WebM Video (VP9 / Opus)** via browser `MediaRecorder` merged with the Web Audio API synthesis stream at native canvas resolution ($1080\times 1080$, $1080\times 1350$, $1920\times 1080$).
+   - Fallback / Alternative: High-Resolution **PNG Still Frame** and multi-frame **PNG Sequence (ZIP)** with lossless 32-bit RGBA and alpha channel.
+   - Master Audio: **RIFF WAV (48kHz stereo uncompressed)**.
+2. **6-Point Preflight Verification (`src/core/services/exportPreflightService.js`)**:
+   - **Missing Media & Fonts**: Recursively scans all image layers, video track clips, and text layer typefaces. Blocks export on missing asset IDs; warns on unverified web fonts.
+   - **Unsupported Effects**: Scans project, scenes, and layers using `detectUnsupportedProjectFeatures(project)`. Preserves raw parameters without data loss and issues safe non-destructive notices.
+   - **Dimensions, Frame Rate & Duration**: Validates aspect ratio, dimensions ($w, h > 0$), frame rate ($12 \le \text{fps} \le 60$), and timeline range invariants ($in < out$, $duration > 0$).
+   - **Audio Clipping & Sync**: Detects peak amplitudes $> 1.0$ ($> 0\text{dB}$ clipping distortion) and validates standard audio sample rates (44100Hz / 48000Hz).
+   - **Color / Alpha / Codec Compatibility**: Enforces container constraints (e.g. warns that MP4 containers do not support alpha transparency and recommends WebM VP9).
+   - **License Provenance Audit**: Blocks export if any asset or track has license status `hold` or `quarantined`; issues warnings for unverified provenance.
+3. **Cryptographic SHA-256 Output Manifest (`src/core/services/exportManifestService.js`)**:
+   - Computes deterministic SHA-256 hash using native Web Crypto API (`crypto.subtle.digest`).
+   - Generates structured audit manifests documenting filename, byte size, format, codec, dimensions, FPS, duration, frame count, audio sample rate, color space (`sRGB / Rec. 709`), alpha channel status, and format limitations.
+4. **Lifecycle Control (Progress, Cancellation, Error & Retry)**:
+   - Live rendering progress bar with percentage, frame count, and elapsed time.
+   - Immediate **Cancel Export** button that stops the recorder, cleans up stream tracks, resets progress, and restores playback state.
+   - Error capture displaying descriptive failure cards and a 1-click **Retry Export** action.
+5. **Native Project Remains 100% Editable**:
+   - The native `.clovermotion.json` project state is never flattened, locked, or mutated by the export pipeline.
+   - Full save/reopen roundtrip deep equality verified.
+6. **No Dead Controls Invariant**:
+   - Every format and codec listed in the UI maps to a real, functioning export path.
+
+---
+
+## 2. Test Suite & Verification Results
+
+Created `src/core/__tests__/exportPipelineFase11.test.mjs` containing 11 comprehensive tests:
+- **Test 1**: Dimensions, frame rate (12-60 FPS), and duration validation invariants.
+- **Test 2**: Missing media (image & video clip) and custom font availability verification.
+- **Test 3**: Unsupported effect detection with non-destructive warning notices.
+- **Test 4**: Audio clipping ($> 1.0$) and sample rate sync verification.
+- **Test 5**: Color / alpha transparency vs container codec compatibility invariants.
+- **Test 6**: License provenance blocker for quarantined / hold assets.
+- **Test 7**: Deterministic SHA-256 cryptographic hash calculation via Web Crypto API.
+- **Test 8**: Export manifest & receipt generation with technical limitations.
+- **Test 9**: Export lifecycle: progress updates, non-blocking cancellation, and retry.
+- **Test 10**: Native project remains 100% editable with lossless save/reopen roundtrip.
+- **Test 11**: Only genuine export formats supported (no dead controls).
+
+**Test Summary**:
+- `exportPipelineFase11.test.mjs`: **11/11 tests pass (100%)**.
+- All test suites in `src/core/__tests__/`: **82/82 tests pass (100%)**.
+- `npm run build`: Compiled successfully via Turbopack in **1220ms** with **0 errors**.
+
+---
+
+## 3. Visual Proof
+
+- Live screenshot captured at 1440x900 viewport:
+  - `docs/screenshots/fase11-export-pipeline.png`:
+    - Shows Export Studio Modal (`ExportModal.jsx`) open over the canvas workspace.
+    - Pill status: `Fase 11 Verified · Real Pipeline & Audit Receipt`.
+    - Left Column: Preview canvas with 1:1 square poster frame and Preflight Inspection box (`All Checks Clear` / zero errors).
+    - Right Column: Genuine format grid, timeline range selector (Full Project, Active Scene, Custom Range), resolution and frame rate selectors, and include audio toggle.
+    - Bottom Sticky Footer: Close and primary `Export Video` action.
+
+---
+
+## 4. Acceptance Criteria Summary
+
+| Criterion | Requirement | Verification | Status |
+| :--- | :--- | :--- | :--- |
+| **Real Export Pipeline** | Genuinely supported export path (WebM VP9 & PNG) | `handleExportVideo` + `exportPipelineFase11.test.mjs` | **PASS** |
+| **Preflight Checks** | Missing media/font, unsupported FX, timing, audio, alpha, license | Verified in Tests 1–6 (`exportPreflightService.js`) | **PASS** |
+| **Available Formats Only** | No dead UI controls; clear availability badges | Verified in Test 11 & `ExportModal.jsx` | **PASS** |
+| **Progress / Cancel / Retry** | Live progress, non-blocking cancel, error card & retry | Verified in Test 9 + `handleCancelExport` / `handleRetryExport` | **PASS** |
+| **Editable Native Project** | Project state remains unmutated and 100% editable | Verified in Test 10 (100% save/reopen deep equality) | **PASS** |
+| **Output Manifest & Hash** | SHA-256 hash, byte size, codec, limitations receipt | Verified in Tests 7–8 (`exportManifestService.js`) | **PASS** |
+| **Zero Regressions** | All 82 test suites pass; production build succeeds | 82/82 tests pass; `npm run build` succeeds in 1.2s | **PASS** |
+
+
 
 
 

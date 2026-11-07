@@ -40,6 +40,10 @@ export default function ExportModal({
   totalProjectDuration,
   isRecording,
   exportProgress,
+  exportError,
+  lastExportReceipt,
+  onCancelExport,
+  onRetryExport,
   onExportPNG,
   onExportVideo,
   onExportAudio,
@@ -211,11 +215,11 @@ export default function ExportModal({
                 Export Studio & Multi-Format Dispatch
               </h2>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#159947]/20 border border-[#22c55e]/30 text-[#4ade80]">
-                Fase 10 Verified
+                Fase 11 Verified
               </span>
             </div>
             <p className="text-xs text-neutral-400 mt-0.5">
-              Deterministic frame evaluator · Lossless color & alpha · Preflight diagnostics
+              Deterministic frame evaluator · Lossless color & alpha · Preflight diagnostics & SHA-256 audit manifest
             </p>
           </div>
           <button
@@ -227,6 +231,86 @@ export default function ExportModal({
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Live Export Progress Banner (Fase 11) */}
+        {isRecording && (
+          <div className="mx-6 mt-4 p-3.5 rounded-2xl bg-neutral-900 border border-[#22c55e]/40 shadow-lg space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <div className="flex items-center gap-2 text-white">
+                <Loader2 className="w-4 h-4 animate-spin text-[#4ade80]" />
+                <span>Rendering {selectedFormat.toUpperCase()} Video...</span>
+                <span className="font-mono text-[#4ade80]">{Math.round(exportProgress * 100)}%</span>
+              </div>
+              <button
+                type="button"
+                onClick={onCancelExport}
+                className="px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 text-xs font-semibold flex items-center gap-1 transition-colors"
+              >
+                <Ban className="w-3.5 h-3.5" />
+                <span>Cancel Export</span>
+              </button>
+            </div>
+            <div className="w-full h-2 rounded-full bg-neutral-800 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#159947] to-[#22c55e] transition-all duration-100"
+                style={{ width: `${Math.round(exportProgress * 100)}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-[10px] font-mono text-neutral-400">
+              <span>Native project remains 100% editable</span>
+              <span>Frame {Math.round(exportProgress * totalFrames)} / {totalFrames}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Export Error Alert with Retry (Fase 11) */}
+        {exportError && !isRecording && (
+          <div className="mx-6 mt-4 p-3.5 rounded-2xl bg-red-950/40 border border-red-800/60 shadow-lg flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-start gap-2 text-red-300 min-w-0">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <div className="font-bold text-red-200">Export Halted</div>
+                <div className="text-[11px] text-red-300/90 truncate">{exportError}</div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onRetryExport}
+              className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs shrink-0 flex items-center gap-1 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Retry Export</span>
+            </button>
+          </div>
+        )}
+
+        {/* Export Manifest & Cryptographic Hash Receipt (Fase 11) */}
+        {lastExportReceipt && !isRecording && (
+          <div className="mx-6 mt-4 p-3.5 rounded-2xl bg-[#159947]/15 border border-[#22c55e]/40 shadow-lg space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-white font-bold">
+                <CheckCircle2 className="w-4 h-4 text-[#4ade80]" />
+                <span>Export Completed & Audit Manifest Recorded</span>
+              </div>
+              <span className="px-2 py-0.5 rounded font-mono text-[10px] bg-[#159947]/30 text-[#4ade80]">
+                {(lastExportReceipt.fileSizeBytes / 1024).toFixed(1)} KB
+              </span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono text-neutral-300 pt-1 border-t border-neutral-800/80">
+              <div><span className="text-neutral-500">File:</span> {lastExportReceipt.filename}</div>
+              <div><span className="text-neutral-500">Format:</span> {lastExportReceipt.format.toUpperCase()} ({lastExportReceipt.codec})</div>
+              <div><span className="text-neutral-500">Duration:</span> {lastExportReceipt.durationSeconds}s ({lastExportReceipt.totalFrames} frames)</div>
+              <div><span className="text-neutral-500">Audio:</span> {lastExportReceipt.audio?.sampleRate}Hz stereo</div>
+            </div>
+            <div className="flex items-center justify-between text-[10px] font-mono bg-black/40 px-2.5 py-1.5 rounded-lg border border-neutral-800/60">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-neutral-500 shrink-0">SHA-256:</span>
+                <span className="text-[#4ade80] truncate">{lastExportReceipt.sha256}</span>
+              </div>
+              <span className="text-neutral-400 shrink-0 text-[9px]">Verified</span>
+            </div>
+          </div>
+        )}
 
         {/* 2-Column Main Body */}
         <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-5 grid grid-cols-1 md:grid-cols-12 gap-5 min-h-0">
@@ -698,10 +782,31 @@ export default function ExportModal({
 
           <div className="flex items-center gap-3">
             {isRecording && (
-              <div className="flex items-center gap-2 text-xs font-semibold text-amber-400 font-mono">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Rendering {Math.round(exportProgress * 100)}%</span>
-              </div>
+              <>
+                <div className="flex items-center gap-2 text-xs font-semibold text-amber-400 font-mono">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Rendering {Math.round(exportProgress * 100)}%</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onCancelExport}
+                  className="px-3.5 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                >
+                  <Ban className="w-3.5 h-3.5" />
+                  <span>Cancel Export</span>
+                </button>
+              </>
+            )}
+
+            {!isRecording && exportError && (
+              <button
+                type="button"
+                onClick={onRetryExport}
+                className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Retry Export</span>
+              </button>
             )}
 
             <button

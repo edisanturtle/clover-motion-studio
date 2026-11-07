@@ -106,6 +106,8 @@ import {
   saveLayoutPreferences,
 } from '../core/services/storageService';
 import { saveProjectAsCustomTemplate } from '../core/services/templateService';
+import { computeBufferHash, generateExportManifest } from '../core/services/exportManifestService';
+import { runExportPreflight } from '../core/services/exportPreflightService';
 import {
   migrateProjectSchema,
   serializeProject,
@@ -229,13 +231,18 @@ export default function CloverMotionStudio() {
   const [customFonts, setCustomFonts] = useState([]);
   const [savedProjects, setSavedProjects] = useState([]);
 
-  // Export Video Recording State
+  // Export Video Recording State (Fase 11)
   const [isRecording, setIsRecording] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [exportQueue, setExportQueue] = useState([]);
+  const [exportError, setExportError] = useState(null);
+  const [lastExportReceipt, setLastExportReceipt] = useState(null);
 
   const canvasRef = useRef(null);
   const audioEngineRef = useRef(null);
+  const activeRecorderRef = useRef(null);
+  const exportTimerRef = useRef(null);
+  const exportOptionsRef = useRef(null);
 
   const activeScene = project.scenes[activeSceneIndex] || project.scenes[0];
   const selectedLayer =
@@ -2330,9 +2337,59 @@ export default function CloverMotionStudio() {
     }
   };
 
-  const handleExportVideo = (exportOptions = {}) => {
+  const handleCancelExport = () => {
+    if (exportTimerRef.current) {
+      clearInterval(exportTimerRef.current);
+      exportTimerRef.current = null;
+    }
+    if (activeRecorderRef.current) {
+      try {
+        if (activeRecorderRef.current.state === 'recording') {
+          activeRecorderRef.current.stop();
+        }
+        if (activeRecorderRef.current.stream) {
+          activeRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
+        }
+      } catch {}
+      activeRecorderRef.current = null;
+    }
+    setIsRecording(false);
+    setExportProgress(0);
+    setExportError('Export was cancelled by user.');
+    if (isPlaying) handleTogglePlay();
+  };
+
+  const handleRetryExport = () => {
+    setExportError(null);
+    if (exportOptionsRef.current) {
+      handleExportVideo(exportOptionsRef.current);
+    }
+  };
+
+  const handleExportVideo = async (exportOptions = {}) => {
     const canvas = canvasRef.current;
     if (!canvas || isRecording) return;
+    exportOptionsRef.current = exportOptions;
+    setExportError(null);
+
+    // 1. Run Preflight Inspection before recording (Fase 11)
+    const preflight = runExportPreflight({
+      project,
+      format: exportOptions.format || 'webm',
+      ratio: exportOptions.ratio || project.ratio || '4:5',
+      fps: exportOptions.fps || project.fps || 30,
+      rangeIn: exportOptions.rangeIn || 0,
+      rangeOut: exportOptions.rangeOut,
+      codec: exportOptions.codec,
+      includeAudio: exportOptions.includeAudio,
+      transparentBg: exportOptions.transparentBg,
+    });
+
+    if (!preflight.passed) {
+      setExportError(`Export blocked by preflight errors: ${preflight.errors.join('; ')}`);
+      return;
+    }
+
     try {
       const fps = exportOptions.fps || project.fps || 30;
       const canvasStream = canvas.captureStream(fps);
@@ -2357,23 +2414,52 @@ export default function CloverMotionStudio() {
         : 'video/webm';
 
       const recorder = new MediaRecorder(combinedStream, { mimeType });
+      activeRecorderRef.current = recorder;
       const chunks = [];
 
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) chunks.push(e.data);
       };
 
-      recorder.onstop = () => {
+      recorder.onerror = (e) => {
+        console.error('MediaRecorder error:', e);
+        setExportError(e.error?.message || 'MediaRecorder failed during video encoding');
+        setIsRecording(false);
+        setExportProgress(0);
+        activeRecorderRef.current = null;
+      };
+
+      recorder.onstop = async () => {
+        if (chunks.length === 0) {
+          setIsRecording(false);
+          setExportProgress(0);
+          activeRecorderRef.current = null;
+          return;
+        }
+
         const blob = new Blob(chunks, { type: mimeType });
+        const sha256 = await computeBufferHash(blob);
+        const receipt = generateExportManifest({
+          project,
+          exportOptions,
+          fileSizeBytes: blob.size,
+          sha256,
+          preflightSummary: preflight,
+        });
+
+        setLastExportReceipt(receipt);
+
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         const ext = exportOptions.format === 'mp4' ? 'mp4' : 'webm';
-        a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}.${ext}`;
+        a.download = receipt.filename || `${project.name.toLowerCase().replace(/\s+/g, '-')}.${ext}`;
         a.click();
         URL.revokeObjectURL(url);
+
         setIsRecording(false);
-        setExportProgress(0);
+        setExportProgress(1.0);
+        activeRecorderRef.current = null;
       };
 
       const exportScope = exportOptions.exportScope || playbackScope;
@@ -2397,17 +2483,22 @@ export default function CloverMotionStudio() {
       recorder.start();
 
       const startTs = performance.now();
-      const progInterval = setInterval(() => {
+      exportTimerRef.current = setInterval(() => {
         const elapsed = performance.now() - startTs;
         setExportProgress(Math.min(1, elapsed / totalMs));
         if (elapsed >= totalMs) {
-          clearInterval(progInterval);
+          if (exportTimerRef.current) {
+            clearInterval(exportTimerRef.current);
+            exportTimerRef.current = null;
+          }
           if (recorder.state === 'recording') recorder.stop();
         }
       }, 100);
     } catch (err) {
       console.error('Video export error:', err);
+      setExportError(err.message || 'Video export initialization failed');
       setIsRecording(false);
+      activeRecorderRef.current = null;
     }
   };
 
@@ -2841,6 +2932,10 @@ export default function CloverMotionStudio() {
         totalProjectDuration={totalProjectDuration}
         isRecording={isRecording}
         exportProgress={exportProgress}
+        exportError={exportError}
+        lastExportReceipt={lastExportReceipt}
+        onCancelExport={handleCancelExport}
+        onRetryExport={handleRetryExport}
         onExportPNG={handleExportPNG}
         onExportVideo={handleExportVideo}
         onExportAudio={handleExportAudio}
