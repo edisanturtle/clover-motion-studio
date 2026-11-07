@@ -481,3 +481,49 @@ export function seekVideoElementAccurately(videoEl, targetTime) {
     }, 150);
   });
 }
+
+/**
+ * Generates a validated synthetic test video clip for headless testing and zero-dependency verification (Fase 9).
+ * Emulates SMPTE color bar calibration pattern and caption timing.
+ * 
+ * @param {object} options
+ * @returns {object} VideoClip entity
+ */
+export function generateSyntheticTestVideoClip(options = {}) {
+  const duration = Math.max(1.0, Number(options.duration) || 6.0);
+  const clipId = options.id || `clip_v_test_${Date.now()}`;
+  return createVideoClip({
+    id: clipId,
+    name: options.name || 'SMPTE Calibration & Motion Pattern (Procedural)',
+    assetId: options.assetId || 'asset_smpte_test_pattern',
+    trackId: options.trackId || 'track_v_1',
+    startTime: options.startTime !== undefined ? Number(options.startTime) : 0,
+    duration,
+    sourceDuration: Math.max(duration, Number(options.sourceDuration) || duration),
+    trimIn: options.trimIn !== undefined ? Number(options.trimIn) : 0,
+    trimOut: options.trimOut !== undefined ? Number(options.trimOut) : (Math.max(duration, Number(options.sourceDuration) || duration)),
+    speed: options.speed || 1.0,
+    transform: {
+      x: 0,
+      y: 0,
+      scale: 1.0,
+      rotation: 0,
+      opacity: 1.0,
+      blendMode: 'source-over',
+    },
+    crop: { top: 0, bottom: 0, left: 0, right: 0 },
+    transitionIn: { type: options.transitionIn || 'crossfade', duration: 0.5 },
+    transitionOut: { type: options.transitionOut || 'fadeToBlack', duration: 0.5 },
+    captions: [
+      {
+        id: 'cap_calib_1',
+        startTime: 0.5,
+        endTime: Math.min(3.5, duration),
+        text: 'Clover Motion Calibration · 1080p 30fps Rec.709',
+        position: 'bottom',
+      },
+    ],
+    codec: 'avc1.64001F',
+  });
+}
+
