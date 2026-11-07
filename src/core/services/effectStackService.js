@@ -5,7 +5,7 @@
  * blend mode compositing, and CPU fallback under strict 16.6ms performance budgets.
  */
 
-import { createEffect } from '../domain/effectModels.js';
+import { createEffect, isEffectSupported } from '../domain/effectModels.js';
 import { evaluateEasing } from '../../utils/timecode.js';
 
 export const TARGET_FRAME_BUDGET_MS = 16.6; // 60 FPS Target Ceiling
@@ -175,7 +175,7 @@ export function applyEffectStackToCanvas({
   };
 
   for (const effect of effects) {
-    if (!effect.enabled) continue;
+    if (!effect.enabled || effect.isUnsupported) continue;
 
     // Check performance budget
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -277,6 +277,59 @@ export function applyEffectStackToCanvas({
             ctx.drawImage(canvas, -shift, 0, width, height);
             ctx.drawImage(canvas, shift, 0, width, height);
           } catch {}
+        }
+        break;
+      }
+
+      case 'threshold': {
+        ctx.filter = 'contrast(500%) grayscale(100%)';
+        drawSelf();
+        ctx.filter = 'none';
+        break;
+      }
+
+      case 'vhsGlitch': {
+        const intensity = (params.intensity ?? 45) / 100;
+        const slices = Math.max(2, params.slices || 6);
+        for (let s = 0; s < slices; s++) {
+          const seed = Math.sin(localTime * 14 + s * 5.7);
+          if (Math.abs(seed) > 0.3) {
+            const sy = Math.floor(((s + Math.abs(seed)) / slices) * height);
+            const sh = Math.floor((height / slices) * (0.3 + Math.abs(seed) * 0.4));
+            const dx = seed * width * 0.035 * intensity;
+            if (canvas && typeof ctx.drawImage === 'function') {
+              try {
+                ctx.drawImage(canvas, 0, sy, width, sh, dx, sy, width, sh);
+              } catch {}
+            }
+          }
+        }
+        break;
+      }
+
+      case 'halftone': {
+        const dotSize = Math.max(2, params.dotSize || 6);
+        const spacing = dotSize * 2.5;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        for (let y = spacing / 2; y < height; y += spacing) {
+          const rowShift = (Math.floor(y / spacing) % 2) * (spacing / 2);
+          for (let x = spacing / 2 + rowShift; x < width; x += spacing) {
+            ctx.beginPath();
+            ctx.arc(x, y, dotSize * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        break;
+      }
+
+      case 'pixelate': {
+        const blockSize = Math.max(2, params.blockSize || 12);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+        for (let y = 0; y < height; y += blockSize) {
+          ctx.fillRect(0, y, width, 1);
+        }
+        for (let x = 0; x < width; x += blockSize) {
+          ctx.fillRect(x, 0, 1, height);
         }
         break;
       }

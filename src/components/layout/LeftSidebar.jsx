@@ -56,6 +56,7 @@ import {
   EVENT_SFX_PADS,
 } from '../../constants/effectCraftEffects';
 import { formatTimecode } from '../../utils/timecode';
+import { detectUnsupportedProjectFeatures } from '../../core/domain/effectModels';
 
 const safeNum = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 const safeStr = (v, fallback = '') => (typeof v === 'string' ? v : (typeof v === 'number' && Number.isFinite(v) ? String(v) : fallback));
@@ -1185,6 +1186,37 @@ export default function LeftSidebar({
                   activeSceneIndex={activeSceneIndex}
                   activeSceneName={activeScene?.name}
                 />
+
+                {/* Unsupported Feature Non-Destructive Warning Banner (Fase 10) */}
+                {(() => {
+                  const diagnostics = detectUnsupportedProjectFeatures(project);
+                  if (!diagnostics.hasUnsupported) return null;
+                  return (
+                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 space-y-1.5 shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">⚠️</span>
+                        <span className="text-xs font-bold text-amber-200">
+                          Preserved Legacy Features ({diagnostics.warnings.length})
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-amber-300/80 leading-relaxed">
+                        External/unsupported effects were detected in this project. They are safely preserved in project data without any data loss, but skipped during Canvas 2D rendering.
+                      </p>
+                      <div className="space-y-1 pt-1 border-t border-amber-500/20 text-[10px] font-mono text-amber-300/90">
+                        {diagnostics.warnings.slice(0, 3).map((w, idx) => (
+                          <div key={idx} className="truncate">
+                            • {w.name} ({w.location})
+                          </div>
+                        ))}
+                        {diagnostics.warnings.length > 3 && (
+                          <div className="text-[9px] text-amber-400">
+                            +{diagnostics.warnings.length - 3} more preserved
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Procedural Shader Backgrounds */}
                 <div className="space-y-2 pb-3 border-b border-neutral-800">

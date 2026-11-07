@@ -45,6 +45,12 @@ import { DEMO_TRACKS } from '../../constants/audioTracks';
 import { EVENT_SFX_PADS, EFFECTCRAFT_SHADER_BACKGROUNDS } from '../../constants/effectCraftEffects';
 import { ANIMOS_SHOWCASE_TEMPLATES } from '../../constants/animosTemplates';
 import { solveSpring } from '../../utils/timecode';
+import {
+  SUPPORTED_BLEND_MODES,
+  EFFECT_REGISTRY,
+  createEffect,
+  isEffectSupported,
+} from '../../core/domain/effectModels';
 
 const safeNum = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 const safeHexColor = (val, fallback = '#159947') => {
@@ -1706,6 +1712,208 @@ export default function RightInspector({
                     </button>
                   </div>
                 )}
+
+                {/* Compositing & Blend Modes (Fase 10) */}
+                <div className="pt-3 border-t border-neutral-800/80 space-y-2.5">
+                  <div className="flex items-center justify-between text-xs font-semibold text-white">
+                    <span>Compositing & Blend Mode</span>
+                    <Sliders className="w-3.5 h-3.5 text-neutral-400" />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-neutral-400 mb-1">Blend Mode</label>
+                    <select
+                      value={selectedLayer.blendMode || 'source-over'}
+                      onChange={(e) => onUpdateLayer(selectedLayer.id, { blendMode: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded-lg bg-[#202020] border border-neutral-700 text-xs font-mono text-white focus:outline-none"
+                    >
+                      {SUPPORTED_BLEND_MODES.map((bm) => (
+                        <option key={bm} value={bm}>
+                          {bm}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-[10px] text-neutral-300 mb-0.5">
+                      <span>Layer Opacity</span>
+                      <span className="font-mono">
+                        {Math.round(safeNum(selectedLayer.opacity, 1) * 100)}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={Math.round(safeNum(selectedLayer.opacity, 1) * 100)}
+                      onChange={(e) =>
+                        onUpdateLayer(selectedLayer.id, { opacity: Number(e.target.value) / 100 })
+                      }
+                      className="w-full accent-[#16a34a]"
+                    />
+                  </div>
+                </div>
+
+                {/* Non-Destructive Layer Effect Stack (Fase 10) */}
+                <div className="pt-3 border-t border-neutral-800/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-semibold text-white">Layer Effects</span>
+                      <span className="ml-1.5 px-1.5 py-0.2 rounded bg-neutral-800 text-[10px] font-mono text-[#4ade80]">
+                        {(selectedLayer.effects || []).filter((f) => f.enabled !== false).length}
+                      </span>
+                    </div>
+
+                    {/* Add Effect Dropdown */}
+                    <div className="relative">
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const fxType = e.target.value;
+                          if (!fxType) return;
+                          const currentStack = Array.isArray(selectedLayer.effects) ? [...selectedLayer.effects] : [];
+                          const newEffect = createEffect({ type: fxType });
+                          onUpdateLayer(selectedLayer.id, { effects: [...currentStack, newEffect] });
+                        }}
+                        className="text-[10px] bg-[#159947] hover:bg-[#16a34a] text-white font-medium px-2 py-1 rounded-lg cursor-pointer focus:outline-none"
+                      >
+                        <option value="">+ Add Effect</option>
+                        {Object.entries(EFFECT_REGISTRY).map(([key, def]) => (
+                          <option key={key} value={key} className="bg-[#1c1c1c] text-white">
+                            {def.name} ({def.category})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Effects List */}
+                  {Array.isArray(selectedLayer.effects) && selectedLayer.effects.length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedLayer.effects.map((fx, fxIdx) => {
+                        const def = EFFECT_REGISTRY[fx.type];
+                        const isUnsupported = fx.isUnsupported || !def;
+
+                        return (
+                          <div
+                            key={fx.id || fxIdx}
+                            className={`p-2.5 rounded-xl border text-xs space-y-2 transition-all ${
+                              isUnsupported
+                                ? 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+                                : fx.enabled !== false
+                                ? 'bg-[#1e1e1e] border-neutral-700/80'
+                                : 'bg-[#181818] border-neutral-800/60 opacity-60'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1.5">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={fx.enabled !== false}
+                                  onChange={(e) => {
+                                    const nextStack = selectedLayer.effects.map((item, idx) =>
+                                      idx === fxIdx ? { ...item, enabled: e.target.checked } : item
+                                    );
+                                    onUpdateLayer(selectedLayer.id, { effects: nextStack });
+                                  }}
+                                  className="rounded accent-[#159947]"
+                                />
+                                <span className="font-semibold text-white truncate text-[11px]">
+                                  {fx.name || def?.name || fx.type}
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                title="Remove Effect"
+                                onClick={() => {
+                                  const nextStack = selectedLayer.effects.filter((_, idx) => idx !== fxIdx);
+                                  onUpdateLayer(selectedLayer.id, { effects: nextStack });
+                                }}
+                                className="text-neutral-500 hover:text-red-400 transition-colors p-0.5"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+
+                            {/* Unsupported Warning Tag */}
+                            {isUnsupported && (
+                              <div className="text-[10px] text-amber-300/90 leading-tight bg-amber-500/10 p-1.5 rounded border border-amber-500/20">
+                                ⚠️ Preserved legacy effect: Parameters kept intact for roundtrip/export, skipped in 2D Canvas.
+                              </div>
+                            )}
+
+                            {/* Supported Parameter Sliders */}
+                            {!isUnsupported && def && fx.enabled !== false && (
+                              <div className="space-y-2 pt-1 border-t border-neutral-800/80">
+                                {def.parameters.map((param) => {
+                                  const curVal = fx.params?.[param.key] ?? param.default;
+
+                                  if (param.type === 'color') {
+                                    return (
+                                      <div key={param.key} className="flex items-center justify-between">
+                                        <span className="text-[10px] text-neutral-400">{param.label}</span>
+                                        <input
+                                          type="color"
+                                          value={safeHexColor(curVal, param.default)}
+                                          onChange={(e) => {
+                                            const nextParams = { ...(fx.params || {}), [param.key]: e.target.value };
+                                            const nextStack = selectedLayer.effects.map((item, idx) =>
+                                              idx === fxIdx ? { ...item, params: nextParams } : item
+                                            );
+                                            onUpdateLayer(selectedLayer.id, { effects: nextStack });
+                                          }}
+                                          className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
+                                        />
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div key={param.key}>
+                                      <div className="flex justify-between text-[10px] text-neutral-300 mb-0.5">
+                                        <span>{param.label}</span>
+                                        <span className="font-mono">
+                                          {safeNum(curVal, param.default)}
+                                          {param.unit || ''}
+                                        </span>
+                                      </div>
+                                      <input
+                                        type="range"
+                                        min={param.min ?? 0}
+                                        max={param.max ?? 100}
+                                        step={param.step ?? 1}
+                                        value={safeNum(curVal, param.default)}
+                                        onChange={(e) => {
+                                          const nextParams = {
+                                            ...(fx.params || {}),
+                                            [param.key]: Number(e.target.value) || 0,
+                                          };
+                                          const nextStack = selectedLayer.effects.map((item, idx) =>
+                                            idx === fxIdx ? { ...item, params: nextParams } : item
+                                          );
+                                          onUpdateLayer(selectedLayer.id, { effects: nextStack });
+                                        }}
+                                        className="w-full accent-[#16a34a]"
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl border border-dashed border-neutral-800 text-center">
+                      <p className="text-[10px] text-neutral-400">
+                        No active effects on this layer. Click + Add Effect above to stack procedural adjustments.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

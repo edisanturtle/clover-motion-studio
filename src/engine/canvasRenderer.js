@@ -178,6 +178,18 @@ export function renderSceneToCanvas({
       ctx.restore();
     }
 
+    // Apply per-layer effect stack if defined (Fase 10)
+    if (Array.isArray(layer.effects) && layer.effects.length > 0) {
+      applyEffectStackToCanvas({
+        ctx,
+        width,
+        height,
+        effects: layer.effects,
+        localTime,
+        audioSignals,
+      });
+    }
+
     ctx.restore();
 
     if (activeSelectedIds.has(layer.id)) {
