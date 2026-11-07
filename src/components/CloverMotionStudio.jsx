@@ -68,6 +68,7 @@ import {
   validateAudioFile,
   extractWaveformPeaks,
   generateSyntheticTestAudio,
+  synthesizeSynthNoteBuffer,
 } from '../core/services/audioService';
 import {
   createAudioClip,
@@ -1750,6 +1751,57 @@ export default function CloverMotionStudio() {
     }
   };
 
+  const handleGenerateSynthNote = async (synthConfig = {}) => {
+    setAudioImportError(null);
+    try {
+      const note = synthesizeSynthNoteBuffer(synthConfig, 48000);
+      const assetId = `asset_synth_${(note.note || 'a4').toLowerCase()}_${Date.now()}`;
+      await audioEngineRef.current?.loadClipAudioBuffer(assetId, note.buffer);
+
+      // Play immediate auditory feedback preview
+      audioEngineRef.current?.triggerSynthNote?.(synthConfig);
+
+      const assetRecord = createAssetRecord({
+        id: assetId,
+        type: 'audio',
+        name: `Synth Note ${note.note} (${note.waveform} · ADSR)`,
+        size: note.buffer.byteLength,
+        format: 'WAV',
+        duration: note.duration,
+        sampleRate: note.sampleRate,
+        channels: note.channels,
+      });
+
+      updateProjectWithHistory((prev) => {
+        let withAsset = registerAssetInProject(prev, assetRecord);
+        let tracks = withAsset.audioTracks || [];
+        if (tracks.length === 0) {
+          tracks = [createAudioTrack({}, 'Audio Track 1')];
+          withAsset = { ...withAsset, audioTracks: tracks };
+        }
+        const targetTrackId = tracks[0].id;
+        const clipData = {
+          assetId,
+          name: `Synth ${note.note} (${note.waveform})`,
+          trackTime: localTime || 0,
+          trimIn: 0,
+          trimOut: note.duration,
+          duration: note.duration,
+          waveformPeaks: note.peaks,
+        };
+        const updated = addAudioClipToTrackInProject(withAsset, targetTrackId, clipData);
+        if (isPlaying) {
+          audioEngineRef.current?.scheduleClipPlayback(updated.audioTracks, localTime);
+        }
+        return updated;
+      });
+    } catch (err) {
+      console.error('Failed to generate synth note:', err);
+      setAudioImportError(`Failed to generate synth note: ${err.message}`);
+    }
+  };
+
+
   const handleRelinkClipAudio = async (clipId, file) => {
     setAudioImportError(null);
     const validation = validateAudioFile(file);
@@ -2579,6 +2631,7 @@ export default function CloverMotionStudio() {
               onSplitAudioClip={handleSplitAudioClip}
               onDeleteAudioClip={handleDeleteAudioClip}
               onGenerateTestTone={handleGenerateTestTone}
+              onGenerateSynthNote={handleGenerateSynthNote}
               onRelinkClipAudio={handleRelinkClipAudio}
               importProgress={audioImportProgress}
               importStatusText={audioImportStatus}

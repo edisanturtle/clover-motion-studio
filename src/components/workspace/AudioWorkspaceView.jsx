@@ -68,6 +68,7 @@ export default function AudioWorkspaceView({
   onSplitAudioClip,
   onDeleteAudioClip,
   onGenerateTestTone,
+  onGenerateSynthNote,
   onRelinkClipAudio,
   // Import Progress & Error State
   importProgress = null, // null or 0..100
@@ -316,6 +317,27 @@ export default function AudioWorkspaceView({
             >
               <Zap className="w-3 h-3 text-amber-400" />
               <span>+ 440Hz Test Tone</span>
+            </button>
+
+            {/* Generate Synth Note Slice (Sound-From-Zero ADSR) */}
+            <button
+              type="button"
+              onClick={() => onGenerateSynthNote?.({
+                frequency: 329.63,
+                note: 'E4',
+                waveform: 'triangle',
+                attack: 0.02,
+                decay: 0.18,
+                sustain: 0.45,
+                release: 0.35,
+                duration: 1.0,
+                gain: 0.5,
+              })}
+              className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-200 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              title="Generate a Sound-from-Zero Synth Note with ADSR Envelope"
+            >
+              <Activity className="w-3 h-3 text-[#4ade80]" />
+              <span>+ Synth Note (ADSR)</span>
             </button>
 
             {/* Import Local Audio File */}

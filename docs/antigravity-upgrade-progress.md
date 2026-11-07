@@ -171,3 +171,95 @@ Created `src/core/__tests__/keyframeWorkflowFase7.test.mjs` containing 8 compreh
 | **Reduced-Motion** | UI transitions respect preference; canvas unthrottled | `globals.css` + Test 8 | **PASS** |
 | **Zero Regressions** | All existing suites and builds pass | 44/44 tests pass; `npm run build` succeeds | **PASS** |
 
+---
+
+# Fase 8 Implementation Report: Audio Slice, Sound-From-Zero Synth & Timebase Reconciler
+
+**Executed On**: 2026-11-07  
+**Git Branch**: `main`  
+**Base Commit**: `c84d5d8`  
+**Environment**: Next.js 16.4.5, React 19, Web Audio API, HTML5 Canvas 2D  
+
+---
+
+## 1. Scope & Execution Overview
+
+Fase 8 implemented the focused audio slice and visual synchronization subsystem:
+`import sample → waveform → trim/fade/gain/pan/loop → playback → save/reopen`
+alongside sound-from-zero single-voice synthesis (`oscillator + ADSR envelope + trigger/note`), strictly avoiding premature claims of a "full DAW" (no automated multi-bus mixer or VST host claimed).
+
+### Key Architectural Implementations:
+1. **Audio Sample Import & Validation**:
+   - `validateAudioFile` verifies MIME types and extensions (`wav`, `mp3`, `ogg`, `aac`, `flac`, `m4a`) while enforcing a strict memory ceiling of $150\text{ MB}$ per file.
+2. **Normalized Waveform Peak Extraction**:
+   - `extractWaveformPeaks` downsamples audio channels to 60 or 120 normalized $0..1$ peak amplitudes, enabling 60fps rendering without touching `AudioBuffer` memory in the render loop.
+3. **Non-Destructive Clip Editing Slice**:
+   - Implemented in `src/core/services/audioService.js` and `AudioWorkspaceView.jsx`:
+     - Trim in/out with automatic duration update.
+     - Linear fade in and fade out ramps.
+     - Gain ($0..2.0\times$, $+6\text{ dB}$) and Stereo Pan ($-1.0..+1.0$).
+     - Non-destructive splitting at playhead timestamp.
+     - Looping playback with seamless sub-buffer cycle boundaries.
+4. **Sound-From-Zero Synthesis Slice**:
+   - `createSynthNoteConfig` in `src/core/domain/audioModels.js`: Validates pitch frequency ($20..20{,}000\text{ Hz}$), standard note notation, waveforms (`sine`, `triangle`, `sawtooth`, `square`), and ADSR parameters (`attack`, `decay`, `sustain`, `release`).
+   - `triggerSynthNote` in `src/engine/audioEngine.js`: Real-time oscillator routing through an ADSR `GainNode` into master DSP rack.
+   - `synthesizeSynthNoteBuffer` in `src/core/services/audioService.js`: Deterministic offline synthesis into a 16-bit PCM RIFF WAV buffer and waveform peaks.
+   - UI trigger button `+ Synth Note (ADSR)` in `AudioWorkspaceView.jsx` wired through `handleGenerateSynthNote` in `CloverMotionStudio.jsx`.
+5. **Timebase & Clock Mathematical Conversion Proofs**:
+   - Authored comprehensive architectural specification `docs/audio-visual-sync-architecture.md`.
+   - Proved zero-remainder integer division of $254{,}016{,}000{,}000\text{ ticks/s}$ across $48\text{ kHz}$ ($5{,}292{,}000\text{ ticks}$), $44.1\text{ kHz}$ ($5{,}760{,}000\text{ ticks}$), and $96\text{ kHz}$ ($2{,}646{,}000\text{ ticks}$).
+   - Reconciled SoundCraft musical ticks ($PPQ = 960$) at $120\text{ BPM}$: $132{,}300{,}000\text{ ticks/PPQ}$ with exact zero remainder.
+   - Explicitly prohibited direct casting between musical ticks, sample indices, and media ticks.
+6. **Privacy-First Microphone Permission**:
+   - Verified that `enableMicrophone()` is strictly invoked by explicit user button toggle; MediaStream tracks stop immediately upon toggle off or component unmount.
+7. **Lossless Schema V1 Save / Reopen Roundtrip**:
+   - Audio tracks, clips, trims, fades, gain, pan, loop flags, waveform peaks, and Master DSP configuration serialize to `.clovermotion.json` Schema V1 and restore with 100% deep equality.
+   - Missing audio buffers gracefully enter `isMissing: true` state with one-click local relinking.
+
+---
+
+## 2. Test Suite & Verification Results
+
+Created `src/core/__tests__/audioWorkflowFase8.test.mjs` containing 8 comprehensive tests:
+- **Test 1**: Audio sample import validation, format checking & safety limits.
+- **Test 2**: Downsampled waveform peak extraction & normalization ($0..1$).
+- **Test 3**: Non-destructive clip editing slice (trim in/out, fades, gain, pan, loop, split).
+- **Test 4**: Sound-from-zero synthesis slice (oscillator + ADSR envelope).
+- **Test 5**: Rational timebase zero-remainder mathematical invariants (ADR 004).
+- **Test 6**: SoundCraft musical PPQ vs media ticks coordinate separation.
+- **Test 7**: Privacy-first microphone permission lifecycle.
+- **Test 8**: Lossless Schema V1 save/reopen roundtrip of audio tracks & DSP rack.
+
+**Test Summary**:
+- `audioWorkflowFase8.test.mjs`: **8/8 tests pass (100%)**.
+- All test suites in `src/core/__tests__/`: **52/52 tests pass (100%)**.
+- `npm run build`: Compiled successfully in 1.8s with **0 errors**.
+
+---
+
+## 3. Visual Proof
+
+- Live screenshot captured at 1440x900 viewport:
+  - `docs/screenshots/fase8-audio-workflow.png`:
+    - Shows active Audio Workspace view (`advancedSubMode === 'audio'`).
+    - Status pill indicates `WEB AUDIO DSP SUBSYSTEM · ADR 006 · 48 kHz / 32-bit Float Internal`.
+    - Live 32-band FFT Spectrum Analyzer & Master Signal.
+    - Multi-Track Timeline with `Beat Snap`, `+ 440Hz Test Tone`, `+ Synth Note (ADSR)`, and `Import Audio`.
+    - Newly synthesized `Synth ... 1.4s` clip displayed with rendered waveform peaks and track faders.
+
+---
+
+## 4. Acceptance Criteria Summary
+
+| Criterion | Requirement | Verification | Status |
+| :--- | :--- | :--- | :--- |
+| **Audio Slicing Workflow** | Import → waveform → trim/fade/gain/pan/loop → save/reopen | `audioWorkflowFase8.test.mjs` Tests 1–3 | **PASS** |
+| **Sound-From-Zero** | Single-voice oscillator + ADSR envelope + note trigger | `audioWorkflowFase8.test.mjs` Test 4 | **PASS** |
+| **Scope Boundary** | No false DAW claims without sequencer/mixer/automation | Documented in `docs/audio-visual-sync-architecture.md` | **PASS** |
+| **Mic Permission** | Requested only on explicit user button click | Verified in Test 7 + `audioEngine.js` | **PASS** |
+| **Timebase Exactness** | 254,016,000,000 ticks/s zero-remainder conversions | Verified in Test 5 & Test 6 | **PASS** |
+| **Musical PPQ Invariance** | SoundCraft PPQ (960) not directly cast into media ticks | Verified in Test 6 | **PASS** |
+| **Schema V1 Roundtrip** | Lossless save/reopen of clips, waveforms, and DSP rack | Verified in Test 8 | **PASS** |
+| **Zero Regressions** | All 52 test suites pass; production build succeeds | 52/52 tests pass; `npm run build` succeeds | **PASS** |
+
+

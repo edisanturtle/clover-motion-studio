@@ -88,6 +88,25 @@ export function musicalTicksToTimebase(musicalTick, bpm = 120) {
 }
 
 /**
+ * Losslessly converts canonical media ticks to SoundCraft musical ticks (PPQ = 960) for a given BPM.
+ * Formula: musical_ticks = (ticks * BPM * PPQ) / (TICKS_PER_SECOND * 60)
+ * Note: Musical ticks are strictly NOT media ticks and must never be cast directly!
+ * 
+ * @param {bigint|number|string} ticks
+ * @param {number} bpm
+ * @returns {bigint}
+ */
+export function timebaseToMusicalTicks(ticks, bpm = 120) {
+  const bTicks = typeof ticks === 'bigint' ? ticks : BigInt(ticks || 0);
+  if (bTicks <= 0n) return 0n;
+  const b = BigInt(Math.max(1, Math.round(bpm)));
+  const numerator = bTicks * b * MUSICAL_PPQ;
+  const denominator = TICKS_PER_SECOND * 60n;
+  return numerator / denominator;
+}
+
+
+/**
  * Rational frame rate calculator (e.g. 29.97 = 30000 / 1001).
  * @param {number} fps
  * @returns {{ num: bigint, den: bigint, ticksPerFrame: bigint }}

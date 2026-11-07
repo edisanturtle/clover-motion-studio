@@ -115,3 +115,28 @@ export function createAudioTrack(init = {}, fallbackName = 'Audio Track 1') {
       : [],
   };
 }
+
+/**
+ * Creates a validated Synth Note Configuration for sound-from-zero synthesis.
+ * Represents a discrete oscillator + ADSR envelope + trigger/note slice.
+ * 
+ * @param {object} init
+ * @returns {object}
+ */
+export function createSynthNoteConfig(init = {}) {
+  const allowedWaves = ['sine', 'triangle', 'sawtooth', 'square'];
+  const waveform = allowedWaves.includes(init.waveform) ? init.waveform : 'sine';
+
+  return {
+    frequency: Math.max(20, Math.min(20000, toNum(init.frequency, 440))),
+    note: typeof init.note === 'string' && init.note.trim() ? init.note.trim() : 'A4',
+    waveform,
+    attack: Math.max(0.001, Math.min(2.0, toNum(init.attack, 0.01))),
+    decay: Math.max(0.005, Math.min(4.0, toNum(init.decay, 0.1))),
+    sustain: Math.max(0.0, Math.min(1.0, toNum(init.sustain, 0.5))),
+    release: Math.max(0.01, Math.min(5.0, toNum(init.release, 0.2))),
+    duration: Math.max(0.05, Math.min(10.0, toNum(init.duration, 0.5))),
+    gain: Math.max(0.0, Math.min(1.0, toNum(init.gain, 0.3))),
+  };
+}
+

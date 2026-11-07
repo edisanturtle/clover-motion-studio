@@ -1,6 +1,8 @@
 // Procedural Multi-Voice Web Audio Synthesizer, SoundCraft-Inspired Master DSP Rack,
 // Event SFX Sampler & Real-Time FFT Spectrum Analyzer
 
+import { createSynthNoteConfig } from '../core/domain/audioModels.js';
+
 function makeSaturationCurve(amount = 0) {
   const k = Math.max(0, Math.min(50, amount * 25));
   const samples = 1024;
@@ -475,6 +477,59 @@ export class ProceduralAudioEngine {
         break;
       }
     }
+  }
+
+  /**
+   * Triggers a discrete synth note with an oscillator and ADSR amplitude envelope (Fase 8 slice).
+   * Deliberately scoped to single-voice oscillator + envelope + note/trigger without claiming full DAW.
+   * 
+   * @param {object} noteConfig - Configuration compatible with createSynthNoteConfig
+   * @returns {{ osc: OscillatorNode, gainNode: GainNode, stopTime: number } | null}
+   */
+  triggerSynthNote(noteConfig = {}) {
+    this.ensureContext();
+    if (!this.ctx || !this.masterGain || this.isMuted) return null;
+
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+
+    const cfg = createSynthNoteConfig(noteConfig);
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gainNode = this.ctx.createGain();
+
+    osc.type = cfg.waveform;
+    osc.frequency.setValueAtTime(cfg.frequency, now);
+
+    const peakGain = cfg.gain;
+    const sustainGain = peakGain * cfg.sustain;
+    const attackEnd = now + cfg.attack;
+    const decayEnd = attackEnd + cfg.decay;
+    const noteEnd = now + cfg.duration;
+    const releaseEnd = noteEnd + cfg.release;
+
+    // ADSR Envelope
+    gainNode.gain.setValueAtTime(0.0001, now);
+    gainNode.gain.linearRampToValueAtTime(peakGain, attackEnd);
+    gainNode.gain.linearRampToValueAtTime(sustainGain, decayEnd);
+    gainNode.gain.setValueAtTime(sustainGain, noteEnd);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, releaseEnd);
+
+    osc.connect(gainNode);
+    gainNode.connect(this.masterGain);
+
+    osc.start(now);
+    osc.stop(releaseEnd + 0.05);
+
+    return {
+      osc,
+      gainNode,
+      stopTime: releaseEnd,
+      frequency: cfg.frequency,
+      note: cfg.note,
+      waveform: cfg.waveform,
+    };
   }
 
   start(track) {

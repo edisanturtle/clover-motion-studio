@@ -5,7 +5,7 @@
  * clip trimming/splitting/looping/fading, and musical beat grid alignment.
  */
 
-import { createAudioTrack, createAudioClip } from '../domain/audioModels.js';
+import { createAudioTrack, createAudioClip, createSynthNoteConfig } from '../domain/audioModels.js';
 
 export const SUPPORTED_AUDIO_MIMES = new Set([
   'audio/wav',
@@ -391,6 +391,97 @@ export function generateSyntheticTestAudio(frequency = 440, duration = 3.0, samp
     channels: 1,
   };
 }
+
+/**
+ * Synthesizes a discrete synth note with oscillator waveform and ADSR envelope (Fase 8 sound-from-zero slice).
+ * Generates an offline Float32Array and RIFF WAV buffer for deterministic verification and audio clip instantiation.
+ * 
+ * @param {object} config - Configuration compatible with createSynthNoteConfig
+ * @param {number} sampleRate - Standard audio sample rate (default 48000Hz)
+ * @returns {{ samples: Float32Array, buffer: ArrayBuffer, peaks: number[], duration: number, sampleRate: number }}
+ */
+export function synthesizeSynthNoteBuffer(config = {}, sampleRate = 48000) {
+  const cfg = createSynthNoteConfig(config);
+  const totalDuration = cfg.duration + cfg.release;
+  const numSamples = Math.max(1, Math.round(totalDuration * sampleRate));
+  const samples = new Float32Array(numSamples);
+
+  const attackSamples = Math.max(1, Math.round(cfg.attack * sampleRate));
+  const decaySamples = Math.max(1, Math.round(cfg.decay * sampleRate));
+  const noteSamples = Math.max(attackSamples + decaySamples, Math.round(cfg.duration * sampleRate));
+
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    // Waveform evaluation
+    let rawWave = 0;
+    const phase = (2 * Math.PI * cfg.frequency * t) % (2 * Math.PI);
+    if (cfg.waveform === 'sine') {
+      rawWave = Math.sin(phase);
+    } else if (cfg.waveform === 'triangle') {
+      rawWave = (2 / Math.PI) * Math.asin(Math.sin(phase));
+    } else if (cfg.waveform === 'sawtooth') {
+      rawWave = 2 * (t * cfg.frequency - Math.floor(t * cfg.frequency + 0.5));
+    } else if (cfg.waveform === 'square') {
+      rawWave = Math.sin(phase) >= 0 ? 1 : -1;
+    }
+
+    // ADSR Envelope
+    let env = 0;
+    if (i < attackSamples) {
+      env = (i / attackSamples) * cfg.gain;
+    } else if (i < attackSamples + decaySamples) {
+      const decayProgress = (i - attackSamples) / decaySamples;
+      env = cfg.gain - decayProgress * (cfg.gain - cfg.gain * cfg.sustain);
+    } else if (i < noteSamples) {
+      env = cfg.gain * cfg.sustain;
+    } else {
+      const releaseSamples = Math.max(1, numSamples - noteSamples);
+      const releaseProgress = (i - noteSamples) / releaseSamples;
+      env = (cfg.gain * cfg.sustain) * Math.max(0, 1 - releaseProgress);
+    }
+
+    samples[i] = rawWave * env;
+  }
+
+  // Encode as standard 16-bit PCM Mono RIFF WAV
+  const headerLength = 44;
+  const dataBytes = numSamples * 2;
+  const wavBuffer = new ArrayBuffer(headerLength + dataBytes);
+  const view = new DataView(wavBuffer);
+
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataBytes, true);
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // Mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(view, 36, 'data');
+  view.setUint32(40, dataBytes, true);
+
+  for (let i = 0; i < numSamples; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    const intVal = s < 0 ? s * 0x8000 : s * 0x7fff;
+    view.setInt16(headerLength + i * 2, intVal, true);
+  }
+
+  return {
+    samples,
+    buffer: wavBuffer,
+    peaks: extractWaveformPeaks(samples, 60),
+    duration: Number(totalDuration.toFixed(3)),
+    sampleRate,
+    channels: 1,
+    frequency: cfg.frequency,
+    note: cfg.note,
+    waveform: cfg.waveform,
+  };
+}
+
 
 /**
  * Mixes down all project audio tracks and procedural synthesizer sounds into a
