@@ -945,7 +945,7 @@ export default function VideoWorkspaceView({
                   <div key={cue.id || cIdx} className="bg-[#121212] p-3 rounded-lg border border-neutral-800 flex items-center gap-3">
                     <input
                       type="text"
-                      value={cue.text}
+                      value={cue.text || ''}
                       onChange={(e) => {
                         const updated = [...(selectedClip.captions || [])];
                         updated[cIdx] = { ...cue, text: e.target.value };

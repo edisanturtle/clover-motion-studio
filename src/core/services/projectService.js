@@ -485,10 +485,12 @@ export function distributeLayersInScene(project, sceneIndex, layerIds = [], axis
 }
 
 export function reorderLayersZ(project, sceneIndex, layerIds = [], direction = 'bringForward') {
-  if (!project || !project.scenes || !project.scenes[sceneIndex] || !layerIds.length) return project;
+  if (!project || !project.scenes || !project.scenes[sceneIndex]) return project;
+  const idList = Array.isArray(layerIds) ? layerIds : (typeof layerIds === 'string' ? [layerIds] : []);
+  if (!idList.length) return project;
   const sc = project.scenes[sceneIndex];
   const layers = [...(sc.layers || [])];
-  const idSet = new Set(layerIds);
+  const idSet = new Set(idList);
 
   if (direction === 'bringToFront') {
     const unselected = layers.filter((l) => !idSet.has(l.id));
@@ -974,19 +976,23 @@ export { createDefaultProject };
 // Fase 9: Vector Paths & Non-Destructive Effects
 // ==========================================
 
-export function addVectorPathLayerToScene(project, sceneId, pathInit = {}) {
+export function addVectorPathLayerToScene(project, sceneIdOrIndex, pathInit = {}) {
   if (!project || !project.scenes) return project;
   const newPathLayer = createVectorPathLayer(pathInit);
-  return {
+  const updatedScenes = project.scenes.map((scene, idx) => {
+    const match = typeof sceneIdOrIndex === 'number' ? idx === sceneIdOrIndex : scene.id === sceneIdOrIndex;
+    if (!match) return scene;
+    return {
+      ...scene,
+      layers: [...(scene.layers || []), newPathLayer],
+    };
+  });
+  const updatedProject = {
     ...project,
-    scenes: project.scenes.map((scene) => {
-      if (scene.id !== sceneId) return scene;
-      return {
-        ...scene,
-        layers: [...(scene.layers || []), newPathLayer],
-      };
-    }),
+    scenes: updatedScenes,
   };
+  updatedProject.newLayerId = newPathLayer.id;
+  return updatedProject;
 }
 
 export function addEffectToLayerInProject(project, sceneId, layerId, effectData = {}) {

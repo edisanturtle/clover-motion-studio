@@ -28,6 +28,7 @@ import {
   reorderLayers,
   addTextLayerToScene,
   addShapeLayerToScene,
+  addVectorPathLayerToScene,
   addImageLayerToScene,
   deleteLayersFromScene,
   duplicateLayersInScene,
@@ -1281,6 +1282,30 @@ export default function CloverMotionStudio() {
     }
   };
 
+  const handleAddVectorPathLayer = (presetType = 'diamond', options = {}) => {
+    const dim = ASPECT_RATIOS[project.ratio] || ASPECT_RATIOS['4:5'];
+    let createdId = null;
+    updateProjectWithHistory((prev) => {
+      const res = addVectorPathLayerToScene(prev, activeSceneIndex, {
+        pathType: presetType,
+        name: `Vector ${presetType.charAt(0).toUpperCase() + presetType.slice(1)}`,
+        x: Math.round(dim.width / 2),
+        y: Math.round(dim.height / 2),
+        width: 320,
+        height: 320,
+        fill: project.palette?.[2] || '#159947',
+        stroke: project.palette?.[1] || '#22c55e',
+        strokeWidth: 4,
+        ...options,
+      });
+      createdId = res.newLayerId;
+      return res;
+    });
+    if (createdId) {
+      handleSetSelectedLayerId(createdId);
+    }
+  };
+
   const handleAddImageLayer = (imageOptions = {}) => {
     const dim = ASPECT_RATIOS[project.ratio] || ASPECT_RATIOS['4:5'];
     let createdId = null;
@@ -2418,6 +2443,7 @@ export default function CloverMotionStudio() {
           onChangeRatio={handleChangeRatio}
           onAddTextLayer={handleAddTextLayer}
           onAddShapeLayer={handleAddShapeLayer}
+          onAddVectorPathLayer={handleAddVectorPathLayer}
           onAddGraphicLayer={handleAddGraphicLayer}
           onApplyGraphicTemplate={handleApplyGraphicTemplate}
           onGroupLayers={handleGroupLayers}

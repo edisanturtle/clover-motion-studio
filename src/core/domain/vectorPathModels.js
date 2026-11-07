@@ -76,9 +76,12 @@ export function createVectorPathLayer(init = {}) {
   return {
     id,
     type: 'vectorPath',
+    pathType: init.pathType || 'diamond',
     name: init.name || 'Vector Path Layer',
     x: Number(init.x) || 0,
     y: Number(init.y) || 0,
+    width: Number(init.width) || 300,
+    height: Number(init.height) || 300,
     commands,
     nodes,
     closed: init.closed !== false,

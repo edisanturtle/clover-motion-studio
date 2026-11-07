@@ -211,6 +211,7 @@ export default function LeftSidebar({
   onChangeRatio,
   onAddTextLayer,
   onAddShapeLayer,
+  onAddVectorPathLayer,
   onAddGraphicLayer,
   onApplyGraphicTemplate,
   onGroupLayers,
@@ -437,14 +438,14 @@ export default function LeftSidebar({
                           {field.multiline ? (
                             <textarea
                               rows={field.rows || 2}
-                              value={val}
+                              value={val || ''}
                               onChange={(e) => onUpdateQuickCopy(field.key, e.target.value)}
                               className="w-full px-2.5 py-2 rounded-lg bg-[#1c1c1c] border border-neutral-700/80 text-xs font-medium text-white focus:outline-none focus:border-white transition-colors resize-none"
                             />
                           ) : (
                             <input
                               type="text"
-                              value={val}
+                              value={val || ''}
                               onChange={(e) => onUpdateQuickCopy(field.key, e.target.value)}
                               className="w-full px-2.5 py-1.5 rounded-lg bg-[#1c1c1c] border border-neutral-700/80 text-xs text-white focus:outline-none focus:border-white transition-colors"
                             />
@@ -1839,6 +1840,36 @@ export default function LeftSidebar({
                           {typeof sh.icon === 'string' ? sh.icon : <sh.icon className="w-3.5 h-3.5 text-[#4ade80]" />}
                         </span>
                         <span className="text-[10px] font-medium">{sh.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* VectorCraft Bézier Vector Paths */}
+                <div className="space-y-2 pt-2 border-t border-neutral-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-white">VectorCraft Paths</span>
+                    <span className="text-[10px] font-mono text-[#4ade80]">Vector Bézier</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'diamond', label: 'Diamond', icon: '◆' },
+                      { id: 'star', label: '8-Star', icon: '✦' },
+                      { id: 'wave', label: 'Wave', icon: '〰' },
+                      { id: 'capsule', label: 'Capsule', icon: '⬯' },
+                      { id: 'hexagon', label: 'Hexagon', icon: '⬡' },
+                      { id: 'triangle', label: 'Delta', icon: '▲' },
+                    ].map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => onAddVectorPathLayer?.(p.id)}
+                        className="p-2.5 rounded-xl bg-[#1c1c1c] hover:bg-neutral-800 border border-neutral-700/80 hover:border-[#22c55e] flex flex-col items-center justify-center gap-1 text-neutral-300 hover:text-white transition-all group shadow-sm"
+                      >
+                        <span className="text-sm group-hover:scale-110 transition-transform text-[#4ade80]">
+                          {p.icon}
+                        </span>
+                        <span className="text-[10px] font-medium">{p.label}</span>
                       </button>
                     ))}
                   </div>

@@ -47,6 +47,15 @@ import { ANIMOS_SHOWCASE_TEMPLATES } from '../../constants/animosTemplates';
 import { solveSpring } from '../../utils/timecode';
 
 const safeNum = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
+const safeHexColor = (val, fallback = '#159947') => {
+  if (typeof val !== 'string') return fallback;
+  const trimmed = val.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed;
+  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
+    return `#${trimmed[1]}${trimmed[1]}${trimmed[2]}${trimmed[2]}${trimmed[3]}${trimmed[3]}`;
+  }
+  return fallback;
+};
 
 function SpringCurvePreview({ stiffness = 200, damping = 13, overshoot = 1.2 }) {
   const points = [];
@@ -173,6 +182,8 @@ export default function RightInspector({
               : selectedLayer
               ? selectedLayer.type === 'shape'
                 ? 'Shape Properties'
+                : selectedLayer.type === 'vectorPath'
+                ? 'VectorCraft Path'
                 : selectedLayer.type === 'image'
                 ? 'Image Asset Properties'
                 : isGraphic
@@ -628,7 +639,7 @@ export default function RightInspector({
                     <span className="text-xs text-neutral-300">Background Color</span>
                     <input
                       type="color"
-                      value={activeScene.bg || '#101935'}
+                      value={safeHexColor(activeScene.bg, '#101935')}
                       onChange={(e) => onUpdateSceneProp?.('bg', e.target.value)}
                       className="w-8 h-6 rounded cursor-pointer bg-transparent border-0"
                     />
@@ -643,7 +654,7 @@ export default function RightInspector({
                           <div key={idx} className="relative w-6 h-6 rounded-lg overflow-hidden border border-white/20">
                             <input
                               type="color"
-                              value={col}
+                              value={safeHexColor(col, '#ffffff')}
                               onChange={(e) => {
                                 const nextPalette = [...activeScene.palette];
                                 nextPalette[idx] = e.target.value;
@@ -721,7 +732,7 @@ export default function RightInspector({
                       </div>
 
                       <select
-                        value={selectedLayer.fontFamily}
+                        value={selectedLayer.fontFamily || 'Inter, sans-serif'}
                         onChange={(e) =>
                           onUpdateLayer(selectedLayer.id, { fontFamily: e.target.value })
                         }
@@ -847,7 +858,7 @@ export default function RightInspector({
                           <span className="text-[11px] text-neutral-400">Color</span>
                           <input
                             type="color"
-                            value={selectedLayer.color || '#111111'}
+                            value={safeHexColor(selectedLayer.color, '#111111')}
                             onChange={(e) =>
                               onUpdateLayer(selectedLayer.id, { color: e.target.value })
                             }
@@ -924,7 +935,7 @@ export default function RightInspector({
                               />
                               <input
                                 type="color"
-                                value={selectedLayer.strokeColor || '#000000'}
+                                value={safeHexColor(selectedLayer.strokeColor, '#000000')}
                                 onChange={(e) => onUpdateLayer(selectedLayer.id, { strokeColor: e.target.value })}
                                 className="w-5 h-5 rounded cursor-pointer bg-transparent border-0 shrink-0"
                               />
@@ -956,7 +967,7 @@ export default function RightInspector({
                               />
                               <input
                                 type="color"
-                                value={selectedLayer.shadowColor || '#000000'}
+                                value={safeHexColor(selectedLayer.shadowColor, '#000000')}
                                 onChange={(e) => onUpdateLayer(selectedLayer.id, { shadowColor: e.target.value })}
                                 className="w-5 h-5 rounded cursor-pointer bg-transparent border-0 shrink-0"
                               />
@@ -1040,7 +1051,7 @@ export default function RightInspector({
                           <span className="text-xs text-neutral-300 font-medium">Fill Color</span>
                           <input
                             type="color"
-                            value={selectedLayer.fill || selectedLayer.color || '#159947'}
+                            value={safeHexColor(selectedLayer.fill || selectedLayer.color, '#159947')}
                             onChange={(e) => onUpdateLayer(selectedLayer.id, { fill: e.target.value, color: e.target.value })}
                             className="w-7 h-7 rounded cursor-pointer bg-transparent border-0"
                           />
@@ -1070,7 +1081,7 @@ export default function RightInspector({
                         <span className="text-xs text-neutral-300 font-medium">Stroke Outline</span>
                         <input
                           type="color"
-                          value={selectedLayer.stroke || '#22c55e'}
+                          value={safeHexColor(selectedLayer.stroke, '#22c55e')}
                           onChange={(e) => onUpdateLayer(selectedLayer.id, { stroke: e.target.value })}
                           className="w-7 h-7 rounded cursor-pointer bg-transparent border-0"
                         />
@@ -1160,7 +1171,7 @@ export default function RightInspector({
                         <span className="text-xs text-neutral-300 font-medium">Border Stroke</span>
                         <input
                           type="color"
-                          value={selectedLayer.stroke || '#ffffff'}
+                          value={safeHexColor(selectedLayer.stroke, '#ffffff')}
                           onChange={(e) => onUpdateLayer(selectedLayer.id, { stroke: e.target.value })}
                           className="w-7 h-7 rounded cursor-pointer bg-transparent border-0"
                         />
@@ -1175,6 +1186,158 @@ export default function RightInspector({
                           onChange={(e) => onUpdateLayer(selectedLayer.id, { strokeWidth: Number(e.target.value) || 0 })}
                           className="flex-1 accent-[#159947]"
                         />
+                      </div>
+                    </div>
+                  </div>
+                ) : selectedLayer.type === 'vectorPath' ? (
+                  /* VectorCraft Bézier Path Layer Controls */
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-white">Vector Path (VectorCraft)</label>
+                      <span className="text-[10px] font-mono text-[#4ade80]">
+                        {(selectedLayer.nodes || []).length} nodes
+                      </span>
+                    </div>
+
+                    {/* Path Preset Selector */}
+                    <div>
+                      <label className="block text-[10px] text-neutral-400 mb-1">Path Preset</label>
+                      <select
+                        value={selectedLayer.pathType || 'custom'}
+                        onChange={(e) => {
+                          const newType = e.target.value;
+                          onUpdateLayer(selectedLayer.id, {
+                            pathType: newType,
+                            name: `Vector ${newType.charAt(0).toUpperCase() + newType.slice(1)}`,
+                          });
+                        }}
+                        className="w-full px-2.5 py-2 rounded-lg bg-[#202020] border border-neutral-700/80 text-xs text-white focus:outline-none"
+                      >
+                        <option value="diamond">Diamond Polygon</option>
+                        <option value="star">8-Point Star</option>
+                        <option value="wave">Curved Wave</option>
+                        <option value="capsule">Stadium Capsule</option>
+                        <option value="hexagon">Hexagon</option>
+                        <option value="triangle">Isosceles Triangle</option>
+                        <option value="custom">Custom Bézier</option>
+                      </select>
+                    </div>
+
+                    {/* Width & Height */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-neutral-400 mb-0.5 block">Width (px)</label>
+                        <input
+                          type="number"
+                          min={20}
+                          max={2000}
+                          value={Math.round(safeNum(selectedLayer.width, 300))}
+                          onChange={(e) =>
+                            onUpdateLayer(selectedLayer.id, {
+                              width: Math.max(20, Math.min(2000, Number(e.target.value) || 300)),
+                            })
+                          }
+                          className="w-full px-2 py-1.5 rounded-lg bg-[#202020] border border-neutral-700/80 text-xs font-mono text-white focus:outline-none focus:border-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-neutral-400 mb-0.5 block">Height (px)</label>
+                        <input
+                          type="number"
+                          min={20}
+                          max={2000}
+                          value={Math.round(safeNum(selectedLayer.height, 300))}
+                          onChange={(e) =>
+                            onUpdateLayer(selectedLayer.id, {
+                              height: Math.max(20, Math.min(2000, Number(e.target.value) || 300)),
+                            })
+                          }
+                          className="w-full px-2 py-1.5 rounded-lg bg-[#202020] border border-neutral-700/80 text-xs font-mono text-white focus:outline-none focus:border-white"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Fill Color */}
+                    <div className="space-y-2 pt-2 border-t border-neutral-800">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-neutral-300 font-medium">Path Fill</span>
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-1 text-[10px] text-neutral-400 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedLayer.fill !== 'none'}
+                              onChange={(e) =>
+                                onUpdateLayer(selectedLayer.id, {
+                                  fill: e.target.checked ? '#159947' : 'none',
+                                })
+                              }
+                              className="rounded accent-[#159947]"
+                            />
+                            <span>Filled</span>
+                          </label>
+                          {selectedLayer.fill !== 'none' && (
+                            <input
+                              type="color"
+                              value={safeHexColor(selectedLayer.fill, '#159947')}
+                              onChange={(e) => onUpdateLayer(selectedLayer.id, { fill: e.target.value })}
+                              className="w-6 h-6 rounded cursor-pointer bg-transparent border-0"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stroke Outline & Cap/Join */}
+                    <div className="space-y-2 pt-2 border-t border-neutral-800">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-neutral-300 font-medium">Stroke Outline</span>
+                        <input
+                          type="color"
+                          value={safeHexColor(selectedLayer.stroke, '#22c55e')}
+                          onChange={(e) => onUpdateLayer(selectedLayer.id, { stroke: e.target.value })}
+                          className="w-6 h-6 rounded cursor-pointer bg-transparent border-0"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-neutral-400 shrink-0">
+                          Width ({safeNum(selectedLayer.strokeWidth, 4)}px)
+                        </span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={32}
+                          value={safeNum(selectedLayer.strokeWidth, 4)}
+                          onChange={(e) =>
+                            onUpdateLayer(selectedLayer.id, { strokeWidth: Number(e.target.value) || 0 })
+                          }
+                          className="flex-1 accent-[#159947]"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div>
+                          <label className="block text-[10px] text-neutral-400 mb-1">Line Cap</label>
+                          <select
+                            value={selectedLayer.lineCap || 'round'}
+                            onChange={(e) => onUpdateLayer(selectedLayer.id, { lineCap: e.target.value })}
+                            className="w-full px-2 py-1 rounded bg-[#202020] border border-neutral-700 text-[11px] text-white"
+                          >
+                            <option value="round">Round</option>
+                            <option value="butt">Butt</option>
+                            <option value="square">Square</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-neutral-400 mb-1">Line Join</label>
+                          <select
+                            value={selectedLayer.lineJoin || 'round'}
+                            onChange={(e) => onUpdateLayer(selectedLayer.id, { lineJoin: e.target.value })}
+                            className="w-full px-2 py-1 rounded bg-[#202020] border border-neutral-700 text-[11px] text-white"
+                          >
+                            <option value="round">Round</option>
+                            <option value="miter">Miter</option>
+                            <option value="bevel">Bevel</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1246,7 +1409,7 @@ export default function RightInspector({
                       <span className="text-xs text-neutral-400">Primary Color</span>
                       <input
                         type="color"
-                        value={selectedLayer.color || '#16a34a'}
+                        value={safeHexColor(selectedLayer.color, '#16a34a')}
                         onChange={(e) =>
                           onUpdateLayer(selectedLayer.id, { color: e.target.value })
                         }

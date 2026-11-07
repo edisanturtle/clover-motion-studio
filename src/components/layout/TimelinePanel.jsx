@@ -674,9 +674,11 @@ export default function TimelinePanel({
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      className="flex items-center gap-1 text-xs font-medium text-neutral-200"
+                      onClick={() => setToolsOpen(false)}
+                      className="flex items-center gap-1 text-xs font-medium text-neutral-200 hover:text-white transition-colors"
+                      title="Collapse beats & markers toolbar"
                     >
-                      <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />
+                      <ChevronDown className="w-3.5 h-3.5 text-neutral-400 rotate-180" />
                       <span>Beats & markers</span>
                     </button>
 

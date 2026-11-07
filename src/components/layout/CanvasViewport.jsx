@@ -187,11 +187,14 @@ export default function CanvasViewport({
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return { x: 0, y: 0 };
     const scaleX = dim.width / rect.width;
     const scaleY = dim.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
+      x: Number.isFinite(x) ? x : 0,
+      y: Number.isFinite(y) ? y : 0,
     };
   };
 
@@ -231,9 +234,11 @@ export default function CanvasViewport({
         effectiveSelectedIds.forEach((id) => {
           const target = (activeScene.layers || []).find((l) => l.id === id);
           if (target && !target.locked) {
+            const curX = typeof target.x === 'number' && Number.isFinite(target.x) ? target.x : 0;
+            const curY = typeof target.y === 'number' && Number.isFinite(target.y) ? target.y : 0;
             onUpdateLayer(id, {
-              x: Math.round(target.x + dx),
-              y: Math.round(target.y + dy),
+              x: Math.round(curX + dx),
+              y: Math.round(curY + dy),
             });
           }
         });
@@ -370,7 +375,9 @@ export default function CanvasViewport({
       const initialPositions = new Map();
       (activeScene.layers || []).forEach((l) => {
         if (nextSelectedIds.includes(l.id) && !l.locked) {
-          initialPositions.set(l.id, { x: l.x, y: l.y });
+          const x = typeof l.x === 'number' && Number.isFinite(l.x) ? l.x : 0;
+          const y = typeof l.y === 'number' && Number.isFinite(l.y) ? l.y : 0;
+          initialPositions.set(l.id, { x, y });
         }
       });
 
@@ -419,16 +426,20 @@ export default function CanvasViewport({
     if (dragState.mode === 'rotate') {
       const curAngle = Math.atan2(pt.y - dragState.centerY, pt.x - dragState.centerX);
       const diffDeg = ((curAngle - dragState.startAngle) * 180) / Math.PI;
-      const nextRot = Math.round((dragState.origRotation + diffDeg) % 360);
-      onUpdateLayer(dragState.layerId, { rotation: nextRot });
+      const rawRot = (dragState.origRotation || 0) + (Number.isFinite(diffDeg) ? diffDeg : 0);
+      const nextRot = Math.round(rawRot % 360);
+      onUpdateLayer(dragState.layerId, { rotation: Number.isFinite(nextRot) ? nextRot : 0 });
     } else if (dragState.mode === 'resize') {
       const curDist = Math.hypot(pt.x - dragState.centerX, pt.y - dragState.centerY);
-      const ratio = curDist / (dragState.startDist || 1);
-      const nextScale = Math.max(0.1, Math.min(5.0, Math.round(dragState.origScale * ratio * 100) / 100));
-      onUpdateLayer(dragState.layerId, { scale: nextScale });
+      const ratio = dragState.startDist > 0 ? curDist / dragState.startDist : 1;
+      const rawScale = (dragState.origScale || 1) * (Number.isFinite(ratio) ? ratio : 1);
+      const nextScale = Math.max(0.1, Math.min(5.0, Math.round(rawScale * 100) / 100));
+      onUpdateLayer(dragState.layerId, { scale: Number.isFinite(nextScale) ? nextScale : 1 });
     } else if (dragState.mode === 'move') {
       let dx = pt.x - dragState.startX;
       let dy = pt.y - dragState.startY;
+      if (!Number.isFinite(dx)) dx = 0;
+      if (!Number.isFinite(dy)) dy = 0;
 
       // Magnetic snap check on primary layer
       const primaryInit = dragState.initialPositions.get(dragState.primaryLayerId);
@@ -453,9 +464,11 @@ export default function CanvasViewport({
 
       // Update all selected layers synchronously
       dragState.initialPositions.forEach((initPos, layerId) => {
+        const nextX = Math.round((initPos.x || 0) + dx);
+        const nextY = Math.round((initPos.y || 0) + dy);
         onUpdateLayer(layerId, {
-          x: Math.round(initPos.x + dx),
-          y: Math.round(initPos.y + dy),
+          x: Number.isFinite(nextX) ? nextX : 0,
+          y: Number.isFinite(nextY) ? nextY : 0,
         });
       });
     } else if (dragState.mode === 'marquee') {
@@ -621,7 +634,7 @@ export default function CanvasViewport({
             /* Advanced Mode: Ratio Dropdown + Grid + Link/Snap + Sliders + Colors + Tools */
             <div className="flex items-center gap-1.5">
               <select
-                value={project.ratio}
+                value={project?.ratio || '4:5'}
                 onChange={(e) => onChangeRatio(e.target.value)}
                 className="px-2.5 py-1 rounded-lg bg-[#202020] border border-neutral-800 text-xs font-medium text-neutral-200 focus:outline-none focus:border-neutral-600"
               >

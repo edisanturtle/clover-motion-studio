@@ -2012,33 +2012,48 @@ function renderImageLayer(ctx, layer, state, t, audio, palette, canvasWidth = 10
 }
 
 export function getLayerBoundingBox(layer) {
-  const scale = layer.scale || 1;
+  if (!layer) return { width: 100, height: 100 };
+  const rawScale = typeof layer.scale === 'number' && Number.isFinite(layer.scale) && layer.scale > 0 ? layer.scale : 1;
+  const scale = rawScale;
+
   if (layer.type === 'shape') {
-    const w = (layer.width || layer.size || 200) * scale;
-    const h = (layer.height || layer.size || 200) * scale;
-    return { width: w, height: h };
+    const rawW = typeof layer.width === 'number' && Number.isFinite(layer.width) ? layer.width : (typeof layer.size === 'number' && Number.isFinite(layer.size) ? layer.size : 200);
+    const rawH = typeof layer.height === 'number' && Number.isFinite(layer.height) ? layer.height : (typeof layer.size === 'number' && Number.isFinite(layer.size) ? layer.size : 200);
+    return { width: Math.max(10, rawW * scale), height: Math.max(10, rawH * scale) };
+  }
+  if (layer.type === 'vectorPath') {
+    const rawW = typeof layer.width === 'number' && Number.isFinite(layer.width) ? layer.width : 300;
+    const rawH = typeof layer.height === 'number' && Number.isFinite(layer.height) ? layer.height : 300;
+    return { width: Math.max(10, rawW * scale), height: Math.max(10, rawH * scale) };
   }
   if (layer.type === 'image') {
-    const w = (layer.width || 300) * scale;
-    const h = (layer.height || 300) * scale;
-    return { width: w, height: h };
+    const rawW = typeof layer.width === 'number' && Number.isFinite(layer.width) ? layer.width : 300;
+    const rawH = typeof layer.height === 'number' && Number.isFinite(layer.height) ? layer.height : 300;
+    return { width: Math.max(10, rawW * scale), height: Math.max(10, rawH * scale) };
   }
   if (layer.type === 'graphic') {
-    const s = (layer.size || 300) * scale;
+    const rawS = typeof layer.size === 'number' && Number.isFinite(layer.size) ? layer.size : 300;
+    const s = Math.max(10, rawS * scale);
     return { width: s, height: s };
   }
   const lines = String(layer.text || '').split('\n');
-  const fs = (layer.fontSize || 96) * scale;
-  const w = Math.max(layer.width || 420, fs * 2.5);
-  const h = Math.max(fs * 1.15, lines.length * fs * (layer.lineHeight || 1.05));
-  return { width: w, height: h };
+  const fs = (typeof layer.fontSize === 'number' && Number.isFinite(layer.fontSize) ? layer.fontSize : 96) * scale;
+  const rawW = typeof layer.width === 'number' && Number.isFinite(layer.width) ? layer.width : 420;
+  const lh = typeof layer.lineHeight === 'number' && Number.isFinite(layer.lineHeight) ? layer.lineHeight : 1.05;
+  const w = Math.max(rawW, fs * 2.5);
+  const h = Math.max(fs * 1.15, lines.length * fs * lh);
+  return { width: Math.max(10, w), height: Math.max(10, h) };
 }
 
 function drawSelectionBox(ctx, layer, state) {
   const { width, height } = getLayerBoundingBox(layer);
+  const safeX = Number.isFinite(state?.x) ? state.x : 0;
+  const safeY = Number.isFinite(state?.y) ? state.y : 0;
+  const safeRot = Number.isFinite(state?.rotation) ? state.rotation : 0;
+
   ctx.save();
-  ctx.translate(state.x, state.y);
-  ctx.rotate((state.rotation * Math.PI) / 180);
+  ctx.translate(safeX, safeY);
+  ctx.rotate((safeRot * Math.PI) / 180);
 
   // Crisp white selection outline
   ctx.strokeStyle = '#ffffff';

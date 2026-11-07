@@ -53,6 +53,16 @@ const DEFAULT_KITS = [
   },
 ];
 
+const safeHexColor = (val, fallback = '#ffffff') => {
+  if (typeof val !== 'string') return fallback;
+  const trimmed = val.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed;
+  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
+    return `#${trimmed[1]}${trimmed[1]}${trimmed[2]}${trimmed[2]}${trimmed[3]}${trimmed[3]}`;
+  }
+  return fallback;
+};
+
 export default function BrandKitsModal({
   open,
   onClose,
@@ -344,7 +354,7 @@ export default function BrandKitsModal({
                     <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-[#1e1e1e] border border-neutral-700/80">
                       <input
                         type="color"
-                        value={c.val || '#ffffff'}
+                        value={safeHexColor(c.val, '#ffffff')}
                         onChange={(e) => c.set(e.target.value)}
                         className="w-5 h-5 rounded cursor-pointer bg-transparent border-0 shrink-0"
                       />
