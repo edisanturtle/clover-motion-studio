@@ -466,8 +466,8 @@ export default function RightInspector({
                         type="number"
                         min={1}
                         max={60}
-                        value={activeScene.duration || 4}
-                        onChange={(e) => onUpdateSceneProp?.('duration', Number(e.target.value) || 2)}
+                        value={safeNum(activeScene.duration, 4)}
+                        onChange={(e) => onUpdateSceneProp?.('duration', Math.max(1, Math.min(60, Number(e.target.value) || 4)))}
                         className="w-14 px-2 py-1 rounded-lg bg-[#222] border border-neutral-700 text-xs font-mono text-right text-white focus:outline-none focus:border-[#22c55e]"
                       />
                       <span className="text-xs font-mono text-neutral-400">s</span>
@@ -781,7 +781,7 @@ export default function RightInspector({
                             value={selectedLayer.fontWeight || 700}
                             onChange={(e) =>
                               onUpdateLayer(selectedLayer.id, {
-                                fontWeight: Number(e.target.value),
+                                fontWeight: Number(e.target.value) || 700,
                               })
                             }
                             className="w-full px-2 py-1.5 rounded-lg bg-[#202020] border border-neutral-700/80 text-xs font-mono text-white"
@@ -1264,9 +1264,9 @@ export default function RightInspector({
                       <label className="block text-[10px] text-neutral-400 mb-1">Pos X</label>
                       <input
                         type="number"
-                        value={Math.round(selectedLayer.x || 0)}
+                        value={Math.round(safeNum(selectedLayer.x, 0))}
                         onChange={(e) =>
-                          onUpdateLayer(selectedLayer.id, { x: Number(e.target.value) })
+                          onUpdateLayer(selectedLayer.id, { x: Number(e.target.value) || 0 })
                         }
                         className="w-full px-2.5 py-1.5 rounded-lg bg-[#202020] border border-neutral-800 text-xs font-mono text-white"
                       />
@@ -1275,9 +1275,9 @@ export default function RightInspector({
                       <label className="block text-[10px] text-neutral-400 mb-1">Pos Y</label>
                       <input
                         type="number"
-                        value={Math.round(selectedLayer.y || 0)}
+                        value={Math.round(safeNum(selectedLayer.y, 0))}
                         onChange={(e) =>
-                          onUpdateLayer(selectedLayer.id, { y: Number(e.target.value) })
+                          onUpdateLayer(selectedLayer.id, { y: Number(e.target.value) || 0 })
                         }
                         className="w-full px-2.5 py-1.5 rounded-lg bg-[#202020] border border-neutral-800 text-xs font-mono text-white"
                       />

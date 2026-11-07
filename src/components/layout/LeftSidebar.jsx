@@ -58,6 +58,7 @@ import {
 import { formatTimecode } from '../../utils/timecode';
 
 const safeNum = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
+const safeStr = (v, fallback = '') => (typeof v === 'string' ? v : (typeof v === 'number' && Number.isFinite(v) ? String(v) : fallback));
 
 function ScopeBanner({ targetScope, setTargetScope, activeSceneIndex, activeSceneName }) {
   return (
@@ -421,7 +422,7 @@ export default function LeftSidebar({
                       { key: 'cta', label: 'Call to action', multiline: false },
                       { key: 'brand', label: 'Brand or creator', multiline: false },
                     ].map((field) => {
-                      const val = project.quickCopy?.[field.key] || '';
+                      const val = safeStr(project.quickCopy?.[field.key]);
                       return (
                         <div key={field.key}>
                           <div className="flex items-center justify-between mb-1">
@@ -478,12 +479,12 @@ export default function LeftSidebar({
                         Display text (required)
                       </label>
                       <span className="text-[10px] font-mono text-neutral-500">
-                        {(project.quickCopy?.title || '').length} chars
+                        {safeStr(project.quickCopy?.title).length} chars
                       </span>
                     </div>
                     <textarea
                       rows={2}
-                      value={project.quickCopy?.title || ''}
+                      value={safeStr(project.quickCopy?.title)}
                       onChange={(e) => onUpdateQuickCopy('title', e.target.value)}
                       className="w-full px-3 py-2 rounded-lg bg-[#1c1c1c] border border-neutral-700 text-sm font-semibold text-white focus:outline-none focus:border-white transition-colors resize-none"
                       placeholder="Headline..."
@@ -496,12 +497,12 @@ export default function LeftSidebar({
                         Supporting headline
                       </label>
                       <span className="text-[10px] font-mono text-neutral-500">
-                        {(project.quickCopy?.subtitle || '').length} chars
+                        {safeStr(project.quickCopy?.subtitle).length} chars
                       </span>
                     </div>
                     <textarea
                       rows={2}
-                      value={project.quickCopy?.subtitle || ''}
+                      value={safeStr(project.quickCopy?.subtitle)}
                       onChange={(e) => onUpdateQuickCopy('subtitle', e.target.value)}
                       className="w-full px-3 py-2 rounded-lg bg-[#1c1c1c] border border-neutral-800 text-xs text-white focus:outline-none focus:border-neutral-500 transition-colors resize-none"
                     />
@@ -511,12 +512,12 @@ export default function LeftSidebar({
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-medium text-neutral-300">Date & time</label>
                       <span className="text-[10px] font-mono text-neutral-500">
-                        {(project.quickCopy?.date || '').length} chars
+                        {safeStr(project.quickCopy?.date).length} chars
                       </span>
                     </div>
                     <input
                       type="text"
-                      value={project.quickCopy?.date || ''}
+                      value={safeStr(project.quickCopy?.date)}
                       onChange={(e) => onUpdateQuickCopy('date', e.target.value)}
                       className="w-full px-2.5 py-2 rounded-lg bg-[#1c1c1c] border border-neutral-800 text-xs text-white focus:outline-none focus:border-neutral-500"
                     />
@@ -528,12 +529,12 @@ export default function LeftSidebar({
                         Venue or website
                       </label>
                       <span className="text-[10px] font-mono text-neutral-500">
-                        {(project.quickCopy?.location || '').length} chars
+                        {safeStr(project.quickCopy?.location).length} chars
                       </span>
                     </div>
                     <input
                       type="text"
-                      value={project.quickCopy?.location || ''}
+                      value={safeStr(project.quickCopy?.location)}
                       onChange={(e) => onUpdateQuickCopy('location', e.target.value)}
                       className="w-full px-2.5 py-2 rounded-lg bg-[#1c1c1c] border border-neutral-800 text-xs text-white focus:outline-none focus:border-neutral-500"
                     />
@@ -543,12 +544,12 @@ export default function LeftSidebar({
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-medium text-neutral-300">Call to action</label>
                       <span className="text-[10px] font-mono text-neutral-500">
-                        {(project.quickCopy?.cta || '').length} chars
+                        {safeStr(project.quickCopy?.cta).length} chars
                       </span>
                     </div>
                     <textarea
                       rows={2}
-                      value={project.quickCopy?.cta || ''}
+                      value={safeStr(project.quickCopy?.cta)}
                       onChange={(e) => onUpdateQuickCopy('cta', e.target.value)}
                       className="w-full px-3 py-2 rounded-lg bg-[#1c1c1c] border border-neutral-800 text-xs text-white focus:outline-none focus:border-neutral-500 resize-none"
                     />
@@ -560,12 +561,12 @@ export default function LeftSidebar({
                         Brand or creator
                       </label>
                       <span className="text-[10px] font-mono text-neutral-500">
-                        {(project.quickCopy?.brand || '').length} chars
+                        {safeStr(project.quickCopy?.brand).length} chars
                       </span>
                     </div>
                     <input
                       type="text"
-                      value={project.quickCopy?.brand || ''}
+                      value={safeStr(project.quickCopy?.brand)}
                       onChange={(e) => onUpdateQuickCopy('brand', e.target.value)}
                       className="w-full px-3 py-2 rounded-lg bg-[#1c1c1c] border border-neutral-800 text-xs text-white focus:outline-none focus:border-neutral-500"
                     />

@@ -559,7 +559,7 @@ export default function VideoWorkspaceView({
               max={Math.max(1, safeNum(totalProjectDuration, 1))}
               step={0.033}
               value={safeNum(localTime, 0)}
-              onChange={(e) => onSeekLocalTime && onSeekLocalTime(Number(e.target.value))}
+              onChange={(e) => onSeekLocalTime && onSeekLocalTime(Number(e.target.value) || 0)}
               className="w-48 accent-[#159947]"
             />
             <span className="text-[#4ade80] font-bold">{safeNum(localTime, 0).toFixed(2)}s</span>
@@ -726,7 +726,7 @@ export default function VideoWorkspaceView({
                     <input
                       type="number"
                       value={safeNum(selectedClip.transform?.x, 0)}
-                      onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { x: Number(e.target.value) })}
+                      onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { x: Number(e.target.value) || 0 })}
                       className="w-full bg-[#111] border border-neutral-700 rounded-lg px-2 py-1 text-white font-mono"
                     />
                   </div>
@@ -735,7 +735,7 @@ export default function VideoWorkspaceView({
                     <input
                       type="number"
                       value={safeNum(selectedClip.transform?.y, 0)}
-                      onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { y: Number(e.target.value) })}
+                      onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { y: Number(e.target.value) || 0 })}
                       className="w-full bg-[#111] border border-neutral-700 rounded-lg px-2 py-1 text-white font-mono"
                     />
                   </div>
@@ -753,7 +753,7 @@ export default function VideoWorkspaceView({
                       max={3.0}
                       step={0.05}
                       value={safeNum(selectedClip.transform?.scale, 1.0)}
-                      onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { scale: Number(e.target.value) })}
+                      onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { scale: Number(e.target.value) || 1.0 })}
                       className="w-full accent-[#159947]"
                     />
                   </div>
@@ -765,7 +765,7 @@ export default function VideoWorkspaceView({
                       max={180}
                       step={5}
                       value={safeNum(selectedClip.transform?.rotation, 0)}
-                      onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { rotation: Number(e.target.value) })}
+                      onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { rotation: Number(e.target.value) || 0 })}
                       className="w-full accent-[#159947]"
                     />
                   </div>
@@ -783,7 +783,7 @@ export default function VideoWorkspaceView({
                       max={1}
                       step={0.05}
                       value={safeNum(selectedClip.transform?.opacity, 1)}
-                      onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { opacity: Number(e.target.value) })}
+                      onChange={(e) => onUpdateClipTransform && onUpdateClipTransform(selectedClip.id, { opacity: Number(e.target.value) ?? 1 })}
                       className="w-full accent-[#159947]"
                     />
                   </div>
@@ -819,7 +819,7 @@ export default function VideoWorkspaceView({
                     max={80}
                     step={1}
                     value={safeNum(selectedClip.crop?.[side], 0)}
-                    onChange={(e) => onUpdateClipCrop && onUpdateClipCrop(selectedClip.id, { [side]: Number(e.target.value) })}
+                    onChange={(e) => onUpdateClipCrop && onUpdateClipCrop(selectedClip.id, { [side]: Number(e.target.value) || 0 })}
                     className="w-full accent-[#159947]"
                   />
                 </div>
@@ -861,7 +861,7 @@ export default function VideoWorkspaceView({
                       value={safeNum(selectedClip.transitionIn?.duration, 0.5)}
                       onChange={(e) => onSetClipTransition && onSetClipTransition(selectedClip.id, 'in', {
                         ...selectedClip.transitionIn,
-                        duration: Number(e.target.value),
+                        duration: Number(e.target.value) || 0.5,
                       })}
                       className="w-full accent-[#159947]"
                     />
@@ -900,7 +900,7 @@ export default function VideoWorkspaceView({
                       value={safeNum(selectedClip.transitionOut?.duration, 0.5)}
                       onChange={(e) => onSetClipTransition && onSetClipTransition(selectedClip.id, 'out', {
                         ...selectedClip.transitionOut,
-                        duration: Number(e.target.value),
+                        duration: Number(e.target.value) || 0.5,
                       })}
                       className="w-full accent-[#159947]"
                     />

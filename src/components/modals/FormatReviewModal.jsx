@@ -190,7 +190,7 @@ export default function FormatReviewModal({
         <div className="flex flex-wrap items-center gap-3 bg-[#1a1a1a] p-3 rounded-xl border border-neutral-800">
           <select
             value={selectedSceneIdx}
-            onChange={(e) => setSelectedSceneIdx(Number(e.target.value))}
+            onChange={(e) => setSelectedSceneIdx(Number(e.target.value) || 0)}
             className="px-3 py-1.5 rounded-xl bg-[#141414] border border-neutral-700 text-xs font-medium text-white focus:outline-none"
           >
             {(project?.scenes || []).map((sc, idx) => (

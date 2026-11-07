@@ -86,7 +86,7 @@ export default function AudioWorkspaceView({
   const curTrackId = activeScene?.audioTrackId || project.audioTrackId || 'funk';
   const curTrack = DEMO_TRACKS.find((t) => t.id === curTrackId) || DEMO_TRACKS[0];
 
-  const bpm = project?.audioDsp?.bpm || 120;
+  const bpm = typeof project?.audioDsp?.bpm === 'number' && Number.isFinite(project.audioDsp.bpm) && project.audioDsp.bpm > 0 ? project.audioDsp.bpm : 120;
   const masterDsp = project?.audioDsp || {};
   const audioTracks = project?.audioTracks || [];
 
@@ -798,7 +798,7 @@ export default function AudioWorkspaceView({
               min="40"
               max="220"
               value={safeNum(bpm, 126)}
-              onChange={(e) => onUpdateAudioDsp?.({ bpm: Number(e.target.value) })}
+              onChange={(e) => onUpdateAudioDsp?.({ bpm: Math.max(40, Math.min(220, Number(e.target.value) || 126)) })}
               className="w-24 accent-[#22c55e] h-1.5 bg-neutral-800 rounded-lg cursor-pointer"
             />
           </div>

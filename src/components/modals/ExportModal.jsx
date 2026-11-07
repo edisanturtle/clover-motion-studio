@@ -481,7 +481,7 @@ export default function ExportModal({
                 <label className="block text-[11px] font-semibold text-neutral-300 mb-1">Frame Rate</label>
                 <select
                   value={fps}
-                  onChange={(e) => setFps(Number(e.target.value))}
+                  onChange={(e) => setFps(Number(e.target.value) || 30)}
                   className="w-full px-2.5 py-2 rounded-xl bg-[#1c1c1c] border border-neutral-700/80 text-xs text-white focus:outline-none focus:border-white font-mono"
                 >
                   <option value={24}>24 fps (Cinema)</option>

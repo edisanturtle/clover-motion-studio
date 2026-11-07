@@ -344,13 +344,13 @@ export default function BrandKitsModal({
                     <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-[#1e1e1e] border border-neutral-700/80">
                       <input
                         type="color"
-                        value={c.val}
+                        value={c.val || '#ffffff'}
                         onChange={(e) => c.set(e.target.value)}
                         className="w-5 h-5 rounded cursor-pointer bg-transparent border-0 shrink-0"
                       />
                       <input
                         type="text"
-                        value={c.val}
+                        value={c.val || ''}
                         onChange={(e) => c.set(e.target.value)}
                         className="w-full bg-transparent text-xs font-mono text-white focus:outline-none"
                       />
@@ -401,7 +401,7 @@ export default function BrandKitsModal({
                   </select>
                   <select
                     value={headingWeight}
-                    onChange={(e) => setHeadingWeight(Number(e.target.value))}
+                    onChange={(e) => setHeadingWeight(Number(e.target.value) || 700)}
                     className="px-2.5 py-2 rounded-xl bg-[#1e1e1e] border border-neutral-700/80 text-xs font-mono text-white focus:outline-none"
                   >
                     <option value={700}>700</option>
@@ -427,7 +427,7 @@ export default function BrandKitsModal({
                   </select>
                   <select
                     value={bodyWeight}
-                    onChange={(e) => setBodyWeight(Number(e.target.value))}
+                    onChange={(e) => setBodyWeight(Number(e.target.value) || 400)}
                     className="px-2.5 py-2 rounded-xl bg-[#1e1e1e] border border-neutral-700/80 text-xs font-mono text-white focus:outline-none"
                   >
                     <option value={400}>400</option>

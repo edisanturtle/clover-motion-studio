@@ -606,7 +606,7 @@ export default function TimelinePanel({
                   <div className="flex items-center gap-1.5">
                     <select
                       value={fps}
-                      onChange={(e) => onChangeFps?.(Number(e.target.value))}
+                      onChange={(e) => onChangeFps?.(Number(e.target.value) || 30)}
                       className="px-2 py-1 rounded-lg bg-[#1e1e1e] border border-neutral-800 text-xs text-white focus:outline-none"
                     >
                       <option value={24}>24 fps</option>
@@ -1270,7 +1270,7 @@ export default function TimelinePanel({
                             value={Number.isFinite(activeKf.time) ? activeKf.time : 0}
                             onChange={(e) =>
                               onUpdateKeyframe?.(selectedLayer.id, activeKf.id, {
-                                time: Number(Number(e.target.value).toFixed(3)),
+                                time: Math.max(0, Number(Number(e.target.value || 0).toFixed(3))),
                               })
                             }
                             className="w-14 px-1.5 py-0.5 rounded bg-[#202020] border border-neutral-700 text-center text-white text-[11px]"
